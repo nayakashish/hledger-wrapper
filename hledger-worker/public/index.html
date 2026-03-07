@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>hledger</title>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:         #f7f6f3;
+      --surface:    #ffffff;
+      --border:     #e8e6e1;
+      --text:       #2e2e2e;
+      --text-muted: #9b9793;
+      --accent:     #37352f;
+      --positive:   #2d6a4f;
+      --negative:   #c0392b;
+      --radius:     6px;
+      --max-w:      520px;
+    }
+
+    body {
+      font-family: 'Montserrat', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      font-size: 14px;
+      font-weight: 400;
+    }
+
+    /* ── Layout ── */
+    .app {
+      max-width: var(--max-w);
+      margin: 0 auto;
+      padding: 0 0 80px;
+    }
+
+    /* ── Header ── */
+    header {
+      padding: 28px 20px 0;
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+    }
+
+    header h1 {
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: -0.3px;
+      color: var(--accent);
+    }
+
+    .sync-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 16px 20px 20px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .sync-btn {
+      font-family: 'Montserrat', sans-serif;
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.4px;
+      text-transform: uppercase;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius);
+      padding: 7px 14px;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+
+    .sync-btn:hover { opacity: 0.8; }
+    .sync-btn:disabled { opacity: 0.4; cursor: default; }
+
+    .sync-timestamp {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-weight: 300;
+    }
+
+    /* ── Nav ── */
+    nav {
+      display: flex;
+      gap: 0;
+      padding: 0 20px;
+      border-bottom: 1px solid var(--border);
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+
+    nav::-webkit-scrollbar { display: none; }
+
+    nav button {
+      font-family: 'Montserrat', sans-serif;
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--text-muted);
+      padding: 14px 16px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: color 0.15s, border-color 0.15s;
+    }
+
+    nav button.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+
+    nav button:hover:not(.active) { color: var(--text); }
+
+    /* ── View container ── */
+    .view {
+      padding: 24px 20px;
+      display: none;
+    }
+
+    .view.active { display: block; }
+
+    /* ── Section title ── */
+    .section-title {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 14px;
+    }
+
+    /* ── Account rows ── */
+    .account-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      padding: 9px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+    }
+
+    .account-row:last-child { border-bottom: none; }
+
+    .account-name {
+      color: var(--text);
+      font-weight: 400;
+    }
+
+    .account-name.indent-1 { padding-left: 16px; }
+    .account-name.indent-2 { padding-left: 32px; }
+    .account-name.indent-3 { padding-left: 48px; }
+
+    .account-amount {
+      font-weight: 500;
+      font-variant-numeric: tabular-nums;
+      font-size: 13px;
+    }
+
+    .amount-positive { color: var(--positive); }
+    .amount-negative { color: var(--negative); }
+    .amount-neutral  { color: var(--text); }
+
+    /* ── Card ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      margin-bottom: 10px;
+    }
+
+    .card-label {
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+
+    .card-value {
+      font-size: 22px;
+      font-weight: 300;
+      letter-spacing: -0.5px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* ── Transaction list ── */
+    .txn {
+      padding: 11px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .txn:last-child { border-bottom: none; }
+
+    .txn-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 3px;
+    }
+
+    .txn-desc {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text);
+    }
+
+    .txn-amount {
+      font-size: 13px;
+      font-weight: 500;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .txn-meta {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-weight: 300;
+    }
+
+    /* ── Monthly table ── */
+    .monthly-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+
+    .monthly-table th {
+      text-align: left;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.6px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      padding: 0 8px 10px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .monthly-table th:last-child { text-align: right; }
+
+    .monthly-table td {
+      padding: 9px 8px 9px 0;
+      border-bottom: 1px solid var(--border);
+      font-variant-numeric: tabular-nums;
+      vertical-align: top;
+    }
+
+    .monthly-table td:last-child { text-align: right; }
+    .monthly-table tr:last-child td { border-bottom: none; }
+
+    /* ── State messages ── */
+    .state-msg {
+      font-size: 13px;
+      color: var(--text-muted);
+      font-weight: 300;
+      padding: 40px 0;
+      text-align: center;
+    }
+
+    .error-msg {
+      font-size: 12px;
+      color: var(--negative);
+      padding: 12px;
+      background: #fdf0ef;
+      border-radius: var(--radius);
+      margin-bottom: 12px;
+    }
+
+    /* ── Bottom nav (mobile) ── */
+  /* ── Summary cards ── */
+  .summary-cards {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 1px;
+    background: var(--border);
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .summary-card {
+    background: var(--surface);
+    padding: 14px 16px;
+  }
+
+  .summary-card .card-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+  }
+
+  .summary-card .card-value {
+    font-size: 15px;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.3px;
+  }
+
+  /* ── Month selector ── */
+  .month-select-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+
+  .month-select {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 6px 10px;
+    color: var(--text);
+    cursor: pointer;
+    flex: 1;
+  }
+
+  .month-select:focus { outline: none; border-color: var(--accent); }
+
+    @media (max-width: 540px) {
+      nav {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: var(--surface);
+        border-top: 1px solid var(--border);
+        border-bottom: none;
+        justify-content: space-around;
+        padding: 0;
+        z-index: 100;
+      }
+
+      nav button {
+        flex: 1;
+        padding: 12px 4px;
+        font-size: 10px;
+        border-bottom: none;
+        border-top: 2px solid transparent;
+      }
+
+      nav button.active {
+        border-bottom: none;
+        border-top-color: var(--accent);
+      }
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <header>
+    <h1>hledger</h1>
+  </header>
+
+  <div class="sync-row">
+    <button class="sync-btn" id="syncBtn" onclick="syncNow()">Sync</button>
+    <span class="sync-timestamp" id="syncTimestamp">not synced yet</span>
+  </div>
+
+  <div class="summary-cards" id="summaryCards"></div>
+
+  <nav>
+    <button class="active" onclick="showView('balance', this)">Balance</button>
+    <button onclick="showView('is', this)">Income</button>
+    <button onclick="showView('monthly', this)">Monthly</button>
+    <button onclick="showView('transactions', this)">Transactions</button>
+  </nav>
+
+  <div id="view-balance" class="view active">
+    <div class="state-msg">Tap sync to load data.</div>
+  </div>
+
+  <div id="view-is" class="view">
+    <div class="state-msg">Tap sync to load data.</div>
+  </div>
+
+  <div id="view-monthly" class="view">
+    <div class="state-msg">Tap sync to load data.</div>
+  </div>
+
+  <div id="view-transactions" class="view">
+    <div class="state-msg">Tap sync to load data.</div>
+  </div>
+
+</div>
+
+<script>
+  // ── Config ──────────────────────────────────────────────────────────────
+  // When served from the Worker, API calls go to /api/* on the same origin.
+  const API = '';
+
+  // ── State ───────────────────────────────────────────────────────────────
+  let cache = {};
+
+  // ── Navigation ──────────────────────────────────────────────────────────
+  function showView(name, btn) {
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+    document.getElementById('view-' + name).classList.add('active');
+    btn.classList.add('active');
+
+    if (cache[name]) renderView(name, cache[name]);
+  }
+
+  // ── Sync ─────────────────────────────────────────────────────────────────
+  async function syncNow() {
+    const btn = document.getElementById('syncBtn');
+    const ts  = document.getElementById('syncTimestamp');
+    btn.disabled = true;
+    btn.textContent = 'Syncing...';
+    ts.textContent = '';
+
+    try {
+      const r = await fetch(`${API}/api/sync`, { method: 'POST' });
+      if (!r.ok) throw new Error(`sync failed: ${r.status}`);
+      await loadAll();
+      const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      ts.textContent = `last synced ${now}`;
+    } catch (e) {
+      ts.textContent = 'sync failed';
+      console.error(e);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Sync';
+    }
+  }
+
+  // ── Load all endpoints ────────────────────────────────────────────────────
+  function currentMonth() {
+    const now = new Date();
+    return now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+  }
+
+  async function loadAll() {
+    await Promise.all([
+      loadEndpoint('balance'),
+      loadEndpoint('is'),
+      loadEndpoint('monthly'),
+      loadEndpoint('transactions', { month: currentMonth() }),
+    ]);
+
+    // Render summary cards from balance data
+    if (cache['balance']) renderSummaryCards(cache['balance']);
+
+    // Render whichever view is currently active
+    const active = document.querySelector('.view.active');
+    if (active) {
+      const name = active.id.replace('view-', '');
+      if (cache[name]) renderView(name, cache[name]);
+    }
+  }
+
+  async function loadEndpoint(name, params) {
+    try {
+      const qs = params ? '?' + new URLSearchParams(params).toString() : '';
+      const r = await fetch(`${API}/api/${name}${qs}`);
+      if (!r.ok) throw new Error(`${r.status}`);
+      const json = await r.json();
+      cache[name] = JSON.parse(json.raw);
+    } catch (e) {
+      cache[name] = { error: e.message };
+    }
+  }
+
+  // ── Render dispatcher ─────────────────────────────────────────────────────
+  function renderView(name, data) {
+    const el = document.getElementById('view-' + name);
+    if (data.error) {
+      el.innerHTML = `<div class="error-msg">Error: ${data.error}</div>`;
+      return;
+    }
+    if (name === 'balance')      renderBalance(el, data);
+    if (name === 'is')           renderIS(el, data);
+    if (name === 'monthly')      renderMonthly(el, data);
+    if (name === 'transactions') renderTransactions(el, data);
+  }
+
+  // ── Format helpers ────────────────────────────────────────────────────────
+  function fmtAmount(num, commodity) {
+    const sym = commodity || '$';
+    const abs = Math.abs(num).toFixed(2);
+    const formatted = sym + parseFloat(abs).toLocaleString('en-CA', { minimumFractionDigits: 2 });
+    return num < 0 ? `-${formatted}` : formatted;
+  }
+
+  function amountClass(num) {
+    if (num > 0) return 'amount-positive';
+    if (num < 0) return 'amount-negative';
+    return 'amount-neutral';
+  }
+
+  // Extract first amount value from hledger amounts array
+  function extractAmount(amounts) {
+    if (!amounts || amounts.length === 0) return { val: 0, commodity: '$' };
+    const a = amounts[0];
+    const val = typeof a.aquantity === 'object'
+      ? parseFloat(a.aquantity.decimalMantissa) / Math.pow(10, a.aquantity.decimalPlaces || 0)
+      : parseFloat(a.aquantity) || 0;
+    return { val, commodity: a.acommodity || '$' };
+  }
+
+  // ── Balance renderer ──────────────────────────────────────────────────────
+  // Builds a full tree by synthesizing missing parent rows so every
+  // intermediate account appears as a header even if it has no direct postings.
+  function renderBalance(el, data) {
+    const rows = Array.isArray(data) && Array.isArray(data[0]) ? data[0] : null;
+    if (!rows || rows.length === 0) {
+      el.innerHTML = '<div class="state-msg">No data.</div>';
+      return;
+    }
+
+    // Build map of fullName -> amount from real data
+    const amountMap = {};
+    rows.forEach(row => {
+      amountMap[row[0]] = row[3];
+    });
+
+    // Collect every account name that should exist (real + synthetic parents)
+    const allNames = new Set();
+    rows.forEach(row => {
+      const parts = row[0].split(':');
+      for (let i = 1; i <= parts.length; i++) {
+        allNames.add(parts.slice(0, i).join(':'));
+      }
+    });
+
+    // Sort alphabetically so parents always come before children
+    const sorted = Array.from(allNames).sort();
+
+    // Group by top-level
+    const groups = {};
+    const groupOrder = [];
+    sorted.forEach(name => {
+      const top = name.split(':')[0];
+      if (!groups[top]) { groups[top] = []; groupOrder.push(top); }
+      if (name !== top) groups[top].push(name);
+    });
+
+    let html = '';
+    groupOrder.forEach(group => {
+      html += '<div class="section-title">' + group + '</div>';
+      groups[group].forEach(fullName => {
+        const depth = (fullName.match(/:/g) || []).length;
+        const amounts = amountMap[fullName] || [];
+        const { val, commodity } = extractAmount(amounts);
+        const label = fullName.split(':').pop();
+        const indentPx = (depth - 1) * 16;
+        // Check if this account has children
+        const hasChildren = sorted.some(n => n !== fullName && n.startsWith(fullName + ':'));
+        html += '<div class="account-row">'
+          + '<span class="account-name" style="padding-left:' + indentPx + 'px;'
+          + (hasChildren ? 'font-weight:500;color:var(--accent);' : '') + '">' + label + '</span>'
+          + '<span class="account-amount ' + amountClass(val) + '">'
+          + (amounts.length > 0 ? fmtAmount(val, commodity) : '') + '</span>'
+          + '</div>';
+      });
+      html += '<br>';
+    });
+    el.innerHTML = html;
+  }
+
+    // ── Income Statement renderer ──────────────────────────────────────────────
+  // Builds synthetic parent rows same as balance.
+  // JSON: { cbrSubreports: [ ["Revenues", { prRows: [{prrName, prrAmounts[[amts]]}] }], ... ] }
+  function renderIS(el, data) {
+    if (!data || !data.cbrSubreports) {
+      el.innerHTML = '<div class="state-msg">No data.</div>';
+      return;
+    }
+    let html = '';
+    let netVal = 0;
+    let netCommodity = '$';
+
+    data.cbrSubreports.forEach(subreport => {
+      const sectionLabel = subreport[0];
+      const prRows = subreport[1] && subreport[1].prRows ? subreport[1].prRows : [];
+      if (prRows.length === 0) return;
+
+      // Build amount map and full name set for synthetic tree
+      const amountMap = {};
+      prRows.forEach(row => { amountMap[row.prrName] = row.prrAmounts && row.prrAmounts[0] ? row.prrAmounts[0] : []; });
+
+      const allNames = new Set();
+      prRows.forEach(row => {
+        const parts = row.prrName.split(':');
+        for (let i = 1; i <= parts.length; i++) allNames.add(parts.slice(0, i).join(':'));
+      });
+      const sorted = Array.from(allNames).sort();
+
+      // Group by top level
+      const groups = {};
+      const groupOrder = [];
+      sorted.forEach(name => {
+        const top = name.split(':')[0];
+        if (!groups[top]) { groups[top] = []; groupOrder.push(top); }
+        if (name !== top) groups[top].push(name);
+      });
+
+      html += '<div class="section-title">' + sectionLabel + '</div>';
+      let sectionTotal = 0;
+
+      groupOrder.forEach(group => {
+        html += '<div class="account-row" style="padding:6px 0 2px">'
+          + '<span class="account-name" style="font-weight:600;font-size:12px;color:var(--accent)">' + group + '</span>'
+          + '</div>';
+        groups[group].forEach(fullName => {
+          const depth = (fullName.match(/:/g) || []).length;
+          const amounts = amountMap[fullName] || [];
+          const { val, commodity } = extractAmount(amounts);
+          netCommodity = commodity || netCommodity;
+          if (amounts.length > 0) sectionTotal += val;
+          const label = fullName.split(':').pop();
+          const indentPx = (depth - 1) * 16;
+          const hasChildren = sorted.some(n => n !== fullName && n.startsWith(fullName + ':'));
+          html += '<div class="account-row">'
+            + '<span class="account-name" style="padding-left:' + indentPx + 'px;'
+            + (hasChildren ? 'font-weight:500;color:var(--accent);' : '') + '">' + label + '</span>'
+            + '<span class="account-amount ' + amountClass(val) + '">'
+            + (amounts.length > 0 ? fmtAmount(val, commodity) : '') + '</span>'
+            + '</div>';
+        });
+      });
+
+      netVal += sectionTotal;
+      html += '<div class="account-row" style="border-top:1px solid var(--border);margin-top:4px">'
+        + '<span class="account-name" style="font-weight:500">Total ' + sectionLabel + '</span>'
+        + '<span class="account-amount ' + amountClass(sectionTotal) + '" style="font-weight:500">' + fmtAmount(sectionTotal, netCommodity) + '</span>'
+        + '</div><br>';
+    });
+
+    el.innerHTML = html || '<div class="state-msg">No data.</div>';
+  }
+
+    // ── Monthly renderer ──────────────────────────────────────────────────────
+  // JSON: { prDates: [[{contents:date},...]], prRows: [{prrName, prrAmounts:[[amts],...]}] }
+  function renderMonthly(el, data) {
+    if (!data || !data.prRows || data.prRows.length === 0) {
+      el.innerHTML = '<div class="state-msg">No data.</div>';
+      return;
+    }
+    const dates = data.prDates || [];
+    const periodLabels = dates.map(d => {
+      const start = d[0] && d[0].contents ? d[0].contents : '';
+      if (!start) return '—';
+      const dt = new Date(start + 'T00:00:00');
+      return dt.toLocaleDateString('en-CA', { month: 'short', year: '2-digit' });
+    });
+
+    let html = '<div style="overflow-x:auto"><table class="monthly-table"><thead><tr>'
+      + '<th>Account</th>'
+      + periodLabels.map(p => '<th style="text-align:right">' + p + '</th>').join('')
+      + '</tr></thead><tbody>';
+
+    data.prRows.forEach(row => {
+      const fullName = row.prrName || '';
+      const amountCols = row.prrAmounts || [];
+      const cells = amountCols.map(amts => {
+        if (!amts || amts.length === 0) return '<td style="color:var(--text-muted)">—</td>';
+        const { val, commodity } = extractAmount(amts);
+        const display = val !== 0 ? fmtAmount(val, commodity) : '<span style="color:var(--text-muted)">—</span>';
+        return '<td class="' + amountClass(val) + '">' + display + '</td>';
+      }).join('');
+      html += '<tr><td>' + fullName + '</td>' + cells + '</tr>';
+    });
+
+    html += '</tbody></table></div>';
+    el.innerHTML = html;
+  }
+
+    // ── Transactions renderer ──────────────────────────────────────────────────
+  function renderTransactions(el, data) {
+    if (!Array.isArray(data) || data.length === 0) {
+      el.innerHTML = '<div class="state-msg">No transactions.</div>';
+      return;
+    }
+
+    // Build month list from journal start (2026-01) to current month
+    const now = new Date();
+    const startYear = 2026, startMonth = 1;
+    const endYear = now.getFullYear(), endMonth = now.getMonth() + 1;
+    const monthKeys = [];
+    for (let y = endYear; y >= startYear; y--) {
+      const mStart = (y === endYear) ? endMonth : 12;
+      const mEnd   = (y === startYear) ? startMonth : 1;
+      for (let m = mStart; m >= mEnd; m--) {
+        monthKeys.push(y + '-' + String(m).padStart(2, '0'));
+      }
+    }
+    const latestMonth = currentMonth();
+    const months = {};
+    monthKeys.forEach(k => {
+      const dt = new Date(k + '-01T00:00:00');
+      months[k] = dt.toLocaleDateString('en-CA', { month: 'long', year: 'numeric' });
+    });
+    const options = monthKeys.map(k =>
+      '<option value="' + k + '"' + (k === latestMonth ? ' selected' : '') + '>' + months[k] + '</option>'
+    ).join('');
+
+    function buildList(filterMonth) {
+      const filtered = data.filter(txn => (txn.tdate || '').startsWith(filterMonth));
+      if (filtered.length === 0) return '<div class="state-msg">No transactions this month.</div>';
+      return filtered.map(txn => {
+        const desc = txn.tdescription || txn.tpayee || '—';
+        const date = txn.tdate || '';
+        const postings = txn.tpostings || [];
+        let amountHtml = '';
+        if (postings.length > 0) {
+          const { val, commodity } = extractAmount(postings[0].pamount);
+          amountHtml = '<span class="txn-amount ' + amountClass(val) + '">' + fmtAmount(val, commodity) + '</span>';
+        }
+        const postingLines = postings.map(p => '<span style="margin-right:10px">' + (p.paccount || '') + '</span>').join('');
+        return '<div class="txn">'
+          + '<div class="txn-top"><span class="txn-desc">' + desc + '</span>' + amountHtml + '</div>'
+          + '<div class="txn-meta">' + date + ' &nbsp;&middot;&nbsp; ' + postingLines + '</div>'
+          + '</div>';
+      }).join('');
+    }
+
+    el.innerHTML = '<div class="month-select-row">'
+      + '<select class="month-select" id="monthSelect" onchange="onMonthChange(this.value)">'
+      + options + '</select></div>'
+      + '<div id="txnList">' + buildList(latestMonth) + '</div>';
+
+    // Store data for onMonthChange
+    el._txnData = data;
+  }
+
+  async function onMonthChange(monthKey) {
+    const list = document.getElementById('txnList');
+    if (!list) return;
+    list.innerHTML = '<div class="state-msg">Loading...</div>';
+    try {
+      const r = await fetch(`${API}/api/transactions?month=${monthKey}`);
+      if (!r.ok) throw new Error(r.status);
+      const json = await r.json();
+      const data = JSON.parse(json.raw);
+      cache['transactions'] = data;
+      if (data.length === 0) {
+        list.innerHTML = '<div class="state-msg">No transactions this month.</div>';
+        return;
+      }
+      list.innerHTML = data.map(txn => {
+        const desc = txn.tdescription || txn.tpayee || '—';
+        const date = txn.tdate || '';
+        const postings = txn.tpostings || [];
+        let amountHtml = '';
+        if (postings.length > 0) {
+          const { val, commodity } = extractAmount(postings[0].pamount);
+          amountHtml = '<span class="txn-amount ' + amountClass(val) + '">' + fmtAmount(val, commodity) + '</span>';
+        }
+        const postingLines = postings.map(p => '<span style="margin-right:10px">' + (p.paccount || '') + '</span>').join('');
+        return '<div class="txn">'
+          + '<div class="txn-top"><span class="txn-desc">' + desc + '</span>' + amountHtml + '</div>'
+          + '<div class="txn-meta">' + date + ' &nbsp;&middot;&nbsp; ' + postingLines + '</div>'
+          + '</div>';
+      }).join('');
+    } catch (e) {
+      list.innerHTML = '<div class="error-msg">Failed to load: ' + e.message + '</div>';
+    }
+  }
+
+  // ── Summary cards (assets / liabilities / net worth) ─────────────────────
+  function renderSummaryCards(balanceData) {
+    const el = document.getElementById('summaryCards');
+    if (!el) return;
+    const rows = Array.isArray(balanceData) && Array.isArray(balanceData[0]) ? balanceData[0] : [];
+
+    let assets = 0, liabilities = 0, commodity = '$';
+    rows.forEach(row => {
+      const name = row[0];
+      const amounts = row[3];
+      const { val, commodity: com } = extractAmount(amounts);
+      commodity = com || commodity;
+      if (name.startsWith('assets')) assets += val;
+      if (name.startsWith('liabilities')) liabilities += val;
+    });
+    const net = assets + liabilities;
+
+    el.innerHTML = '<div class="summary-card">'
+        + '<div class="card-label">Assets</div>'
+        + '<div class="card-value amount-positive">' + fmtAmount(assets, commodity) + '</div>'
+        + '</div>'
+      + '<div class="summary-card">'
+        + '<div class="card-label">Liabilities</div>'
+        + '<div class="card-value amount-negative">' + fmtAmount(Math.abs(liabilities), commodity) + '</div>'
+        + '</div>'
+      + '<div class="summary-card">'
+        + '<div class="card-label">Net Worth</div>'
+        + '<div class="card-value ' + amountClass(net) + '">' + fmtAmount(net, commodity) + '</div>'
+        + '</div>';
+  }
+</script>
+</body>
+</html>

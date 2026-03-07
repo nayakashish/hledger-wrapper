@@ -23,7 +23,7 @@ security = HTTPBearer()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],   # tightened to your Worker domain once deployed
+    allow_origins=["hledger.nayakashish.cc"],   # tightened to your Worker domain once deployed
     allow_methods=["GET", "POST"],
     allow_headers=["Authorization"],
 )
@@ -119,15 +119,35 @@ def get_monthly(token: str = Security(verify_token)):
 
 
 @app.get("/transactions")
-def get_transactions(limit: int = 50, token: str = Security(verify_token)):
-    """Recent transactions, most recent first. Default last 50."""
+def get_transactions(month: str = None, token: str = Security(verify_token)):
+    """
+    Transactions for a given month (YYYY-MM). If no month given, returns current month.
+    hledger date filter: YYYY-MM-01..YYYY-MM+1-01
+    """
     import json
-    output = run_hledger("print", "--output-format", "json")
+    from datetime import date
+
+    if month:
+        try:
+            year, mon = int(month[:4]), int(month[5:7])
+        except (ValueError, IndexError):
+            raise HTTPException(status_code=400, detail="month must be YYYY-MM format")
+    else:
+        today = date.today()
+        year, mon = today.year, today.month
+
+    # Build next month for end of range
+    if mon == 12:
+        next_year, next_mon = year + 1, 1
+    else:
+        next_year, next_mon = year, mon + 1
+
+    date_filter = f"{year}-{mon:02d}-01..{next_year}-{next_mon:02d}-01"
+    output = run_hledger("print", "--output-format", "json", "-p", date_filter)
     try:
-        all_txns = json.loads(output)
-        recent = all_txns[-limit:]
-        recent.reverse()
-        return {"raw": json.dumps(recent)}
+        txns = json.loads(output)
+        txns.reverse()  # most recent first
+        return {"raw": json.dumps(txns)}
     except json.JSONDecodeError:
         return {"raw": output}
 

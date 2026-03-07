@@ -1,0 +1,16 @@
+{
+	"name": "hledger-worker",
+	"version": "0.0.0",
+	"private": true,
+	"scripts": {
+		"deploy": "wrangler deploy",
+		"dev": "wrangler dev",
+		"start": "wrangler dev",
+		"cf-typegen": "wrangler types"
+	},
+	"devDependencies": {
+		"@types/node": "^25.3.5",
+		"typescript": "^5.5.2",
+		"wrangler": "^4.71.0"
+	}
+}

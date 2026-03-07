@@ -1,18 +1,3 @@
-/**
- * hledger Worker
- *
- * Responsibilities:
- * 1. Proxy /api/* requests to the home Linux machine via Cloudflare Tunnel,
- *    injecting auth secrets server-side so they never reach the browser.
- * 2. Serve the frontend SPA on GET /
- *
- * Secrets (set via `wrangler secret put <name>`):
- *   API_BASE_URL            - e.g. https://hledger-api.nayakashish.cc
- *   BEARER_TOKEN            - the token your FastAPI validates
- *   CF_ACCESS_CLIENT_ID     - Cloudflare Access service token ID
- *   CF_ACCESS_CLIENT_SECRET - Cloudflare Access service token secret
- */
-
 export interface Env {
 	API_BASE_URL: string;
 	BEARER_TOKEN: string;

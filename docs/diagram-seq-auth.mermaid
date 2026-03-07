@@ -1,0 +1,22 @@
+---
+title: Flow 1 - Authentication
+---
+sequenceDiagram
+    actor User
+    participant W as Workers
+    participant A as Access
+    participant F as FastAPI
+
+    User->>W: GET /
+    W->>A: check cookie
+    A-->>User: redirect to login
+    User->>A: authenticate
+    A-->>User: set cookie
+    User->>W: GET / (with cookie)
+    W->>A: validate
+    A-->>W: pass
+    W-->>User: serve SPA
+    User->>W: GET /api/balance
+    W->>F: GET /balance + secrets
+    F-->>W: JSON
+    W-->>User: render balance

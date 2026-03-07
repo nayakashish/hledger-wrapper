@@ -1,0 +1,25 @@
+---
+title: Flow 3 - Add Transaction
+---
+sequenceDiagram
+    actor User
+    participant W as Workers
+    participant F as FastAPI
+    participant H as hledger
+    participant G as Git
+
+    User->>W: GET /api/accounts
+    W->>F: GET /accounts
+    F->>H: accounts --json
+    H-->>F: account list
+    F-->>W: account list
+    W-->>User: cached in browser
+
+    Note over User: fill form, tap to autocomplete
+    User->>W: POST /api/add
+    W->>F: POST /add
+    F->>F: append to journal
+    F->>G: commit + push
+    G-->>F: ok
+    F-->>W: ok
+    W-->>User: confirmed

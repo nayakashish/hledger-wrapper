@@ -1,0 +1,23 @@
+---
+title: Flow 2 - Sync and Read
+---
+sequenceDiagram
+    actor User
+    participant W as Workers
+    participant F as FastAPI
+    participant G as Git
+    participant H as hledger
+
+    User->>W: POST /api/sync
+    W->>F: POST /sync
+    F->>G: git pull
+    G-->>F: ok
+    F-->>W: synced + timestamp
+    W-->>User: timestamp shown
+
+    User->>W: GET /api/balance
+    W->>F: GET /balance
+    F->>H: balance --json
+    H-->>F: JSON
+    F-->>W: JSON
+    W-->>User: render view

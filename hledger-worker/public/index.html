@@ -454,6 +454,7 @@
     margin-bottom: 16px;
   }
 
+
   .step-options {
     display: flex;
     flex-direction: column;
@@ -518,6 +519,23 @@
 
   /* Autocomplete dropdown */
   .autocomplete-wrap { position: relative; margin-bottom: 8px; }
+
+  .input-clear-btn {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    font-size: 16px;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 4px;
+    line-height: 1;
+    border-radius: 50%;
+  }
+
+  .input-clear-btn:hover { color: var(--accent); }
 
   .autocomplete-list {
     position: absolute;
@@ -800,6 +818,9 @@
 
     // Persist to localStorage
     saveCache();
+    // Refresh autocomplete caches
+    fetchAccounts();
+    fetchDescriptions();
 
     // Render summary cards from balance data
     if (cache['balance']) renderSummaryCards(cache['balance']);
@@ -1278,6 +1299,30 @@
   let addState = {};
   let addStepIdx = 0;
   let accountsList = [];
+  let descriptionsList = [];
+
+  async function fetchDescriptions() {
+    try {
+      const cached = localStorage.getItem('hledger_descriptions');
+      if (cached) descriptionsList = JSON.parse(cached);
+    } catch(e) {}
+    try {
+      const r = await fetch(`${API}/api/descriptions`);
+      if (!r.ok) return;
+      const json = await r.json();
+      descriptionsList = json.descriptions || [];
+      localStorage.setItem('hledger_descriptions', JSON.stringify(descriptionsList));
+    } catch(e) {}
+  }
+
+  async function lookupDescription(desc) {
+    try {
+      const r = await fetch(`${API}/api/lookup?description=` + encodeURIComponent(desc));
+      if (!r.ok) return null;
+      const json = await r.json();
+      return json.match || null;
+    } catch(e) { return null; }
+  }
 
   function showToast(msg, duration) {
     const t = document.getElementById('toast');
@@ -1291,8 +1336,8 @@
     addStepIdx = 0;
     document.getElementById('addSheet').style.display = 'flex';
     document.body.style.overflow = 'hidden';
-    // Pre-fetch accounts if not cached
     if (accountsList.length === 0) fetchAccounts();
+    if (descriptionsList.length === 0) fetchDescriptions();
     renderAddStep();
   }
 
@@ -1308,11 +1353,17 @@
   }
 
   async function fetchAccounts() {
+    // Restore from localStorage first for instant availability
+    try {
+      const cached = localStorage.getItem('hledger_accounts');
+      if (cached) accountsList = JSON.parse(cached);
+    } catch(e) {}
     try {
       const r = await fetch(`${API}/api/accounts`);
       if (!r.ok) return;
       const json = await r.json();
       accountsList = json.accounts || [];
+      localStorage.setItem('hledger_accounts', JSON.stringify(accountsList));
     } catch(e) {}
   }
 
@@ -1349,24 +1400,87 @@
 
     else if (step === 'description') {
       body.innerHTML = '<div class="step-label">What was this for?</div>'
-        + '<input type="text" id="descInput" class="step-input" placeholder="e.g. Groceries, Rent, Salary" value="' + (addState.description || '') + '" oninput="addState.description=this.value" onkeydown="if(event.key===\'Enter\')advanceStep()">'
-        + '<button class="step-next" onclick="advanceStep()">Continue</button>';
+        + '<div class="autocomplete-wrap">'
+        + '<input type="text" id="descInput" class="step-input" placeholder="e.g. Groceries, Rent, Salary" value="' + (addState.description || '') + '">'
+        + '<div class="autocomplete-list" id="descList" style="display:none"></div>'
+        + '</div>'
+        + '<button class="step-next" id="descNext"' + (addState.description ? '' : ' disabled') + '>Continue</button>';
       setTimeout(() => {
         const inp = document.getElementById('descInput');
+        const nextBtn = document.getElementById('descNext');
+        const list = document.getElementById('descList');
         if (!inp) return;
         inp.focus();
-        inp.addEventListener('input', () => { addState.description = inp.value; });
-        inp.addEventListener('keydown', e => { if (e.key === 'Enter') advanceStep(); });
+        if (addState.description) inp.select();
+
+        function showDescSuggestions(val) {
+          addState.description = val;
+          if (nextBtn) nextBtn.disabled = !val.trim();
+          if (!val.trim() || descriptionsList.length === 0) { list.style.display = 'none'; return; }
+          const q = val.toLowerCase();
+          const matches = descriptionsList.filter(d => d.toLowerCase().includes(q)).slice(0, 8);
+          if (!matches.length) { list.style.display = 'none'; return; }
+          list.innerHTML = matches.map(d => '<div class="autocomplete-item">' + d + '</div>').join('');
+          list.style.display = 'block';
+          list.querySelectorAll('.autocomplete-item').forEach((item, i) => {
+            item.addEventListener('click', () => {
+              inp.value = matches[i];
+              addState.description = matches[i];
+              list.style.display = 'none';
+              if (nextBtn) nextBtn.disabled = false;
+            });
+          });
+        }
+
+        inp.addEventListener('input', () => showDescSuggestions(inp.value));
+        inp.addEventListener('keydown', e => {
+          const items = Array.from(list.querySelectorAll('.autocomplete-item'));
+          const highlighted = list.querySelector('.highlighted');
+          const idx = highlighted ? items.indexOf(highlighted) : -1;
+          if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            if (!items.length) return;
+            if (highlighted) highlighted.classList.remove('highlighted');
+            items[Math.min(idx + 1, items.length - 1)].classList.add('highlighted');
+          } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            if (highlighted) highlighted.classList.remove('highlighted');
+            if (idx > 0) items[idx - 1].classList.add('highlighted');
+          } else if (e.key === 'Enter') {
+            if (highlighted) { e.preventDefault(); highlighted.click(); }
+            else if (inp.value.trim()) { list.style.display = 'none'; advanceDescStep(); }
+          }
+        });
+        if (nextBtn) nextBtn.addEventListener('click', advanceDescStep);
+
+        async function advanceDescStep() {
+          addState.description = inp.value.trim();
+          if (!addState.description) return;
+          nextBtn.disabled = true;
+          nextBtn.textContent = 'Looking up...';
+          const match = await lookupDescription(addState.description);
+          addState._predicted = match || null;
+          addState._amount2edited = false;  // reset on new description
+          addStepIdx++;
+          renderAddStep();
+        }
+
+        // Don't auto-show dropdown on load — only on user input
       }, 50);
     }
 
     else if (step === 'account1' || step === 'account2') {
       const which = step === 'account1' ? 1 : 2;
       const stateKey = step;
+      // Pre-fill from prediction if not already set
+      if (!addState[stateKey] && addState._predicted && addState._predicted[stateKey]) {
+        addState[stateKey] = addState._predicted[stateKey];
+      }
       const current = addState[stateKey] || '';
       body.innerHTML = '<div class="step-label">Account ' + which + '</div>'
         + '<div class="autocomplete-wrap">'
-        + '<input type="text" id="acctInput" class="step-input" placeholder="e.g. expenses:food:groceries" value="' + current + '" autocomplete="off" autocorrect="off" spellcheck="false">'
+        + '<input type="text" id="acctInput" class="step-input" placeholder="e.g. expenses:food:groceries" value="' + current + '" autocomplete="off" autocorrect="off" spellcheck="false" style="padding-right:' + (current ? '36px' : '16px') + '">'
+        + (current ? '<button class="input-clear-btn" id="acctClearBtn" title="Clear">&#x2715;</button>' : '')
         + '<div class="autocomplete-list" id="acctList" style="display:none"></div>'
         + '</div>'
         + '<button class="step-next" id="acctNext"' + (current ? '' : ' disabled') + '>Continue</button>';
@@ -1374,6 +1488,19 @@
         const inp = document.getElementById('acctInput');
         const nextBtn = document.getElementById('acctNext');
         const sk = stateKey;
+        const clearBtn = document.getElementById('acctClearBtn');
+        if (clearBtn) {
+          clearBtn.addEventListener('click', () => {
+            inp.value = '';
+            addState[sk] = '';
+            clearBtn.style.display = 'none';
+            inp.style.paddingRight = '16px';
+            const nextBtn2 = document.getElementById('acctNext');
+            if (nextBtn2) nextBtn2.disabled = true;
+            inp.focus();
+            onAcctInput('', sk);
+          });
+        }
         if (inp) {
           inp.addEventListener('input', () => onAcctInput(inp.value, sk));
           inp.addEventListener('keydown', e => {
@@ -1401,7 +1528,7 @@
             }
           });
           inp.focus();
-          if (current) onAcctInput(current, sk);
+          // Don't auto-show dropdown on load — only on user input
         }
         if (nextBtn) nextBtn.addEventListener('click', () => advanceFromAccount(sk));
       }, 50);
@@ -1409,8 +1536,14 @@
 
     else if (step === 'amount1' || step === 'amount2') {
       const stateKey = step;
+      // Pre-fill from prediction if not already set
+      if (addState[stateKey] === undefined && addState._predicted && addState._predicted[stateKey] !== undefined) {
+        addState[stateKey] = addState._predicted[stateKey];
+      }
+      // For amount2: always default to inverse of current amount1 (even if predicted),
+      // unless the user has already explicitly edited amount2 on this session.
       const defaultVal = step === 'amount2'
-        ? (addState.amount2 !== undefined ? addState.amount2 : (addState.amount1 !== undefined ? -addState.amount1 : ''))
+        ? (addState._amount2edited ? addState.amount2 : (addState.amount1 !== undefined ? -addState.amount1 : ''))
         : (addState.amount1 !== undefined ? addState.amount1 : '');
       body.innerHTML = '<div class="step-label">' + (step === 'amount1' ? 'How much?' : 'Offsetting amount') + '</div>'
         + '<input type="number" id="amtInput" class="step-input" placeholder="0.00" step="0.01" value="' + defaultVal + '" oninput="addState.' + stateKey + '=parseFloat(this.value)" onkeydown="if(event.key===\'Enter\')advanceStep()">'
@@ -1421,7 +1554,10 @@
         const sk = stateKey;
         if (!inp) return;
         inp.focus(); inp.select();
-        inp.addEventListener('input', () => { addState[sk] = parseFloat(inp.value); });
+        inp.addEventListener('input', () => {
+          addState[sk] = parseFloat(inp.value);
+          if (sk === 'amount2') addState._amount2edited = true;
+        });
         inp.addEventListener('keydown', e => { if (e.key === 'Enter') advanceStep(); });
       }, 50);
     }

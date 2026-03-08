@@ -23,7 +23,7 @@ security = HTTPBearer()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["hledger.nayakashish.cc"],   # tightened to your Worker domain once deployed
+    allow_origins=["*"],   # tightened to your Worker domain once deployed
     allow_methods=["GET", "POST"],
     allow_headers=["Authorization"],
 )
@@ -192,37 +192,87 @@ def add_transaction(tx: Transaction, token: str = Security(verify_token)):
     Commits are tagged with 'Source: hledger-mobile-api' trailer
     so they can be identified and filtered in git log.
     """
-    # Calculate amount2 if not provided
     amount2 = tx.amount2 if tx.amount2 is not None else -tx.amount1
 
-    # Format as a valid hledger journal entry
     entry = (
         f"\n{tx.date} {tx.description}\n"
         f"    {tx.account1}    {tx.currency}{tx.amount1:.2f}\n"
         f"    {tx.account2}    {tx.currency}{amount2:.2f}\n"
     )
 
-    # Find the journal file — looks for the first .journal or .ledger file
-    journal_file = _find_journal_file()
-
-    # Append to journal
     try:
-        with open(journal_file, "a") as f:
+        with open(JOURNAL_FILE, "a") as f:
             f.write(entry)
     except OSError as e:
         raise HTTPException(status_code=500, detail=f"Could not write to journal: {e}")
 
-    # Commit with source tag so we can identify mobile-added entries in git log
     commit_message = (
         f"add: {tx.description} {tx.date}\n\n"
         f"Source: hledger-mobile-api"
     )
 
-    run_git("add", journal_file)
+    run_git("add", JOURNAL_FILE)
     run_git("commit", "-m", commit_message)
     run_git("push")
 
     return {"status": "ok", "entry": entry.strip()}
+
+
+# ---------------------------------------------------------------------------
+# Autocomplete endpoints
+# ---------------------------------------------------------------------------
+
+@app.get("/descriptions")
+def get_descriptions(token: str = Security(verify_token)):
+    """All unique transaction descriptions, sorted by most recent first."""
+    import json
+    output = run_hledger("print", "--output-format", "json")
+    try:
+        txns = json.loads(output)
+    except json.JSONDecodeError:
+        return {"descriptions": []}
+    seen = []
+    for txn in reversed(txns):  # most recent first
+        desc = txn.get("tdescription", "").strip()
+        if desc and desc not in seen:
+            seen.append(desc)
+    return {"descriptions": seen}
+
+
+@app.get("/lookup")
+def lookup_description(description: str, token: str = Security(verify_token)):
+    """
+    Given a description, return the most recent matching transaction's
+    account1, amount1, account2, amount2 for pre-filling the add form.
+    """
+    import json
+    output = run_hledger("print", "--output-format", "json")
+    try:
+        txns = json.loads(output)
+    except json.JSONDecodeError:
+        return {"match": None}
+
+    q = description.strip().lower()
+    for txn in reversed(txns):
+        if txn.get("tdescription", "").strip().lower() == q:
+            postings = txn.get("tpostings", [])
+            if len(postings) >= 2:
+                def extract(p):
+                    amounts = p.get("pamount", [])
+                    if not amounts:
+                        return 0.0
+                    a = amounts[0]
+                    q = a.get("aquantity", {})
+                    if isinstance(q, dict):
+                        return float(q.get("decimalMantissa", 0)) / (10 ** q.get("decimalPlaces", 0))
+                    return float(q or 0)
+                return {"match": {
+                    "account1": postings[0].get("paccount", ""),
+                    "amount1": extract(postings[0]),
+                    "account2": postings[1].get("paccount", ""),
+                    "amount2": extract(postings[1]),
+                }}
+    return {"match": None}
 
 
 # ---------------------------------------------------------------------------

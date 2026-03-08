@@ -2,9 +2,18 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>hledger</title>
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#2e2e2e" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="hledger" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -34,12 +43,12 @@
     .app {
       max-width: var(--max-w);
       margin: 0 auto;
-      padding: 0 0 80px;
+      padding: 0 0 calc(80px + env(safe-area-inset-bottom, 0px));
     }
 
     /* ── Header ── */
     header {
-      padding: 28px 20px 0;
+      padding: calc(28px + env(safe-area-inset-top, 0px)) 20px 0;
       display: flex;
       align-items: baseline;
       justify-content: space-between;
@@ -354,6 +363,28 @@
   }
 
 
+  /* ── Offline banner ── */
+  .offline-banner {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    background: #b45309;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 500;
+    text-align: center;
+    padding: 10px 16px calc(10px + env(safe-area-inset-top, 0px));
+    z-index: 600;
+    letter-spacing: 0.3px;
+  }
+
+  .offline-banner.visible { display: block; }
+
+  /* Push content down when banner visible */
+  body.is-offline header { padding-top: calc(28px + env(safe-area-inset-top, 0px) + 37px) !important; }
+
   /* ── Toast notification ── */
   .toast {
     position: fixed;
@@ -522,20 +553,25 @@
 
   .input-clear-btn {
     position: absolute;
-    right: 12px;
-    top: 50%;
-    transform: translateY(-50%);
+    right: 10px;
+    top: 0;
+    bottom: 0;
+    margin: auto;
+    height: 24px;
+    width: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     background: none;
     border: none;
-    font-size: 16px;
+    font-size: 14px;
     color: var(--text-muted);
     cursor: pointer;
-    padding: 4px;
-    line-height: 1;
     border-radius: 50%;
+    line-height: 1;
   }
 
-  .input-clear-btn:hover { color: var(--accent); }
+  .input-clear-btn:hover { color: var(--accent); background: var(--border); }
 
   .autocomplete-list {
     position: absolute;
@@ -645,7 +681,7 @@
         border-top: 1px solid var(--border);
         border-bottom: none;
         justify-content: space-around;
-        padding: 0;
+        padding: 0 0 env(safe-area-inset-bottom, 0px);
         z-index: 100;
       }
 
@@ -665,14 +701,15 @@
   </style>
 </head>
 <body>
+<div class="offline-banner" id="offlineBanner">You are offline — showing cached data</div>
 <div class="app">
 
   <header>
-    <h1>hledger</h1>
+    <h1>hledger | nayakashish</h1>
   </header>
 
   <div class="sync-row">
-    <button class="sync-btn" id="addBtn" onclick="openAdd()">+ Add</button>
+    <button class="sync-btn" id="addBtn" onclick="openAdd()">Add</button>
     <button class="sync-btn" id="syncBtn" onclick="syncNow()">Sync</button>
     <span class="sync-timestamp" id="syncTimestamp">not synced yet</span>
   </div>
@@ -789,12 +826,26 @@
 
     try {
       const r = await fetch(`${API}/api/sync`, { method: 'POST' });
-      if (!r.ok) throw new Error(`sync failed: ${r.status}`);
+      if (!r.ok) {
+        let detail = '';
+        try { const j = await r.json(); detail = j.detail || ''; } catch(e) {}
+        throw new Error(detail || 'status ' + r.status);
+      }
+      const syncResult = await r.json();
+      // Warn if git pull had conflicts or non-standard output
+      if (syncResult.detail && syncResult.detail.toLowerCase().includes('conflict')) {
+        showToast('Sync conflict — check journal manually', 4000);
+        ts.textContent = 'sync warning';
+        btn.disabled = false;
+        btn.textContent = 'Sync';
+        return;
+      }
       await loadAll();
       const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
       ts.textContent = 'last synced ' + now;
     } catch (e) {
       ts.textContent = 'sync failed';
+      showToast('Sync failed: ' + e.message, 4000);
       console.error(e);
     } finally {
       btn.disabled = false;
@@ -1691,6 +1742,30 @@
       document.getElementById('addBody').insertAdjacentHTML('afterbegin',
         '<div class="error-msg">Failed to save: ' + e.message + '</div>');
     }
+  }
+
+  // ── Offline detection ───────────────────────────────────────────────────────
+  function updateOnlineStatus() {
+    const banner = document.getElementById('offlineBanner');
+    if (!banner) return;
+    if (!navigator.onLine) {
+      banner.classList.add('visible');
+      document.body.classList.add('is-offline');
+    } else {
+      banner.classList.remove('visible');
+      document.body.classList.remove('is-offline');
+    }
+  }
+
+  window.addEventListener('online', updateOnlineStatus);
+  window.addEventListener('offline', updateOnlineStatus);
+  updateOnlineStatus(); // check on load
+
+  // ── Service Worker registration (PWA) ────────────────────────────────────
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    });
   }
 
 </script>

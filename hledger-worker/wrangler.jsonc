@@ -8,7 +8,10 @@
 		"enabled": true
 	},
 	"rules": [
-		{ "type": "Text", "globs": ["**/*.html"], "fallthrough": true }
+		{ "type": "Text", "globs": ["**/*.html"], "fallthrough": true },
+		{ "type": "Text", "globs": ["**/*.json"], "fallthrough": true },
+		{ "type": "Text", "globs": ["**/*.js"], "fallthrough": true },
+		{ "type": "Data", "globs": ["**/*.png"], "fallthrough": true }
 	]
 
 	/**

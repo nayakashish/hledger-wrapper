@@ -3,17 +3,49 @@
 	"name": "hledger-worker",
 	"main": "src/index.ts",
 	"compatibility_date": "2026-03-01",
-	"compatibility_flags": ["nodejs_compat"],
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
 	"observability": {
 		"enabled": true
 	},
 	"rules": [
-		{ "type": "Text", "globs": ["**/*.html"], "fallthrough": true },
-		{ "type": "Text", "globs": ["**/*.json"], "fallthrough": true },
-		{ "type": "Text", "globs": ["**/*.js"], "fallthrough": true },
-		{ "type": "Data", "globs": ["**/*.png"], "fallthrough": true }
+		{
+			"type": "Text",
+			"globs": [
+				"**/*.html"
+			],
+			"fallthrough": true
+		},
+		{
+			"type": "Text",
+			"globs": [
+				"**/*.json"
+			],
+			"fallthrough": true
+		},
+		{
+			"type": "Text",
+			"globs": [
+				"**/*.js"
+			],
+			"fallthrough": true
+		},
+		{
+			"type": "Data",
+			"globs": [
+				"**/*.png"
+			],
+			"fallthrough": true
+		}
+	],
+	"kv_namespaces": [
+		{
+			"binding": "DEMO_DATA",
+			"id": "ada81505601844f484e4d474ea5f749a",
+			"remote": true
+		}
 	]
-
 	/**
 	 * Secrets (set via wrangler CLI, never committed):
 	 *   wrangler secret put BEARER_TOKEN

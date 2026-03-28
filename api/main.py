@@ -152,6 +152,47 @@ def get_transactions(month: str = None, token: str = Security(verify_token)):
         return {"raw": output}
 
 
+@app.get("/search")
+def search_transactions(q: str, token: str = Security(verify_token)):
+    """
+    Full-text search across all transactions (description, payee, account names).
+    Returns matching transactions sorted most recent first.
+    Uses hledger's built-in description/account search via `print`.
+    Falls back to in-process filtering for broader matching.
+    """
+    import json
+
+    if not q or not q.strip():
+        return {"raw": "[]"}
+
+    query = q.strip()
+
+    # Fetch all transactions then filter in Python for flexible matching
+    # (hledger's query syntax is powerful but we want substring match on
+    # description OR any account name, which is easier to do here)
+    output = run_hledger("print", "--output-format", "json")
+    try:
+        all_txns = json.loads(output)
+    except json.JSONDecodeError:
+        return {"raw": "[]"}
+
+    ql = query.lower()
+    matches = []
+    for txn in reversed(all_txns):  # most recent first
+        desc = txn.get("tdescription", "").lower()
+        payee = txn.get("tpayee", "").lower()
+        note = txn.get("tnote", "").lower()
+        accounts = [p.get("paccount", "").lower() for p in txn.get("tpostings", [])]
+        comments = [p.get("pcomment", "").lower() for p in txn.get("tpostings", [])]
+        tcomment = txn.get("tcomment", "").lower()
+
+        haystack = " ".join([desc, payee, note, tcomment] + accounts + comments)
+        if ql in haystack:
+            matches.append(txn)
+
+    return {"raw": json.dumps(matches)}
+
+
 @app.get("/accounts")
 def get_accounts(token: str = Security(verify_token)):
     """All account names. Used for autocomplete in the frontend."""
@@ -176,13 +217,14 @@ def sync(token: str = Security(verify_token)):
 # ---------------------------------------------------------------------------
 
 class Transaction(BaseModel):
-    date: str           # YYYY-MM-DD
-    description: str
-    account1: str
-    amount1: float
-    account2: str
+    date: str | None = None        # YYYY-MM-DD
+    description: str | None = None
+    account1: str | None = None
+    amount1: float | None = None
+    account2: str | None = None
     amount2: float | None = None   # auto-calculated if omitted
     currency: str = DEFAULT_CURRENCY
+    raw_entry: str | None = None   # if set, written directly (supports comments)
 
 
 @app.post("/add")
@@ -192,13 +234,16 @@ def add_transaction(tx: Transaction, token: str = Security(verify_token)):
     Commits are tagged with 'Source: hledger-mobile-api' trailer
     so they can be identified and filtered in git log.
     """
-    amount2 = tx.amount2 if tx.amount2 is not None else -tx.amount1
-
-    entry = (
-        f"\n{tx.date} {tx.description}\n"
-        f"    {tx.account1}    {tx.currency}{tx.amount1:.2f}\n"
-        f"    {tx.account2}    {tx.currency}{amount2:.2f}\n"
-    )
+    # If raw_entry provided (from editable preview), write directly
+    if tx.raw_entry:
+        entry = "\n" + tx.raw_entry.strip() + "\n"
+    else:
+        amount2 = tx.amount2 if tx.amount2 is not None else -tx.amount1
+        entry = (
+            f"\n{tx.date} {tx.description}\n"
+            f"    {tx.account1}    {tx.currency}{tx.amount1:.2f}\n"
+            f"    {tx.account2}    {tx.currency}{amount2:.2f}\n"
+        )
 
     try:
         with open(JOURNAL_FILE, "a") as f:
@@ -206,8 +251,10 @@ def add_transaction(tx: Transaction, token: str = Security(verify_token)):
     except OSError as e:
         raise HTTPException(status_code=500, detail=f"Could not write to journal: {e}")
 
+    desc_label = tx.description or "transaction"
+    date_label = tx.date or "unknown"
     commit_message = (
-        f"add: {tx.description} {tx.date}\n\n"
+        f"add: {desc_label} {date_label}\n\n"
         f"Source: hledger-mobile-api"
     )
 

@@ -288,6 +288,227 @@
         border-top: 2px solid transparent; }
       nav button.active { border-bottom: none; border-top-color: var(--accent); }
     }
+  /* ---- Envelope tab layout ---- */
+  .env-section-title {
+    font-size: 11px; font-weight: 600; letter-spacing: 0.8px; text-transform: uppercase;
+    color: var(--text-muted); margin: 20px 0 10px;
+  }
+  .env-action-bar {
+    display: flex; gap: 8px; padding: 0 0 16px;
+    border-bottom: 1px solid var(--border); margin-bottom: 4px;
+  }
+  .env-btn {
+    font-family: 'Montserrat', sans-serif; font-size: 12px; font-weight: 600;
+    letter-spacing: 0.4px; text-transform: uppercase; border: none;
+    border-radius: var(--radius); padding: 9px 14px; cursor: pointer;
+    transition: opacity 0.15s; white-space: nowrap; touch-action: manipulation;
+  }
+  .env-btn:hover { opacity: 0.8; }
+  .env-btn:disabled { opacity: 0.35; cursor: default; }
+  .env-btn.primary { background: var(--accent); color: #fff; }
+  .env-btn.outline { background: none; color: var(--accent); border: 1px solid var(--accent); }
+  .env-btn.ghost { background: none; color: var(--text-muted); border: 1px solid var(--border); }
+
+  /* ---- Pending transactions ---- */
+  .pending-item {
+    padding: 12px 4px; border-bottom: 1px solid var(--border);
+    cursor: pointer; border-radius: 4px; -webkit-tap-highlight-color: transparent;
+  }
+  .pending-item:last-child { border-bottom: none; }
+  .pending-item:active { background: #f0efe9; }
+  .pending-top {
+    display: flex; justify-content: space-between; align-items: baseline;
+    gap: 8px; margin-bottom: 3px;
+  }
+  .pending-desc {
+    font-size: 13px; font-weight: 500; color: var(--text);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;
+  }
+  .pending-amount { font-size: 13px; font-weight: 500; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+  .pending-meta { font-size: 11px; color: var(--text-muted); font-weight: 300; }
+  .pending-badge {
+    display: inline-block; font-size: 10px; font-weight: 600; letter-spacing: 0.5px;
+    text-transform: uppercase; border-radius: 3px; padding: 1px 6px; margin-left: 6px;
+  }
+  .pending-badge.income { background: #e8f5ee; color: var(--positive); }
+  .pending-badge.expense { background: #f7f6f3; color: var(--text-muted); }
+  .pending-badge.suggested { background: #eef2ff; color: #534ab7; }
+
+  /* ---- Envelope tree ---- */
+  .env-parent {
+    margin-bottom: 18px;
+  }
+  .env-parent-header {
+    display: flex; justify-content: space-between; align-items: baseline;
+    padding: 8px 0; border-bottom: 2px solid var(--accent); margin-bottom: 0;
+  }
+  .env-parent-name { font-size: 13px; font-weight: 600; color: var(--accent); letter-spacing: -0.2px; }
+  .env-parent-total { font-size: 14px; font-weight: 500; font-variant-numeric: tabular-nums; }
+  .env-unalloc-row {
+    display: flex; justify-content: space-between; align-items: baseline;
+    padding: 7px 0; border-bottom: 1px dashed var(--border);
+    font-size: 12px; color: var(--text-muted);
+  }
+  .env-child {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 0 10px 14px; border-bottom: 1px solid var(--border);
+    cursor: pointer; border-radius: 4px; -webkit-tap-highlight-color: transparent;
+  }
+  .env-child:last-child { border-bottom: none; }
+  .env-child:active { background: #f0efe9; }
+  .env-child-left { min-width: 0; flex: 1; }
+  .env-child-name {
+    font-size: 13px; font-weight: 400; color: var(--text);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .env-child-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  .env-child-balance { font-size: 13px; font-weight: 500; font-variant-numeric: tabular-nums; }
+  .env-child-chevron { font-size: 10px; color: var(--text-muted); }
+
+  /* ---- Detail sheet (reuses txnDetailOverlay) ---- */
+  .env-detail-bal {
+    font-size: 28px; font-weight: 300; letter-spacing: -0.8px;
+    font-variant-numeric: tabular-nums; margin-bottom: 12px;
+  }
+  .env-detail-actions { display: flex; gap: 8px; margin-bottom: 16px; }
+  .env-detail-btn {
+    font-family: 'Montserrat', sans-serif; font-size: 12px; font-weight: 600;
+    letter-spacing: 0.4px; text-transform: uppercase; border: none;
+    border-radius: var(--radius); padding: 10px 0; cursor: pointer;
+    flex: 1; transition: opacity 0.15s; touch-action: manipulation;
+  }
+  .env-detail-btn:hover { opacity: 0.8; }
+  .env-detail-btn.primary { background: var(--accent); color: #fff; }
+  .env-detail-btn.secondary { background: var(--bg); border: 1px solid var(--border); color: var(--text); }
+  .env-detail-btn.danger { background: #fdf0ef; border: 1px solid #f5c6c2; color: var(--negative); }
+  .env-inline-form {
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 14px; margin-bottom: 14px;
+  }
+  .env-inline-label {
+    font-size: 11px; font-weight: 600; letter-spacing: 0.6px; text-transform: uppercase;
+    color: var(--text-muted); margin-bottom: 10px;
+  }
+  .env-inline-input {
+    font-family: 'Montserrat', sans-serif; font-size: 15px; width: 100%;
+    border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 10px 14px; background: var(--surface); color: var(--text);
+    outline: none; margin-bottom: 8px; box-sizing: border-box;
+  }
+  .env-inline-input:focus { border-color: var(--accent); }
+  .env-inline-select {
+    font-family: 'Montserrat', sans-serif; font-size: 13px; width: 100%;
+    border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 10px 14px; background: var(--surface); color: var(--text);
+    outline: none; margin-bottom: 8px; box-sizing: border-box; cursor: pointer;
+  }
+  .env-inline-select:focus { border-color: var(--accent); }
+  .env-inline-submit {
+    font-family: 'Montserrat', sans-serif; font-size: 12px; font-weight: 600;
+    letter-spacing: 0.4px; text-transform: uppercase; background: var(--accent); color: #fff;
+    border: none; border-radius: var(--radius); padding: 11px 0; width: 100%;
+    cursor: pointer; transition: opacity 0.15s; touch-action: manipulation;
+  }
+  .env-inline-submit:hover { opacity: 0.85; }
+  .env-inline-submit:disabled { opacity: 0.35; cursor: default; }
+  .env-inline-cancel {
+    font-size: 11px; color: var(--text-muted); text-align: center;
+    display: block; margin-top: 8px; cursor: pointer;
+  }
+  .env-history-row {
+    display: flex; justify-content: space-between; align-items: baseline;
+    padding: 8px 0; border-bottom: 1px solid var(--border); gap: 8px;
+  }
+  .env-history-row:last-child { border-bottom: none; }
+  .env-history-note { font-size: 12px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .env-history-date { font-size: 11px; color: var(--text-muted); font-weight: 300; margin-top: 1px; }
+  .env-history-amt { font-size: 13px; font-weight: 500; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+
+  /* ---- Assign sheet (for pending items) ---- */
+  .assign-sheet {
+    position: fixed; inset: 0; background: var(--bg); z-index: 210;
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  .assign-sheet-inner {
+    max-width: var(--max-w); width: 100%; margin: 0 auto;
+    display: flex; flex-direction: column; height: 100%; overflow: hidden;
+  }
+  .assign-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: calc(env(safe-area-inset-top, 0px) + 16px) 20px 12px;
+    border-bottom: 1px solid var(--border); flex-shrink: 0;
+  }
+  .assign-title { font-size: 15px; font-weight: 600; color: var(--accent); letter-spacing: -0.2px; }
+  .assign-close {
+    font-family: 'Montserrat', sans-serif; background: none; border: none;
+    font-size: 18px; color: var(--text-muted); cursor: pointer; padding: 4px 8px;
+    border-radius: var(--radius); touch-action: manipulation;
+  }
+  .assign-body { flex: 1; overflow-y: auto; padding: 20px 20px 40px; }
+  .assign-txn-info {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 14px; margin-bottom: 20px;
+  }
+  .assign-txn-desc { font-size: 14px; font-weight: 600; color: var(--accent); margin-bottom: 4px; }
+  .assign-txn-meta { font-size: 12px; color: var(--text-muted); font-weight: 300; }
+  .assign-txn-amount { font-size: 20px; font-weight: 300; font-variant-numeric: tabular-nums; margin-top: 8px; }
+  .assign-split-row {
+    display: flex; align-items: center; gap: 10px; padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .assign-split-row:last-of-type { border-bottom: none; margin-bottom: 8px; }
+  .assign-split-name { font-size: 13px; font-weight: 500; color: var(--text); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .assign-split-input {
+    font-family: 'Montserrat', sans-serif; font-size: 14px; font-weight: 500;
+    width: 90px; border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 8px 10px; background: var(--surface); color: var(--text);
+    outline: none; text-align: right; font-variant-numeric: tabular-nums; flex-shrink: 0;
+  }
+  .assign-split-input:focus { border-color: var(--accent); }
+  .assign-remainder { font-size: 12px; color: var(--text-muted); font-weight: 300; padding: 10px 0 16px; min-height: 34px; }
+  .assign-remainder.warn { color: var(--negative); font-weight: 500; }
+  .assign-confirm {
+    font-family: 'Montserrat', sans-serif; font-size: 13px; font-weight: 600;
+    letter-spacing: 0.4px; text-transform: uppercase; background: var(--positive); color: #fff;
+    border: none; border-radius: var(--radius); padding: 14px 0; width: 100%;
+    cursor: pointer; transition: opacity 0.15s; touch-action: manipulation; margin-bottom: 10px;
+  }
+  .assign-confirm:hover { opacity: 0.85; }
+  .assign-confirm:disabled { opacity: 0.35; cursor: default; }
+  .assign-dismiss {
+    font-family: 'Montserrat', sans-serif; font-size: 13px; font-weight: 500;
+    background: none; border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 13px 0; width: 100%; cursor: pointer; color: var(--text-muted);
+    touch-action: manipulation;
+  }
+
+  /* ---- Alloc sheet (income full split) ---- */
+  .alloc-sheet {
+    position: fixed; inset: 0; background: var(--bg); z-index: 200;
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  .alloc-sheet-inner {
+    max-width: var(--max-w); width: 100%; margin: 0 auto;
+    display: flex; flex-direction: column; height: 100%; overflow: hidden;
+  }
+  .alloc-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: calc(env(safe-area-inset-top, 0px) + 16px) 20px 12px;
+    border-bottom: 1px solid var(--border); flex-shrink: 0;
+  }
+  .alloc-title { font-size: 15px; font-weight: 600; color: var(--accent); letter-spacing: -0.2px; }
+  .alloc-close {
+    font-family: 'Montserrat', sans-serif; background: none; border: none;
+    font-size: 18px; color: var(--text-muted); cursor: pointer; padding: 4px 8px;
+    border-radius: var(--radius); touch-action: manipulation;
+  }
+  .alloc-body { flex: 1; overflow-y: auto; padding: 20px 20px 40px; }
+  /* Config section */
+  .env-config-row { display: flex; justify-content: space-between; align-items: baseline;
+    padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
+  .env-config-row:last-child { border-bottom: none; }
+  .env-config-label { color: var(--text); font-weight: 400; }
+  .env-config-value { color: var(--text-muted); font-weight: 300; font-variant-numeric: tabular-nums; }
   </style>
 </head>
 <body>
@@ -305,12 +526,14 @@
   <div class="summary-cards" id="summaryCards"></div>
   <nav>
     <button class="active" onclick="showView('balance', this)">Balance</button>
-    <button onclick="showView('is', this)">Income</button>
+    <!-- <button onclick="showView('is', this)">Income</button> -->
+    <button onclick="showView('envelopes', this)">Envelopes</button>
     <button onclick="showView('monthly', this)">Monthly</button>
     <button onclick="showView('transactions', this)">Transactions</button>
   </nav>
   <div id="view-balance" class="view active"><div class="state-msg">Tap sync to load data.</div></div>
-  <div id="view-is" class="view"><div class="state-msg">Tap sync to load data.</div></div>
+  <!-- <div id="view-is" class="view"><div class="state-msg">Tap sync to load data.</div></div> -->
+  <div id="view-envelopes" class="view"><div class="state-msg">Tap sync to load data.</div></div>
   <div id="view-monthly" class="view"><div class="state-msg">Tap sync to load data.</div></div>
   <div id="view-transactions" class="view"><div class="state-msg">Tap sync to load data.</div></div>
 </div>
@@ -340,6 +563,29 @@
     <div class="add-body" id="addBody"></div>
   </div>
 </div>
+
+<!-- Assign sheet (for pending transactions) -->
+<div id="assignSheet" class="assign-sheet" style="display:none">
+  <div class="assign-sheet-inner">
+    <div class="assign-header">
+      <span class="assign-title" id="assignTitle">Assign transaction</span>
+      <button class="assign-close" onclick="closeAssignSheet()">&#x2715;</button>
+    </div>
+    <div class="assign-body" id="assignBody"></div>
+  </div>
+</div>
+
+
+<div id="allocSheet" class="alloc-sheet" style="display:none">
+  <div class="alloc-sheet-inner">
+    <div class="alloc-header">
+      <span class="alloc-title">Allocate Income</span>
+      <button class="alloc-close" onclick="closeAllocSheet()">&#x2715;</button>
+    </div>
+    <div class="alloc-body" id="allocBody"></div>
+  </div>
+</div>
+
 
 <!-- PIN Modal -->
 <div id="pinModal" class="pin-modal-overlay" style="display:none">
@@ -535,6 +781,7 @@
     await Promise.all([
       loadEndpoint('balance'), loadEndpoint('is'), loadEndpoint('monthly'),
       loadEndpoint('transactions', { month: currentMonth() }),
+      loadEnvelopes(),   
     ]);
     saveCache(); fetchAccounts(); fetchDescriptions();
     if (cache['balance']) renderSummaryCards(cache['balance']);
@@ -563,6 +810,7 @@
     if (name === 'is')           renderIS(el, data);
     if (name === 'monthly')      renderMonthly(el, data);
     if (name === 'transactions') renderTransactions(el, data);
+    if (name === 'envelopes') renderEnvelopes(el, data);
   }
 
   // ── Format helpers ────────────────────────────────────────────────────────
@@ -1420,6 +1668,485 @@
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => { navigator.serviceWorker.register('/sw.js').catch(() => {}); });
   }
+
+
+// ============================================================================
+// Envelope state
+// ============================================================================
+let envData = null;
+const ENV_CACHE_KEY = 'hledger_envelopes_v3';
+
+function saveEnvCache(d) { try { localStorage.setItem(ENV_CACHE_KEY, JSON.stringify(d)); } catch(e) {} }
+function loadEnvCache() { try { const r = localStorage.getItem(ENV_CACHE_KEY); return r ? JSON.parse(r) : null; } catch(e) { return null; } }
+
+async function loadEnvelopes() {
+  const cached = loadEnvCache();
+  if (cached) { envData = cached; cache['envelopes'] = cached; }
+  if (isDemoMode()) return;
+  try {
+    const r = await fetch(`${API}/api/envelopes`);
+    if (!r.ok) return;
+    const data = await r.json();
+    envData = data; cache['envelopes'] = data;
+    saveEnvCache(data);
+    const el = document.getElementById('view-envelopes');
+    if (el && el.classList.contains('active')) renderEnvelopes(el, data);
+  } catch(e) {}
+}
+
+// ============================================================================
+// Render envelopes tab
+// ============================================================================
+function renderEnvelopes(el, data) {
+  if (!data || !data.envelopes) {
+    el.innerHTML = '<div class="state-msg">Envelopes not set up.</div>';
+    return;
+  }
+  envData = data;
+  const envelopes = data.envelopes || [];
+  const balances = data.balances || {};
+  const pending = data.pending || [];
+
+  let html = '';
+
+  // Action bar
+  html += '<div class="env-action-bar">'
+    + '<button class="env-btn primary" onclick="scanTransactions()">Scan Txns</button>'
+    + '<button class="env-btn outline" onclick="openNewEnvSheet()">+ Envelope</button>'
+    + '</div>';
+
+  // Pending section
+  const pendingCount = pending.length;
+  html += '<div class="env-section-title">Pending'
+    + (pendingCount > 0 ? ' <span style="color:var(--negative);font-weight:600">(' + pendingCount + ')</span>' : '')
+    + '</div>';
+
+  if (pending.length === 0) {
+    html += '<div style="font-size:12px;color:var(--text-muted);font-weight:300;padding:8px 0 16px">No pending transactions. Tap Scan Txns to check for new activity.</div>';
+  } else {
+    // Show most recent first
+    const sorted = pending.slice().sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    sorted.forEach(txn => {
+      const isIncome = txn.type === 'income';
+      const amtColor = isIncome ? 'amount-positive' : 'amount-negative';
+      const amtSign = isIncome ? '+' : '-';
+      const badge = isIncome
+        ? '<span class="pending-badge income">income</span>'
+        : (txn.suggested_envelope
+            ? '<span class="pending-badge suggested">suggested</span>'
+            : '<span class="pending-badge expense">expense</span>');
+      html += '<div class="pending-item" onclick="openAssignSheet(' + JSON.stringify(txn).replace(/"/g, '&quot;') + ')">'
+        + '<div class="pending-top">'
+        + '<span class="pending-desc">' + escHtml(txn.description) + badge + '</span>'
+        + '<span class="pending-amount ' + amtColor + '">' + amtSign + fmtAmount(txn.amount, '$') + '</span>'
+        + '</div>'
+        + '<div class="pending-meta">' + (txn.date || '') + (txn.suggested_envelope ? ' · suggested: ' + escHtml(_envName(txn.suggested_envelope)) : '') + '</div>'
+        + '</div>';
+    });
+  }
+
+  // Envelope tree
+  html += '<div class="env-section-title" style="margin-top:24px">Envelopes</div>';
+  const parents = envelopes.filter(e => !e.parent).sort((a, b) => (a.sort_order || 99) - (b.sort_order || 99));
+
+  parents.forEach(parent => {
+    const children = envelopes.filter(e => e.parent === parent.id).sort((a, b) => (a.sort_order || 99) - (b.sort_order || 99));
+    const unalloc = balances[parent.id] || 0;
+    const childSum = children.reduce((s, c) => s + (balances[c.id] || 0), 0);
+    const total = unalloc + childSum;
+
+    html += '<div class="env-parent">';
+    html += '<div class="env-parent-header">'
+      + '<span class="env-parent-name">' + escHtml(parent.name) + '</span>'
+      + '<span class="env-parent-total ' + amountClass(total) + '">' + fmtAmount(total, '$') + '</span>'
+      + '</div>';
+
+    if (children.length > 0) {
+      html += '<div class="env-unalloc-row">'
+        + '<span>Unallocated</span>'
+        + '<span class="' + amountClass(unalloc) + '">' + fmtAmount(unalloc, '$') + '</span>'
+        + '</div>';
+    }
+
+    children.forEach(child => {
+      const bal = balances[child.id] || 0;
+      html += '<div class="env-child" onclick="openEnvDetail(\'' + child.id + '\')">'
+        + '<div class="env-child-left"><div class="env-child-name">' + escHtml(child.name) + '</div></div>'
+        + '<div class="env-child-right">'
+        + '<span class="env-child-balance ' + amountClass(bal) + '">' + fmtAmount(bal, '$') + '</span>'
+        + '<span class="env-child-chevron">&#8250;</span>'
+        + '</div></div>';
+    });
+
+    // Tap parent itself to open detail
+    html = html.replace(
+      '<div class="env-parent-header">',
+      '<div class="env-parent-header" style="cursor:pointer" onclick="openEnvDetail(\'' + parent.id + '\')">'
+    );
+
+    html += '</div>';
+  });
+
+  html += '<div class="view-footer">Balances are virtual. Real account data is in Balance and Transactions tabs.</div>';
+  el.innerHTML = html;
+}
+
+function _envName(id) {
+  if (!envData) return id;
+  const env = (envData.envelopes || []).find(e => e.id === id);
+  return env ? env.name : id;
+}
+
+// ============================================================================
+// Scan transactions
+// ============================================================================
+async function scanTransactions() {
+  try {
+    showToast('Scanning...');
+    const r = await envFetch('/api/envelopes/scan', 'POST', {});
+    const added = r.added || 0;
+    showToast(added > 0 ? `Found ${added} new transaction${added === 1 ? '' : 's'}` : 'Nothing new');
+    await loadEnvelopes();
+  } catch(e) { showToast('Scan failed: ' + e.message, 4000); }
+}
+
+// ============================================================================
+// Assign sheet — handles both income (split) and expense (single envelope)
+// ============================================================================
+let _assignTxn = null;
+
+function openAssignSheet(txn) {
+  _assignTxn = txn;
+  const sheet = document.getElementById('assignSheet');
+  const body = document.getElementById('assignBody');
+  if (!sheet || !body || !envData) return;
+
+  document.getElementById('assignTitle').textContent = txn.type === 'income' ? 'Allocate income' : 'Assign expense';
+
+  const isIncome = txn.type === 'income';
+  const envelopes = envData.envelopes || [];
+  const balances = envData.balances || {};
+
+  let html = '';
+
+  // Txn info card
+  const amtSign = isIncome ? '+' : '-';
+  const amtColor = isIncome ? 'amount-positive' : 'amount-negative';
+  html += '<div class="assign-txn-info">'
+    + '<div class="assign-txn-desc">' + escHtml(txn.description) + '</div>'
+    + '<div class="assign-txn-meta">' + (txn.date || '') + ' · ' + (txn.accounts || []).filter(a => a).join(', ') + '</div>'
+    + '<div class="assign-txn-amount ' + amtColor + '">' + amtSign + fmtAmount(txn.amount, '$') + '</div>'
+    + '</div>';
+
+  if (isIncome) {
+    // Income: split across envelopes
+    const defaults = envData.income_split_default || {};
+    const tithe_pct = defaults.tithe_pct || 0.10;
+    const savings_pct = defaults.savings || 0.40;
+
+    const presets = {};
+    presets['tithe'] = Math.round(txn.amount * tithe_pct * 100) / 100;
+    presets['savings'] = Math.round(txn.amount * savings_pct * 100) / 100;
+    presets['chequing'] = Math.round((txn.amount - presets['tithe'] - presets['savings']) * 100) / 100;
+
+    html += '<div style="font-size:11px;color:var(--text-muted);font-weight:300;margin-bottom:12px">Split this income across envelopes. Pre-filled from your defaults.</div>';
+    html += '<div id="assignSplits">';
+    envelopes.forEach(env => {
+      const preset = presets[env.id] || 0;
+      html += '<div class="assign-split-row">'
+        + '<span class="assign-split-name">' + escHtml(env.name) + '</span>'
+        + '<input type="number" class="assign-split-input" id="asplit_' + env.id + '" step="0.01" placeholder="0.00" value="' + (preset > 0 ? preset.toFixed(2) : '') + '" oninput="recalcAssignRemainder(' + txn.amount + ')">'
+        + '</div>';
+    });
+    html += '</div>';
+    html += '<div class="assign-remainder" id="assignRemainder"></div>';
+    html += '<button class="assign-confirm" id="assignConfirm" onclick="submitAssign()" disabled>Allocate income</button>';
+    html += '<button class="assign-dismiss" onclick="dismissPending(\'' + txn.txn_id + '\')">Dismiss without assigning</button>';
+
+    // Trigger initial calculation
+    setTimeout(() => recalcAssignRemainder(txn.amount), 50);
+
+  } else {
+    // Expense: pick one envelope
+    const suggested = txn.suggested_envelope;
+    html += '<div style="font-size:11px;color:var(--text-muted);font-weight:300;margin-bottom:12px">Choose which envelope absorbs this expense.</div>';
+    html += '<select class="env-inline-select" id="assignEnvSelect" style="margin-bottom:16px">'
+      + '<option value="">Select envelope...</option>';
+    envelopes.forEach(env => {
+      const bal = balances[env.id] || 0;
+      const selected = env.id === suggested ? ' selected' : '';
+      html += '<option value="' + env.id + '"' + selected + '>' + escHtml(env.name) + '  (' + fmtAmount(bal, '$') + ')</option>';
+    });
+    html += '</select>';
+    html += '<input type="text" class="env-inline-input" id="assignNote" placeholder="Note (optional)" style="margin-bottom:16px">';
+    html += '<button class="assign-confirm" onclick="submitExpenseAssign()">Confirm</button>';
+    html += '<button class="assign-dismiss" onclick="dismissPending(\'' + txn.txn_id + '\')">Dismiss without assigning</button>';
+  }
+
+  body.innerHTML = html;
+  sheet.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+}
+
+function closeAssignSheet() {
+  document.getElementById('assignSheet').style.display = 'none';
+  document.body.style.overflow = '';
+  _assignTxn = null;
+}
+
+function recalcAssignRemainder(total) {
+  if (!envData) return;
+  let assigned = 0;
+  (envData.envelopes || []).forEach(env => {
+    const inp = document.getElementById('asplit_' + env.id);
+    assigned += parseFloat(inp ? inp.value : '') || 0;
+  });
+  const rem = Math.round((total - assigned) * 100) / 100;
+  const remEl = document.getElementById('assignRemainder');
+  const btn = document.getElementById('assignConfirm');
+  if (remEl) {
+    if (Math.abs(rem) < 0.01) { remEl.textContent = 'Fully allocated'; remEl.className = 'assign-remainder'; }
+    else if (rem > 0) { remEl.textContent = fmtAmount(rem, '$') + ' unassigned'; remEl.className = 'assign-remainder'; }
+    else { remEl.textContent = fmtAmount(Math.abs(rem), '$') + ' over-allocated'; remEl.className = 'assign-remainder warn'; }
+  }
+  if (btn) btn.disabled = Math.abs(rem) >= 0.01;
+}
+
+async function submitAssign() {
+  if (!_assignTxn || !envData) return;
+  const splits = [];
+  (envData.envelopes || []).forEach(env => {
+    const inp = document.getElementById('asplit_' + env.id);
+    const val = parseFloat(inp ? inp.value : '') || 0;
+    if (val !== 0) splits.push({ envelope_id: env.id, amount: val });
+  });
+  const btn = document.getElementById('assignConfirm');
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving...'; }
+  try {
+    await envFetch('/api/envelopes/assign', 'POST', { txn_id: _assignTxn.txn_id, splits });
+    showToast('Income allocated');
+    closeAssignSheet();
+    await loadEnvelopes();
+  } catch(e) {
+    showToast('Error: ' + e.message, 4000);
+    if (btn) { btn.disabled = false; btn.textContent = 'Allocate income'; }
+  }
+}
+
+async function submitExpenseAssign() {
+  if (!_assignTxn) return;
+  const sel = document.getElementById('assignEnvSelect');
+  const note = document.getElementById('assignNote');
+  const envId = sel ? sel.value : '';
+  if (!envId) { if (sel) sel.style.borderColor = 'var(--negative)'; return; }
+  try {
+    await envFetch('/api/envelopes/assign', 'POST', {
+      txn_id: _assignTxn.txn_id,
+      envelope_id: envId,
+      note: note ? note.value.trim() : ''
+    });
+    showToast('Assigned');
+    closeAssignSheet();
+    await loadEnvelopes();
+  } catch(e) { showToast('Error: ' + e.message, 4000); }
+}
+
+async function dismissPending(txnId) {
+  try {
+    await envFetch('/api/envelopes/dismiss', 'POST', { txn_id: txnId });
+    showToast('Dismissed');
+    closeAssignSheet();
+    await loadEnvelopes();
+  } catch(e) { showToast('Error: ' + e.message, 4000); }
+}
+
+// ============================================================================
+// Envelope detail sheet (reuses txnDetailOverlay)
+// ============================================================================
+function openEnvDetail(envId) {
+  if (!envData) return;
+  const env = (envData.envelopes || []).find(e => e.id === envId);
+  if (!env) return;
+  const bal = envData.balances[envId] || 0;
+
+  document.getElementById('txnDetailDesc').textContent = env.name;
+  document.getElementById('txnDetailDate').textContent = env.parent ? 'child of ' + _envName(env.parent) : 'parent envelope';
+
+  const history = (envData.history || []).filter(h => h.envelope === envId).slice().reverse().slice(0, 30);
+  const isProtected = envId === 'savings' || envId === 'chequing';
+
+  let html = '';
+  html += '<div style="margin-bottom:16px">';
+  html += '<div class="env-detail-bal ' + amountClass(bal) + '">' + fmtAmount(bal, '$') + '</div>';
+  html += '</div>';
+
+  html += '<div class="env-detail-actions">';
+  html += '<button class="env-detail-btn primary" onclick="showEnvForm(\'' + envId + '\',\'transfer\')">Transfer</button>';
+  html += '<button class="env-detail-btn secondary" onclick="showEnvForm(\'' + envId + '\',\'adjust\')">Adjust</button>';
+  if (!isProtected) {
+    html += '<button class="env-detail-btn danger" onclick="deleteEnvConfirm(\'' + envId + '\')">Delete</button>';
+  }
+  html += '</div>';
+
+  html += '<div id="envFormSlot"></div>';
+
+  html += '<div style="font-size:10px;font-weight:600;letter-spacing:0.8px;text-transform:uppercase;color:var(--text-muted);margin-bottom:10px">History</div>';
+  if (history.length === 0) {
+    html += '<div style="font-size:12px;color:var(--text-muted);font-weight:300;padding:8px 0">No activity yet.</div>';
+  } else {
+    history.forEach(h => {
+      const pos = h.amount > 0;
+      html += '<div class="env-history-row">'
+        + '<div style="min-width:0;flex:1">'
+        + '<div class="env-history-note">' + escHtml(h.note || h.type) + '</div>'
+        + '<div class="env-history-date">' + (h.date || '') + '</div>'
+        + '</div>'
+        + '<div class="env-history-amt ' + (pos ? 'amount-positive' : 'amount-negative') + '">'
+        + (pos ? '+' : '') + fmtAmount(h.amount, '$') + '</div>'
+        + '</div>';
+    });
+  }
+
+  document.getElementById('txnDetailBody').innerHTML = html;
+  const overlay = document.getElementById('txnDetailOverlay');
+  overlay.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+  requestAnimationFrame(() => { overlay.classList.add('open'); _initSheetSwipe(); });
+}
+
+function showEnvForm(envId, formType) {
+  const slot = document.getElementById('envFormSlot');
+  if (!slot || !envData) return;
+  const envelopes = envData.envelopes || [];
+  const balances = envData.balances || {};
+
+  let html = '<div class="env-inline-form">';
+
+  if (formType === 'transfer') {
+    const others = envelopes.filter(e => e.id !== envId);
+    const options = others.map(e => '<option value="' + e.id + '">' + escHtml(e.name) + ' (' + fmtAmount(balances[e.id] || 0, '$') + ')</option>').join('');
+    html += '<div class="env-inline-label">Transfer to</div>'
+      + '<select class="env-inline-select" id="envFormDest"><option value="">Select destination...</option>' + options + '</select>'
+      + '<input type="number" class="env-inline-input" id="envFormAmt" placeholder="Amount" step="0.01">'
+      + '<input type="text" class="env-inline-input" id="envFormNote" placeholder="Note (optional)">'
+      + '<button class="env-inline-submit" onclick="submitEnvTransfer(\'' + envId + '\')">Transfer</button>'
+      + '<span class="env-inline-cancel" onclick="document.getElementById(\'envFormSlot\').innerHTML=\'\'">Cancel</span>';
+  } else if (formType === 'adjust') {
+    html += '<div class="env-inline-label">Manual adjustment</div>'
+      + '<div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;font-weight:300">Positive adds, negative subtracts.</div>'
+      + '<input type="number" class="env-inline-input" id="envFormAmt" placeholder="+50 or -25" step="0.01">'
+      + '<input type="text" class="env-inline-input" id="envFormNote" placeholder="Reason">'
+      + '<button class="env-inline-submit" onclick="submitEnvAdjust(\'' + envId + '\')">Apply</button>'
+      + '<span class="env-inline-cancel" onclick="document.getElementById(\'envFormSlot\').innerHTML=\'\'">Cancel</span>';
+  }
+
+  html += '</div>';
+  slot.innerHTML = html;
+  const inp = document.getElementById('envFormAmt');
+  if (inp) inp.focus();
+}
+
+async function submitEnvTransfer(fromId) {
+  const dest = document.getElementById('envFormDest');
+  const amt = parseFloat(document.getElementById('envFormAmt')?.value || '');
+  const note = document.getElementById('envFormNote')?.value.trim();
+  if (!dest?.value) { dest.style.borderColor = 'var(--negative)'; return; }
+  if (isNaN(amt) || amt === 0) { document.getElementById('envFormAmt').style.borderColor = 'var(--negative)'; return; }
+  try {
+    await envFetch('/api/envelopes/transfer', 'POST', { from_envelope: fromId, to_envelope: dest.value, amount: amt, note });
+    showToast('Transferred');
+    _doCloseTxnDetail();
+    await loadEnvelopes();
+  } catch(e) { showToast('Error: ' + e.message, 4000); }
+}
+
+async function submitEnvAdjust(envId) {
+  const amt = parseFloat(document.getElementById('envFormAmt')?.value || '');
+  const note = document.getElementById('envFormNote')?.value.trim();
+  if (isNaN(amt) || amt === 0) { document.getElementById('envFormAmt').style.borderColor = 'var(--negative)'; return; }
+  try {
+    await envFetch('/api/envelopes/adjust', 'POST', { envelope: envId, amount: amt, note });
+    showToast('Adjusted');
+    _doCloseTxnDetail();
+    await loadEnvelopes();
+  } catch(e) { showToast('Error: ' + e.message, 4000); }
+}
+
+async function deleteEnvConfirm(envId) {
+  const name = _envName(envId);
+  const bal = (envData?.balances || {})[envId] || 0;
+  if (Math.abs(bal) > 0.01) {
+    showToast('Transfer balance out first before deleting', 3500);
+    return;
+  }
+  if (!confirm('Delete "' + name + '"? This cannot be undone.')) return;
+  try {
+    await envFetch('/api/envelopes/' + envId, 'DELETE', null);
+    showToast('Deleted');
+    _doCloseTxnDetail();
+    await loadEnvelopes();
+  } catch(e) { showToast('Error: ' + e.message, 4000); }
+}
+
+// ============================================================================
+// New envelope sheet
+// ============================================================================
+function openNewEnvSheet() {
+  if (!envData) return;
+  const parents = (envData.envelopes || []).filter(e => !e.parent);
+  const options = parents.map(e => '<option value="' + e.id + '">' + escHtml(e.name) + '</option>').join('');
+
+  const overlay = document.getElementById('txnDetailOverlay');
+  document.getElementById('txnDetailDesc').textContent = 'New envelope';
+  document.getElementById('txnDetailDate').textContent = '';
+  document.getElementById('txnDetailBody').innerHTML =
+    '<div style="padding:4px 0 16px">'
+    + '<div style="font-size:11px;font-weight:600;letter-spacing:0.8px;text-transform:uppercase;color:var(--text-muted);margin-bottom:10px">Name</div>'
+    + '<input type="text" id="newEnvName" class="env-inline-input" placeholder="e.g. Car Insurance" style="margin-bottom:16px">'
+    + '<div style="font-size:11px;font-weight:600;letter-spacing:0.8px;text-transform:uppercase;color:var(--text-muted);margin-bottom:10px">Parent</div>'
+    + '<select id="newEnvParent" class="env-inline-select" style="margin-bottom:20px">'
+    + '<option value="">No parent (top-level)</option>'
+    + options
+    + '</select>'
+    + '<button class="env-inline-submit" onclick="submitNewEnv()">Create envelope</button>'
+    + '</div>';
+
+  overlay.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+  requestAnimationFrame(() => { overlay.classList.add('open'); _initSheetSwipe(); });
+  setTimeout(() => document.getElementById('newEnvName')?.focus(), 100);
+}
+
+async function submitNewEnv() {
+  const name = document.getElementById('newEnvName')?.value.trim();
+  const parent = document.getElementById('newEnvParent')?.value || null;
+  if (!name) { document.getElementById('newEnvName').style.borderColor = 'var(--negative)'; return; }
+  try {
+    await envFetch('/api/envelopes/create', 'POST', { name, parent: parent || null });
+    showToast('Envelope created');
+    _doCloseTxnDetail();
+    await loadEnvelopes();
+  } catch(e) { showToast('Error: ' + e.message, 4000); }
+}
+
+// ============================================================================
+// Generic fetch helper
+// ============================================================================
+async function envFetch(path, method, body) {
+  const opts = { method, headers: { 'Content-Type': 'application/json' } };
+  if (body !== null) opts.body = JSON.stringify(body);
+  const r = await fetch(`${API}${path}`, opts);
+  if (!r.ok) {
+    let detail = '';
+    try { const j = await r.json(); detail = j.detail || ''; } catch(e) {}
+    throw new Error(detail || 'status ' + r.status);
+  }
+  return r.json();
+}
+
+// Keep apiFetch alias for any remaining calls
+const apiFetch = envFetch;
+
 </script>
 </body>
 </html>

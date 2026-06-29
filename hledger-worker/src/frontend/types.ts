@@ -83,6 +83,12 @@ export interface EnvelopeData {
 	income_split_default?: IncomeSplitDefault;
 }
 
+export interface DailyTotal {
+	date: string;
+	count: number;
+	total: number;
+}
+
 export type ViewName = 'dashboard' | 'envelopes' | 'transactions' | 'reports';
 
 export interface AppCache {

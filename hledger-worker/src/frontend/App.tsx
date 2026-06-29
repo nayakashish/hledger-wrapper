@@ -254,7 +254,10 @@ export default function App() {
 				<SummaryCards balance={cache.balance ?? null} />
 				<Nav activeView={activeView} onViewChange={setActiveView} />
 
-				<DashboardView isActive={activeView === 'dashboard'} />
+				<DashboardView
+					isActive={activeView === 'dashboard'}
+					monthly={cache.monthly ?? null}
+				/>
 				<ReportsView
 					balance={cache.balance ?? null}
 					monthly={cache.monthly ?? null}

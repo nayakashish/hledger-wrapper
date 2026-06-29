@@ -933,47 +933,78 @@ body.is-offline header {
   color: #fff;
 }
 
-.dash-privacy-blur {
-  height: 140px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-muted);
-  font-size: 12px;
-  letter-spacing: 0.5px;
-}
-
 /* Heatmap */
 .heatmap-wrap {
   overflow-x: auto;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
   -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
 }
+.heatmap-wrap::-webkit-scrollbar { display: none; }
 
 .heatmap-grid {
   display: flex;
-  gap: 2px;
+  gap: 3px;
   min-width: max-content;
+  padding-bottom: 2px;
 }
 
 .heatmap-col {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
 }
 
 .heatmap-cell {
-  width: 11px;
-  height: 11px;
-  border-radius: 2px;
+  width: 13px;
+  height: 13px;
+  border-radius: 3px;
   background: var(--border);
+  cursor: default;
+  transition: opacity 0.1s, outline 0.1s;
 }
 
+.heatmap-cell[title]:not(.level-empty):not(.level-0) { cursor: pointer; }
 .heatmap-cell.level-empty { background: transparent; }
+.heatmap-cell.level-0 { background: var(--border); }
 .heatmap-cell.level-1 { background: color-mix(in srgb, var(--accent) 25%, var(--border)); }
 .heatmap-cell.level-2 { background: color-mix(in srgb, var(--accent) 50%, var(--border)); }
 .heatmap-cell.level-3 { background: color-mix(in srgb, var(--accent) 75%, var(--border)); }
 .heatmap-cell.level-4 { background: var(--accent); }
+.heatmap-cell.selected { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* Day detail panel */
+.day-detail {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  margin-bottom: 14px;
+}
+
+.day-detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.day-detail-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.day-detail-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 4px;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
 
 /* ── Monthly drilldown ── */
 .drilldown-row {

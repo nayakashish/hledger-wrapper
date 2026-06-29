@@ -120,8 +120,8 @@ def get_income_statement(token: str = Security(verify_token)):
 
 @app.get("/monthly")
 def get_monthly(token: str = Security(verify_token)):
-    """Monthly balance breakdown."""
-    output = run_hledger("balance", "--monthly", "--output-format", "json")
+    """Monthly balance breakdown at depth 2 (top two account levels)."""
+    output = run_hledger("balance", "--monthly", "--depth", "2", "--output-format", "json")
     return {"raw": output}
 
 

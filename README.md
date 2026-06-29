@@ -1,24 +1,31 @@
-# hledger Mobile Access
+# hledger Mobile
 
-A self-hosted, privacy-first mobile interface for [hledger](https://hledger.org/) — built as a personal finance tool and portfolio project.
-
----
-
-## Project Background
-
-[hledger](https://hledger.org/) is a plain-text, double-entry accounting tool that runs on the command line. It is fast, reliable, and keeps financial data in a simple text file that lives in a git repository. The problem it does not solve is mobile access — it is a terminal tool, and there is no good way to check your balances or add a transaction from your phone without being at your computer.
-
-This project solves that by building a secure, self-hosted API layer around hledger, exposed to the internet via Cloudflare Tunnel, with a mobile-friendly Single Page Application served through Cloudflare Workers. The journal file never leaves the home server. No financial data is stored in any cloud service.
-
-This is a fully functional personal finance tool, not a demo. It is designed to run 24/7 on a home Linux machine and be accessed from any device.
+A self-hosted, privacy-first mobile PWA for [hledger](https://hledger.org/). Checks balances, adds transactions, and views spending from any phone — without any financial data leaving the home server.
 
 ---
 
-## Guiding Principles
+## Architecture
 
-- **Data stays local.** The journal file never leaves the home Linux machine. Only query results (JSON) travel over the network.
-- **Git-agnostic sync.** The journal lives in a git repository. Where that repository is hosted — GitHub, GitLab, a self-hosted bare repo, or anywhere else — does not affect the architecture. The API layer simply pulls when asked.
-- **Minimal moving parts.** Each layer does one job. No over-engineering.
+```
+Phone / Browser (React PWA)
+        │
+        │  HTTPS
+        ▼
+Cloudflare Worker  (hledger-worker/)
+        │── /api/*          → proxy to FastAPI, injects auth secrets server-side
+        │── everything else → Workers Assets (built React SPA)
+        │
+        │  Cloudflare Tunnel (zero open ports)
+        ▼
+Linux machine  (always-on home server)
+        │── FastAPI  (api/main.py)
+        │── hledger  (reads journal.hledger)
+        └── cloudflared daemon
+```
+
+Auth secrets (`BEARER_TOKEN`, `CF_ACCESS_CLIENT_ID`, `CF_ACCESS_CLIENT_SECRET`) live as Cloudflare Worker secrets — they are injected server-side and never reach the browser.
+
+See [`docs/architecture.md`](docs/architecture.md) for a detailed breakdown.
 
 ---
 
@@ -26,189 +33,155 @@ This is a fully functional personal finance tool, not a demo. It is designed to 
 
 | Layer | Technology |
 |-------|------------|
-| API server | Python, FastAPI, uvicorn |
-| Process management | systemd |
+| Frontend | React 19, Vite 6, TypeScript |
+| Charts | Recharts |
+| Edge runtime | Cloudflare Workers + Workers Assets |
+| API server | FastAPI + uvicorn (Python) |
 | Accounting engine | hledger |
-| Journal storage | Plain text file, git |
+| Journal storage | Plain-text `.hledger` file in git |
 | Tunnel | Cloudflare Tunnel (cloudflared) |
-| Authentication | Cloudflare Access |
-| Edge middleware | Cloudflare Workers |
-| Frontend | Vanilla HTML/CSS/JS (Single Page Application) |
-| Development assistance | Anthropic Claude AI |
+| Auth gate | Cloudflare Access (service token) |
 
 ---
 
-## System Components
+## Features
 
-### 1. Linux Machine (always-on)
-
-**Role:** The compute layer. Runs hledger, serves the API, and holds the journal repository.
-
-**What lives here:**
-- The git repository containing `journal.hledger`
-- FastAPI application (`uvicorn`, managed by `systemd`)
-- hledger binary
-- Cloudflare Tunnel daemon (`cloudflared`, managed by `systemd`)
+- **Dashboard** — 365-day activity heatmap (tap a day to see transactions), profit/loss bar chart, spending vs prior period, net worth trend line
+- **Envelopes** — virtual envelope budgeting layered over hledger; assign income and expenses per envelope, transfer between envelopes, scan for new transactions
+- **Transactions** — month picker + full-text search; tap any transaction to expand postings and raw journal entry
+- **Reports** — Balance tree and Monthly breakdown (depth-2 by default, tap a row to drill into transactions for that account/month)
+- **Add Transaction** — 7-step guided form with account autocomplete, description lookup, and editable preview
+- **Privacy toggle** — eye icon in header masks income amounts, net worth, and envelope balances in-memory (no persistence)
+- **PWA** — installable on iOS/Android via "Add to Home Screen", works offline from cache
 
 ---
 
-### 2. FastAPI Application (Python)
+## Project Layout
 
-**Role:** Thin wrapper around the hledger CLI. Translates HTTP requests into hledger commands and returns JSON. No business logic beyond that.
+```
+hledger-wrapper/
+├── api/
+│   └── main.py             ← FastAPI app (hledger wrapper)
+├── hledger-worker/
+│   ├── CLAUDE.md           ← developer reference (AI-readable)
+│   ├── wrangler.jsonc      ← Cloudflare Worker config
+│   ├── vite.config.ts
+│   ├── index.html          ← Vite entry point
+│   ├── public/             ← PWA manifest, icons, service worker
+│   └── src/
+│       ├── index.ts        ← Worker entry (API proxy + Assets fallback)
+│       └── frontend/       ← React SPA
+│           ├── App.tsx
+│           ├── types.ts
+│           ├── context/    ← PrivacyContext
+│           ├── utils/      ← format.ts, api.ts
+│           ├── hooks/      ← useSheetSwipe
+│           ├── components/ ← shared: Header, Nav, MaskedAmount, Toast, …
+│           │   ├── views/  ← DashboardView, EnvelopesView, TransactionsView, ReportsView
+│           │   ├── sheets/ ← AddSheet, DetailSheet, AssignSheet
+│           │   └── modals/ ← (empty — PinModal removed with demo mode)
+│           └── styles/
+│               └── global.css
+└── docs/
+    └── architecture.md
+```
 
-**v1 Endpoints (read-only):**
+---
 
-| Method | Path | hledger command | Description |
-|--------|------|-----------------|-------------|
-| GET | `/balance` | `hledger balance --output-format json` | All account balances |
-| GET | `/is` | `hledger is --output-format json` | Income statement |
-| GET | `/monthly` | `hledger balance --monthly --output-format json` | Monthly breakdown |
-| GET | `/transactions` | `hledger print --output-format json` | Recent transactions (last 50) |
-| GET | `/accounts` | `hledger accounts --output-format json` | Account list (used for autocomplete in v2) |
-| POST | `/sync` | `git pull` | Pull latest from git remote |
+## API Endpoints
 
-**v2 Endpoints (writes):**
+All endpoints are authenticated via Bearer token. The Worker injects the token server-side.
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/add` | Accepts transaction payload, appends to journal, commits, and pushes |
-
-**Security:** Every request is validated against a `Bearer` token (stored as an environment variable, never hardcoded) as a last-resort layer of defense.
-
-**Notes:**
-- All hledger commands run against the journal repository directory
-- The write path (v2) serializes requests to prevent journal file lock conflicts
-- No database, no cache — every request runs hledger fresh
-
----
-
-### 3. Cloudflare Tunnel
-
-**Role:** Exposes the FastAPI app to the internet without opening any inbound ports on the Linux machine. The `cloudflared` daemon makes an outbound connection to Cloudflare — no firewall rules or static IP required.
-
-**Configuration:**
-- Routes a subdomain (e.g. `api.yourdomain.com`) to `localhost:8000` on the Linux machine
-- Managed by `cloudflared` running as a `systemd` service
-
----
-
-### 4. Cloudflare Access
-
-**Role:** Authentication gate that sits in front of the tunnel URL. Anyone reaching the tunnel URL without valid credentials receives a login wall before any request touches the Linux machine.
-
-**Two access policies:**
-
-| Policy | Who | Method |
-|--------|-----|--------|
-| Browser login | User in a browser | One-time email code or OAuth — sets a JWT cookie for subsequent requests |
-| Service token | Cloudflare Workers (server-side) | `CF-Access-Client-Id` + `CF-Access-Client-Secret` request headers |
-
-The service token is how the Workers middleware calls the API without triggering the browser login flow.
+| `POST` | `/sync` | `git pull` + rebuild hledger data |
+| `GET` | `/balance` | Account balances (JSON) |
+| `GET` | `/is` | Income statement |
+| `GET` | `/monthly` | Monthly breakdown at depth 2 |
+| `GET` | `/transactions` | `?month=YYYY-MM` — transactions for a month |
+| `GET` | `/search` | `?q=<query>` — full-text search |
+| `GET` | `/daily-totals` | `[{date, count, total}]` for trailing 365 days (heatmap) |
+| `POST` | `/add` | Append transaction to journal, commit, push |
+| `GET` | `/accounts` | Account name list (autocomplete) |
+| `GET` | `/descriptions` | Recent description list (autocomplete) |
+| `GET` | `/lookup` | `?description=<text>` — predicted postings |
+| `GET` | `/envelopes` | Envelope balances + pending transactions |
+| `POST` | `/envelopes/scan` | Scan for new unassigned transactions |
+| `POST` | `/envelopes/assign` | Assign transaction to envelope(s) |
+| `POST` | `/envelopes/transfer` | Transfer between envelopes |
+| `POST` | `/envelopes/adjust` | Manual balance adjustment |
+| `POST` | `/envelopes/dismiss` | Dismiss a pending transaction |
+| `POST` | `/envelopes/create` | Create a new envelope |
+| `DELETE` | `/envelopes/<id>` | Delete an envelope |
+| `GET` | `/health` | Health check (no auth) |
 
 ---
 
-### 5. Cloudflare Workers (Middleware + Frontend Host)
+## Setup
 
-**Role:** A single Cloudflare Worker that does two jobs:
-1. **Serves the frontend** — returns the SPA HTML/JS to the browser
-2. **Proxies API calls** — receives fetch requests from the frontend, injects the Cloudflare Access service token and Bearer token server-side, forwards to the tunnel, and returns the response
+### 1. Home server (Linux)
 
-**Why this matters:** The service token secret never reaches the browser. It lives as a Workers environment secret. The browser only ever communicates with the Worker — never directly with the Linux machine.
-
-**Routing:**
-- `GET /` — serves the SPA HTML
-- `GET /api/*` — proxies to FastAPI with secrets injected
-- `POST /api/*` — same, for write operations in v2
-
----
-
-### 6. Frontend — Single Page Application
-
-A Single Page Application (SPA) is a web app that loads once and updates its content dynamically — tapping a view swaps the content in place rather than navigating to a new URL. This gives it a native app-like feel on mobile without requiring an app store install.
-
-**v1 Views:**
-- **Balance** — account tree with balances
-- **Income Statement** — revenue and expense summary
-- **Monthly** — monthly breakdown, scrollable on mobile
-- **Transactions** — list of recent entries
-- **Sync button** — triggers `/sync` and displays the last-synced timestamp
-
-**v2 Additions:**
-- **Add Transaction** — a form that replicates the `hledger add` interactive flow:
-  - Date (defaults to today)
-  - Description
-  - Account 1 — text input with live autocomplete: account suggestions filter as you type, tap to select
-  - Amount 1
-  - Account 2 — same autocomplete behaviour
-  - Amount 2 — auto-calculated as the inverse of Amount 1, editable
-  - Confirm and submit
-
-**Design:** Minimal, clean, mobile-first. No charts in v1. Vanilla JS — no heavy frontend frameworks.
-
----
-
-## Git & Sync Flow
-
-The journal lives in a git repository. Where that repository is hosted is flexible — it could be GitHub, GitLab, a self-hosted solution, or anything else. The API layer pulls from wherever the remote is configured to point.
-
-```
-Mac (source of truth)
-  │
-  │  git push  (after every manual add)
-  ▼
-Git repository  (hosted anywhere)
-  │
-  │  git pull  (triggered only when user taps the Sync button)
-  ▼
-Linux machine  (journal.hledger read by hledger)
-  │
-  ▼
-FastAPI → Worker → Browser
+```bash
+# Install hledger (https://hledger.org/install.html)
+# Install Python deps
+cd api && pip install -r requirements.txt
+# Set environment variables
+export JOURNAL_DIR=/path/to/journal-repo
+export API_TOKEN=<your-bearer-token>
+# Run
+uvicorn main:app --host 127.0.0.1 --port 8000
 ```
 
-The Linux machine never initiates anything on its own. It only responds to requests.
+Configure as a `systemd` service so it starts on boot and restarts on crash (see `docs/architecture.md`).
 
-In v2, after a transaction is added via the mobile UI, the Linux machine commits and pushes back to the git remote so other devices pick it up on their next pull.
+### 2. Cloudflare Tunnel
 
----
+```bash
+cloudflared tunnel create hledger
+cloudflared tunnel route dns hledger api.yourdomain.com
+# Run cloudflared as a systemd service pointing to localhost:8000
+```
 
-## Build Phases
+### 3. Cloudflare Access
 
-### Phase 1 — Local Foundation
-- [ ] Ensure git repository is accessible from the Linux machine
-- [ ] Install hledger on Linux machine, verify it reads the journal correctly
-- [ ] Write FastAPI app with all v1 read endpoints and `/sync`
-- [ ] Configure as a `systemd` service (starts on boot, restarts on crash)
-- [ ] Verify all endpoints return correct JSON via `curl` locally
+In the Cloudflare Zero Trust dashboard:
+- Create an Access application protecting `api.yourdomain.com`
+- Create a service token; note the Client ID and Secret
 
-### Phase 2 — Cloudflare Setup
-- [ ] Set up Cloudflare Tunnel pointing to `localhost:8000`
-- [ ] Configure Cloudflare Access on the tunnel URL
-- [ ] Create service token for Workers use
-- [ ] Test: browser login flow works; service token bypasses login
+### 4. Worker secrets
 
-### Phase 3 — Workers Middleware
-- [ ] Create Worker that serves a placeholder HTML page
-- [ ] Add proxy routes (`/api/*`) that inject service token and Bearer token
-- [ ] Verify end-to-end: browser → Worker → Tunnel → FastAPI → hledger
+```bash
+cd hledger-worker
+wrangler secret put API_BASE_URL        # e.g. https://api.yourdomain.com
+wrangler secret put BEARER_TOKEN
+wrangler secret put CF_ACCESS_CLIENT_ID
+wrangler secret put CF_ACCESS_CLIENT_SECRET
+```
 
-### Phase 4 — Frontend v1
-- [ ] Build the SPA: balance, income statement, monthly, and transactions views
-- [ ] Sync button with last-synced timestamp
-- [ ] Mobile-friendly layout and styling
-- [ ] Test on phone
+### 5. Deploy
 
-### Phase 5 — Frontend v2 (Writes)
-- [ ] Add transaction form with live autocomplete
-- [ ] FastAPI `/add` endpoint
-- [ ] Git commit and push after successful write
-- [ ] Test full add flow from phone through to journal file
+```bash
+cd hledger-worker
+npm install
+npm run deploy   # runs vite build && wrangler deploy
+```
 
 ---
 
-## Open Questions / Decisions Deferred
+## Development
 
-- **Bearer token management** — stored as an environment variable on the Linux machine and as a Workers secret. Rotation is manual when needed.
-- **`/transactions` count** — last 50 transactions as a starting point. Adjustable once the UI is in use.
-- **Monthly view layout** — scrollable table vs stacked cards on mobile. To be decided when the UI is visible.
-- **v2 commit message format** — e.g. `add: [description] [date]`. Minor but worth a consistent format for a clean git log.
+```bash
+cd hledger-worker
+npm run dev      # Vite dev server + Worker via @cloudflare/vite-plugin
+```
+
+The dev server proxies `/api/*` to a local Wrangler instance. You will need a `.dev.vars` file with the secrets for local testing.
+
+---
+
+## Security notes
+
+- No secrets in code or committed files — all secrets go through `wrangler secret put`
+- Auth headers are injected by the Worker; the browser never sees them
+- React JSX provides automatic XSS protection (no manual escaping)
+- Privacy toggle is in-memory only and resets on page reload — it is a screen-share convenience, not a security boundary

@@ -330,6 +330,53 @@ def lookup_description(description: str, token: str = Security(verify_token)):
 
 
 # ---------------------------------------------------------------------------
+# Daily totals — for dashboard heatmap
+# ---------------------------------------------------------------------------
+
+@app.get("/daily-totals")
+def get_daily_totals(token: str = Security(verify_token)):
+    """
+    Returns transaction counts and absolute totals per day for the trailing 365 days.
+    Used by the dashboard heatmap.
+    Response: [{ date: "YYYY-MM-DD", count: int, total: float }, ...]
+    """
+    import json
+    from datetime import date, timedelta
+
+    today = date.today()
+    start = today - timedelta(days=364)
+    date_filter = f"{start.isoformat()}..{today.isoformat()}"
+
+    output = run_hledger("print", "--output-format", "json", "-p", date_filter)
+    try:
+        txns = json.loads(output)
+    except json.JSONDecodeError:
+        return []
+
+    by_date: dict[str, dict] = {}
+    for txn in txns:
+        d = txn.get("tdate", "")
+        if not d:
+            continue
+        if d not in by_date:
+            by_date[d] = {"count": 0, "total": 0.0}
+        by_date[d]["count"] += 1
+        for posting in txn.get("tpostings", []):
+            for amt in posting.get("pamount", []):
+                qty = amt.get("aquantity", 0)
+                if isinstance(qty, dict):
+                    mantissa = qty.get("decimalMantissa", 0)
+                    places = qty.get("decimalPlaces", 0)
+                    qty = mantissa / (10 ** places) if places else float(mantissa)
+                by_date[d]["total"] += abs(float(qty))
+
+    result = [
+        {"date": d, "count": v["count"], "total": round(v["total"], 2)}
+        for d, v in sorted(by_date.items())
+    ]
+    return result
+
+
 # Health check (no auth — used to verify service is up)
 # ---------------------------------------------------------------------------
 

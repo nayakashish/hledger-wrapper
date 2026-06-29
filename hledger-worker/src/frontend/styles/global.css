@@ -872,6 +872,38 @@ body.is-offline header {
   padding: 6px 0;
 }
 
+/* ── Report sub-tabs ── */
+.report-tab-bar {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0;
+}
+
+.report-tab {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  padding: 8px 14px;
+  cursor: pointer;
+  color: var(--text-muted);
+  transition: color 0.15s, border-color 0.15s;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.report-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
 /* ── Responsive: mobile nav ── */
 @media (max-width: 540px) {
   nav {

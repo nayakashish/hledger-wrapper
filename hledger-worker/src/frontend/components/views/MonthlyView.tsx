@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { extractAmount, fmtAmount, amountClass } from '../../utils/format';
+import { usePrivacy } from '../../context/PrivacyContext';
 import type { MonthlyData, Amount } from '../../types';
 
 interface Props {
@@ -52,6 +53,7 @@ export default function MonthlyView({ data, isActive }: Props) {
 }
 
 function MonthlyTable({ data, periodIdx }: { data: MonthlyData; periodIdx: number }) {
+	const { privacyMode } = usePrivacy();
 	const amountMap: Record<string, Amount[]> = {};
 	data.prRows.forEach(row => {
 		const amts = row.prrAmounts?.[periodIdx] ?? [];
@@ -104,7 +106,9 @@ function MonthlyTable({ data, periodIdx }: { data: MonthlyData; periodIdx: numbe
 									{label}
 								</span>
 								<span className={`account-amount ${amountClass(val)}`}>
-									{amounts.length > 0 ? fmtAmount(val, commodity) : ''}
+									{amounts.length > 0
+										? (privacyMode && fullName.startsWith('income') ? '••••' : fmtAmount(val, commodity))
+										: ''}
 								</span>
 							</div>
 						);

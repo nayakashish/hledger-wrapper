@@ -83,7 +83,7 @@ export interface EnvelopeData {
 	income_split_default?: IncomeSplitDefault;
 }
 
-export type ViewName = 'balance' | 'is' | 'monthly' | 'transactions' | 'envelopes';
+export type ViewName = 'dashboard' | 'envelopes' | 'transactions' | 'reports';
 
 export interface AppCache {
 	balance?: BalanceRow[][];

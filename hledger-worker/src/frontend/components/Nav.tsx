@@ -6,10 +6,10 @@ interface Props {
 }
 
 const VIEWS: { id: ViewName; label: string }[] = [
-	{ id: 'balance', label: 'Balance' },
+	{ id: 'dashboard', label: 'Dashboard' },
 	{ id: 'envelopes', label: 'Envelopes' },
-	{ id: 'monthly', label: 'Monthly' },
 	{ id: 'transactions', label: 'Transactions' },
+	{ id: 'reports', label: 'Reports' },
 ];
 
 export default function Nav({ activeView, onViewChange }: Props) {

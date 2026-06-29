@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import type {
 	ViewName,
 	AppCache,
+	MonthlyData,
 	Transaction,
 	EnvelopeData,
 	PendingTxn,
@@ -16,8 +17,8 @@ import Header from './components/Header';
 import SyncRow from './components/SyncRow';
 import SummaryCards from './components/SummaryCards';
 import Nav from './components/Nav';
-import BalanceView from './components/views/BalanceView';
-import MonthlyView from './components/views/MonthlyView';
+import DashboardView from './components/views/DashboardView';
+import ReportsView from './components/views/ReportsView';
 import TransactionsView from './components/views/TransactionsView';
 import EnvelopesView from './components/views/EnvelopesView';
 import AddSheet from './components/sheets/AddSheet';
@@ -49,7 +50,7 @@ function persistCache(cache: AppCache, envData: EnvelopeData | null) {
 }
 
 export default function App() {
-	const [activeView, setActiveView] = useState<ViewName>('balance');
+	const [activeView, setActiveView] = useState<ViewName>('dashboard');
 	const [cache, setCache] = useState<AppCache>(loadPersistedCache);
 	const [envData, setEnvData] = useState<EnvelopeData | null>(() => {
 		try {
@@ -166,14 +167,14 @@ export default function App() {
 		const [balance, , monthly, transactions] = await Promise.allSettled([
 			loadRawEndpoint<BalanceRow[][]>('balance'),
 			loadRawEndpoint<unknown>('is'),
-			loadRawEndpoint<unknown>('monthly'),
+			loadRawEndpoint<MonthlyData>('monthly'),
 			loadRawEndpoint<Transaction[]>('transactions', { month }),
 		]);
 
 		setCache(prev => {
 			const next = { ...prev };
 			if (balance.status === 'fulfilled') next.balance = balance.value;
-			if (monthly.status === 'fulfilled') next.monthly = monthly.value as AppCache['monthly'];
+			if (monthly.status === 'fulfilled') next.monthly = monthly.value;
 			if (transactions.status === 'fulfilled') next.transactions = transactions.value;
 			return next;
 		});
@@ -253,13 +254,11 @@ export default function App() {
 				<SummaryCards balance={cache.balance ?? null} />
 				<Nav activeView={activeView} onViewChange={setActiveView} />
 
-				<BalanceView
-					data={cache.balance ?? null}
-					isActive={activeView === 'balance'}
-				/>
-				<MonthlyView
-					data={cache.monthly ?? null}
-					isActive={activeView === 'monthly'}
+				<DashboardView isActive={activeView === 'dashboard'} />
+				<ReportsView
+					balance={cache.balance ?? null}
+					monthly={cache.monthly ?? null}
+					isActive={activeView === 'reports'}
 				/>
 				<TransactionsView
 					data={cache.transactions ?? null}

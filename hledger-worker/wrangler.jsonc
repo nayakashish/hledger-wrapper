@@ -14,13 +14,6 @@
 		"binding": "ASSETS",
 		"not_found_handling": "single-page-application"
 	},
-	"kv_namespaces": [
-		{
-			"binding": "DEMO_DATA",
-			"id": "ada81505601844f484e4d474ea5f749a",
-			"remote": true
-		}
-	]
 	/**
 	 * Secrets (set via wrangler CLI, never committed):
 	 *   wrangler secret put BEARER_TOKEN

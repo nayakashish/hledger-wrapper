@@ -1,5 +1,6 @@
 import { extractAmount, fmtAmount, amountClass } from '../../utils/format';
 import type { EnvelopeData, PendingTxn, BalanceRow } from '../../types';
+import MaskedAmount from '../MaskedAmount';
 
 interface Props {
 	data: EnvelopeData | null;
@@ -122,7 +123,11 @@ function EnvelopesContent({
 									)}
 								</span>
 								<span className={`pending-amount ${isIncome ? 'amount-positive' : 'amount-negative'}`}>
-									{amtSign}{fmtAmount(txn.amount, '$')}
+									{isIncome ? (
+										<>{amtSign}<MaskedAmount value={txn.amount} /></>
+									) : (
+										<>{amtSign}{fmtAmount(txn.amount, '$')}</>
+									)}
 								</span>
 							</div>
 							<div className="pending-meta">
@@ -140,7 +145,7 @@ function EnvelopesContent({
 				<div className="env-section-title" style={{ margin: 0 }}>Envelopes</div>
 				<div style={{ textAlign: 'right' }}>
 					<div style={{ fontSize: 15, fontWeight: 500, fontVariantNumeric: 'tabular-nums' }} className={amountClass(allEnvTotal)}>
-						{fmtAmount(allEnvTotal, '$')}
+						<MaskedAmount value={allEnvTotal} />
 					</div>
 					{diff !== null && (
 						<div style={{ fontSize: 10, fontWeight: 500, letterSpacing: '0.3px', color: inSync ? 'var(--positive)' : 'var(--negative)' }}>
@@ -164,12 +169,16 @@ function EnvelopesContent({
 					<div key={parent.id} className="env-parent">
 						<div className="env-parent-header" onClick={() => onEnvClick(parent.id)}>
 							<span className="env-parent-name">{parent.name}</span>
-							<span className={`env-parent-total ${amountClass(total)}`}>{fmtAmount(total, '$')}</span>
+							<span className={`env-parent-total ${amountClass(total)}`}>
+								<MaskedAmount value={total} />
+							</span>
 						</div>
 						{children.length > 0 && (
 							<div className="env-unalloc-row">
 								<span>Unallocated</span>
-								<span className={amountClass(unalloc)}>{fmtAmount(unalloc, '$')}</span>
+								<span className={amountClass(unalloc)}>
+									<MaskedAmount value={unalloc} />
+								</span>
 							</div>
 						)}
 						{children.map(child => {
@@ -180,7 +189,9 @@ function EnvelopesContent({
 										<div className="env-child-name">{child.name}</div>
 									</div>
 									<div className="env-child-right">
-										<span className={`env-child-balance ${amountClass(bal)}`}>{fmtAmount(bal, '$')}</span>
+										<span className={`env-child-balance ${amountClass(bal)}`}>
+											<MaskedAmount value={bal} />
+										</span>
 										<span className="env-child-chevron">›</span>
 									</div>
 								</div>

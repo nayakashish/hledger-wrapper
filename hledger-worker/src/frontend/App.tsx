@@ -10,6 +10,7 @@ import type {
 } from './types';
 import { formatSyncTime, currentMonth } from './utils/format';
 import { loadRawEndpoint, apiPost } from './utils/api';
+import { PrivacyProvider } from './context/PrivacyContext';
 import Banners from './components/Banners';
 import Header from './components/Header';
 import SyncRow from './components/SyncRow';
@@ -22,7 +23,6 @@ import EnvelopesView from './components/views/EnvelopesView';
 import AddSheet from './components/sheets/AddSheet';
 import DetailSheet from './components/sheets/DetailSheet';
 import AssignSheet from './components/sheets/AssignSheet';
-import PinModal from './components/modals/PinModal';
 import Toast from './components/Toast';
 
 const CACHE_KEY = 'hledger_cache';
@@ -59,9 +59,6 @@ export default function App() {
 			return null;
 		}
 	});
-	const [isDemoMode, setIsDemoMode] = useState(
-		() => sessionStorage.getItem('hledger_demo') === '1'
-	);
 	const [isOffline, setIsOffline] = useState(!navigator.onLine);
 	const [syncTimestamp, setSyncTimestamp] = useState(() => {
 		try {
@@ -89,11 +86,10 @@ export default function App() {
 		}
 	});
 
-	// Sheets and modals
+	// Sheets
 	const [addSheetOpen, setAddSheetOpen] = useState(false);
 	const [detailContent, setDetailContent] = useState<DetailContent | null>(null);
 	const [assignTxn, setAssignTxn] = useState<PendingTxn | null>(null);
-	const [pinModalOpen, setPinModalOpen] = useState(false);
 
 	// Toast
 	const [toastMsg, setToastMsg] = useState('');
@@ -126,51 +122,33 @@ export default function App() {
 		};
 	}, []);
 
-	// Demo mode
-	useEffect(() => {
-		if (isDemoMode) {
-			document.body.classList.add('is-demo');
-		} else {
-			document.body.classList.remove('is-demo');
+	const fetchAccounts = useCallback(async () => {
+		try {
+			const json = await (
+				await fetch('/api/accounts')
+			).json() as { accounts?: string[] };
+			const list = json.accounts || [];
+			setAccountsList(list);
+			localStorage.setItem('hledger_accounts', JSON.stringify(list));
+		} catch {
+			// fail silently
 		}
-	}, [isDemoMode]);
+	}, []);
 
-	const fetchAccounts = useCallback(
-		async (demo: boolean) => {
-			if (demo) return;
-			try {
-				const json = await (
-					await fetch('/api/accounts')
-				).json() as { accounts?: string[] };
-				const list = json.accounts || [];
-				setAccountsList(list);
-				localStorage.setItem('hledger_accounts', JSON.stringify(list));
-			} catch {
-				// fail silently
-			}
-		},
-		[]
-	);
+	const fetchDescriptions = useCallback(async () => {
+		try {
+			const json = await (
+				await fetch('/api/descriptions')
+			).json() as { descriptions?: string[] };
+			const list = json.descriptions || [];
+			setDescriptionsList(list);
+			localStorage.setItem('hledger_descriptions', JSON.stringify(list));
+		} catch {
+			// fail silently
+		}
+	}, []);
 
-	const fetchDescriptions = useCallback(
-		async (demo: boolean) => {
-			if (demo) return;
-			try {
-				const json = await (
-					await fetch('/api/descriptions')
-				).json() as { descriptions?: string[] };
-				const list = json.descriptions || [];
-				setDescriptionsList(list);
-				localStorage.setItem('hledger_descriptions', JSON.stringify(list));
-			} catch {
-				// fail silently
-			}
-		},
-		[]
-	);
-
-	const loadEnvelopes = useCallback(async (demo: boolean) => {
-		if (demo) return;
+	const loadEnvelopes = useCallback(async () => {
 		try {
 			const data = await (
 				await fetch('/api/envelopes')
@@ -183,13 +161,13 @@ export default function App() {
 		}
 	}, []);
 
-	const loadAll = useCallback(async (demo: boolean) => {
+	const loadAll = useCallback(async () => {
 		const month = currentMonth();
 		const [balance, , monthly, transactions] = await Promise.allSettled([
-			loadRawEndpoint<BalanceRow[][]>('balance', demo),
-			loadRawEndpoint<unknown>('is', demo),
-			loadRawEndpoint<unknown>('monthly', demo),
-			loadRawEndpoint<Transaction[]>('transactions', demo, { month }),
+			loadRawEndpoint<BalanceRow[][]>('balance'),
+			loadRawEndpoint<unknown>('is'),
+			loadRawEndpoint<unknown>('monthly'),
+			loadRawEndpoint<Transaction[]>('transactions', { month }),
 		]);
 
 		setCache(prev => {
@@ -200,24 +178,10 @@ export default function App() {
 			return next;
 		});
 
-		await loadEnvelopes(demo);
-		await fetchAccounts(demo);
-		await fetchDescriptions(demo);
+		await loadEnvelopes();
+		await fetchAccounts();
+		await fetchDescriptions();
 	}, [loadEnvelopes, fetchAccounts, fetchDescriptions]);
-
-	const enterDemoMode = useCallback(() => {
-		sessionStorage.setItem('hledger_demo', '1');
-		setIsDemoMode(true);
-		showToast('Demo mode on');
-		void loadAll(true);
-	}, [showToast, loadAll]);
-
-	const exitDemoMode = useCallback(() => {
-		sessionStorage.removeItem('hledger_demo');
-		setIsDemoMode(false);
-		showToast('Back to your data');
-		void loadAll(false);
-	}, [showToast, loadAll]);
 
 	const cacheRef = useRef(cache);
 	const envDataRef = useRef(envData);
@@ -228,19 +192,17 @@ export default function App() {
 		setIsSyncing(true);
 		setSyncTimestamp('');
 		try {
-			if (!isDemoMode) {
-				const r = await fetch('/api/sync', { method: 'POST' });
-				if (!r.ok) {
-					const j = await r.json() as { detail?: string };
-					throw new Error(j.detail || `status ${r.status}`);
-				}
-				const syncResult = await r.json() as { detail?: string };
-				if (syncResult.detail?.toLowerCase().includes('conflict')) {
-					showToast('Sync conflict — check journal manually', 4000);
-					return;
-				}
+			const r = await fetch('/api/sync', { method: 'POST' });
+			if (!r.ok) {
+				const j = await r.json() as { detail?: string };
+				throw new Error(j.detail || `status ${r.status}`);
 			}
-			await loadAll(isDemoMode);
+			const syncResult = await r.json() as { detail?: string };
+			if (syncResult.detail?.toLowerCase().includes('conflict')) {
+				showToast('Sync conflict — check journal manually', 4000);
+				return;
+			}
+			await loadAll();
 			const now = new Date().toISOString();
 			persistCache(cacheRef.current, envDataRef.current);
 			setSyncTimestamp(formatSyncTime(now));
@@ -249,7 +211,7 @@ export default function App() {
 		} finally {
 			setIsSyncing(false);
 		}
-	}, [isDemoMode, loadAll, showToast]);
+	}, [loadAll, showToast]);
 
 	// Envelope actions
 	const scanTransactions = useCallback(async () => {
@@ -262,11 +224,11 @@ export default function App() {
 					? `Found ${added} new transaction${added === 1 ? '' : 's'}`
 					: 'Nothing new'
 			);
-			await loadEnvelopes(isDemoMode);
+			await loadEnvelopes();
 		} catch (e) {
 			showToast('Scan failed: ' + (e instanceof Error ? e.message : String(e)), 4000);
 		}
-	}, [isDemoMode, loadEnvelopes, showToast]);
+	}, [loadEnvelopes, showToast]);
 
 	const handleAddSuccess = useCallback(async () => {
 		showToast('Saved — syncing...');
@@ -274,28 +236,18 @@ export default function App() {
 	}, [syncNow, showToast]);
 
 	const handleEnvAction = useCallback(async () => {
-		await loadEnvelopes(isDemoMode);
-	}, [isDemoMode, loadEnvelopes]);
+		await loadEnvelopes();
+	}, [loadEnvelopes]);
 
 	return (
-		<>
-			<Banners
-				isDemoMode={isDemoMode}
-				isOffline={isOffline}
-				onDemoTap={() => setPinModalOpen(true)}
-			/>
+		<PrivacyProvider>
+			<Banners isOffline={isOffline} />
 			<div className="app">
-				<Header onDemoTrigger={enterDemoMode} />
+				<Header />
 				<SyncRow
 					isSyncing={isSyncing}
 					onSync={syncNow}
-					onAdd={() => {
-						if (isDemoMode) {
-							showToast('Add disabled in demo mode', 2500);
-							return;
-						}
-						setAddSheetOpen(true);
-					}}
+					onAdd={() => setAddSheetOpen(true)}
 					syncTimestamp={syncTimestamp}
 				/>
 				<SummaryCards balance={cache.balance ?? null} />
@@ -312,7 +264,6 @@ export default function App() {
 				<TransactionsView
 					data={cache.transactions ?? null}
 					isActive={activeView === 'transactions'}
-					isDemoMode={isDemoMode}
 					onTxnClick={txn => setDetailContent({ kind: 'transaction', txn })}
 				/>
 				<EnvelopesView
@@ -352,13 +303,6 @@ export default function App() {
 				onSuccess={handleEnvAction}
 				showToast={showToast}
 			/>
-
-			{pinModalOpen && (
-				<PinModal
-					onClose={() => setPinModalOpen(false)}
-					onSuccess={exitDemoMode}
-				/>
-			)}
-		</>
+		</PrivacyProvider>
 	);
 }

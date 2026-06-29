@@ -1,9 +1,5 @@
 const API = '';
 
-export function apiPrefix(isDemoMode: boolean): string {
-	return isDemoMode ? `${API}/api/demo` : `${API}/api`;
-}
-
 export async function apiGet<T>(path: string): Promise<T> {
 	const r = await fetch(`${API}${path}`);
 	if (!r.ok) {
@@ -49,12 +45,10 @@ export async function apiDelete<T>(path: string): Promise<T> {
 
 export async function loadRawEndpoint<T>(
 	name: string,
-	isDemoMode: boolean,
 	params?: Record<string, string>
 ): Promise<T> {
 	const qs = params ? '?' + new URLSearchParams(params).toString() : '';
-	const prefix = apiPrefix(isDemoMode);
-	const r = await fetch(`${prefix}/${name}${qs}`);
+	const r = await fetch(`${API}/api/${name}${qs}`);
 	if (!r.ok) throw new Error(`${r.status}`);
 	const json = await r.json() as { raw: string };
 	return JSON.parse(json.raw) as T;

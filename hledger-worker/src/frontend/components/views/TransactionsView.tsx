@@ -1,11 +1,11 @@
 import { useState, useRef, useCallback } from 'react';
 import { extractAmount, fmtAmount, amountClass, currentMonth } from '../../utils/format';
 import type { Transaction } from '../../types';
+import MaskedAmount from '../MaskedAmount';
 
 interface Props {
 	data: Transaction[] | null;
 	isActive: boolean;
-	isDemoMode: boolean;
 	onTxnClick: (txn: Transaction) => void;
 }
 
@@ -26,7 +26,7 @@ function buildMonthKeys(): string[] {
 	return keys;
 }
 
-export default function TransactionsView({ data, isActive, isDemoMode, onTxnClick }: Props) {
+export default function TransactionsView({ data, isActive, onTxnClick }: Props) {
 	const monthKeys = buildMonthKeys();
 	const latestMonth = currentMonth();
 	const [selectedMonth, setSelectedMonth] = useState(latestMonth);
@@ -40,28 +40,24 @@ export default function TransactionsView({ data, isActive, isDemoMode, onTxnClic
 		return dt.toLocaleDateString('en-CA', { month: 'long', year: 'numeric' });
 	};
 
-	const runSearch = useCallback(
-		async (q: string) => {
-			const trimmed = q.trim();
-			if (!trimmed) {
-				setSearchResults(null);
-				return;
-			}
-			setIsSearching(true);
-			try {
-				const prefix = isDemoMode ? '/api/demo' : '/api';
-				const r = await fetch(`${prefix}/search?q=` + encodeURIComponent(trimmed));
-				if (!r.ok) throw new Error(String(r.status));
-				const json = await r.json() as { raw: string };
-				setSearchResults(JSON.parse(json.raw) as Transaction[]);
-			} catch {
-				setSearchResults([]);
-			} finally {
-				setIsSearching(false);
-			}
-		},
-		[isDemoMode]
-	);
+	const runSearch = useCallback(async (q: string) => {
+		const trimmed = q.trim();
+		if (!trimmed) {
+			setSearchResults(null);
+			return;
+		}
+		setIsSearching(true);
+		try {
+			const r = await fetch('/api/search?q=' + encodeURIComponent(trimmed));
+			if (!r.ok) throw new Error(String(r.status));
+			const json = await r.json() as { raw: string };
+			setSearchResults(JSON.parse(json.raw) as Transaction[]);
+		} catch {
+			setSearchResults([]);
+		} finally {
+			setIsSearching(false);
+		}
+	}, []);
 
 	const handleSearchChange = (q: string) => {
 		setSearchQuery(q);
@@ -76,25 +72,21 @@ export default function TransactionsView({ data, isActive, isDemoMode, onTxnClic
 	const [monthlyTxns, setMonthlyTxns] = useState<Transaction[] | null>(null);
 	const [monthLoading, setMonthLoading] = useState(false);
 
-	const handleMonthChange = useCallback(
-		async (month: string) => {
-			setSelectedMonth(month);
-			if (searchQuery.trim()) return;
-			setMonthLoading(true);
-			try {
-				const prefix = isDemoMode ? '/api/demo' : '/api';
-				const r = await fetch(`${prefix}/transactions?month=${month}`);
-				if (!r.ok) throw new Error(String(r.status));
-				const json = await r.json() as { raw: string };
-				setMonthlyTxns(JSON.parse(json.raw) as Transaction[]);
-			} catch {
-				setMonthlyTxns([]);
-			} finally {
-				setMonthLoading(false);
-			}
-		},
-		[isDemoMode, searchQuery]
-	);
+	const handleMonthChange = useCallback(async (month: string) => {
+		setSelectedMonth(month);
+		if (searchQuery.trim()) return;
+		setMonthLoading(true);
+		try {
+			const r = await fetch(`/api/transactions?month=${month}`);
+			if (!r.ok) throw new Error(String(r.status));
+			const json = await r.json() as { raw: string };
+			setMonthlyTxns(JSON.parse(json.raw) as Transaction[]);
+		} catch {
+			setMonthlyTxns([]);
+		} finally {
+			setMonthLoading(false);
+		}
+	}, [searchQuery]);
 
 	const displayTxns = searchQuery.trim()
 		? searchResults
@@ -189,13 +181,18 @@ function TxnList({
 				const postings = txn.tpostings || [];
 				const { val, commodity } = extractAmount(postings[0]?.pamount);
 				const accountNames = postings.map(p => p.paccount || '').filter(Boolean).join(' · ');
+				const isIncome = postings.some(p => (p.paccount || '').startsWith('income'));
 				return (
 					<div key={i} className="txn" onClick={() => onTxnClick(txn)}>
 						<div className="txn-top">
 							<span className="txn-desc">{desc}</span>
-							<span className={`txn-amount ${amountClass(val)}`}>
-								{fmtAmount(val, commodity)}
-							</span>
+							{isIncome ? (
+								<MaskedAmount value={val} commodity={commodity} className={`txn-amount ${amountClass(val)}`} />
+							) : (
+								<span className={`txn-amount ${amountClass(val)}`}>
+									{fmtAmount(val, commodity)}
+								</span>
+							)}
 						</div>
 						<div className="txn-meta">
 							{txn.tdate}

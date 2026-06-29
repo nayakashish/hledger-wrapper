@@ -1,57 +1,195 @@
-# Why This App Is Built Just for Me
+# hledger Mobile — Migration & Feature Plan
 
-If you are reading this, you probably know me and you are curious about what this is, or maybe you are hoping I can set you up with something similar. This is my honest explanation of why I built this the way I did, why it works for me specifically, and why I have not tried to make it work for everyone.
-
----
-
-## What This Actually Is
-
-This is a mobile app I built myself to check my personal finances on my phone. It connects to accounting software I run on a computer at home, and it lets me see my balances, track my spending, and add new transactions while I am out.
-
-The accounting software it is built around is called hledger. It is not an app you download from the App Store. It is a command-line tool — the kind of thing you use by typing commands into a terminal window. It stores all your financial data in a plain text file that lives on your computer, not in anyone's cloud. No company has access to your numbers. Nothing is shared with advertisers. The file is yours and it stays on your machine.
-
-That is the part I care most about.
+This document summarizes a planning session for restructuring the hledger mobile app and adding new features. Hand this to a new Claude session to begin implementation.
 
 ---
 
-## Why I Chose This Over Normal Apps
+## Context
 
-There are plenty of good apps that handle personal finance for most people. The ones I considered before going this route include:
+The app is a self-hosted personal finance PWA built around hledger (plain-text double-entry accounting). It consists of:
 
-**Mint** (now discontinued, but worth mentioning) — connected directly to your bank and automatically categorized your spending. Convenient, but your financial data lived on someone else's servers and was used to serve you ads.
+- **FastAPI backend** (`api/main.py`) — thin wrapper around the hledger CLI, runs on a home Linux machine
+- **Cloudflare Worker** (`worker/src/index.ts`) — serves the SPA and proxies `/api/*` requests with secrets injected server-side
+- **Frontend** — currently a single vanilla JS/HTML SPA (`public/index.html`)
 
-**YNAB (You Need a Budget)** — genuinely excellent app, well-designed, used by a lot of people who take budgeting seriously. It syncs with your bank, has a great mobile experience, and teaches you to think about money in a useful way. Costs around $100 a year. Your data is in their cloud.
-
-**Actual Budget** — open source, can be self-hosted, has bank syncing in some configurations. Much closer in spirit to what I built. A reasonable choice for someone who wants control over their data without doing everything from scratch.
-
-**Copilot** — well-designed iPhone app, automatic bank import, good categorization. Subscription-based, data in the cloud.
-
-Any of these would serve most people well. The reason I did not use them is not that they are bad. It is that I wanted something specific: my data stays on hardware I own, I have complete control over the format it is stored in, and I can query it any way I want using tools I understand. That is a preference, not a criticism of the alternatives.
+The backend and Worker proxy logic are **not changing**. The migration is frontend-only, plus minor Worker changes to serve a built `dist/` folder instead of a single HTML file.
 
 ---
 
-## The Part That Makes This Not for Everyone
+## Migration Goal
 
-Here is the honest part.
-
-hledger, the software at the core of this, requires you to record every single transaction yourself. There is no automatic bank import in the way I use it. Every time I buy a coffee, I add it. Every paycheque, I record it. Every time money moves, I write it down.
-
-Most people will not do this. That is not a character flaw — it is just a reasonable assessment of how much friction is acceptable in daily life. Automatic bank syncing exists precisely because manual entry is a lot to ask of someone. I happen to find the manual process useful. It keeps me aware of where my money is going in a way that automatic categorization does not, because automatic categorization lets you look away.
-
-But if you are not the kind of person who is going to open an app and log a $4 purchase every time it happens, this system will not work for you. It does not degrade gracefully. An incomplete ledger is not a useful ledger.
+Migrate the frontend from a monolithic vanilla JS SPA to a **Vite + React + TypeScript** project. This is necessary before adding new features because the upcoming changes (shared privacy toggle state, chart components, interactive drilldowns) require a proper component model. Building on the current vanilla JS foundation would result in unmaintainable spaghetti.
 
 ---
 
-## Why I Did Not Build It for Multiple People
+## Technology Decisions
 
-I thought about this. The short answer is that the tool itself is the bottleneck, not the app I built around it.
-
-If I gave you access to this and you wanted to track your own finances, you would need to learn hledger, set up your own journal file, maintain it consistently, and be comfortable with the fact that nothing is automatic. For most people I know, that is too much to ask — not because they are not capable, but because the payoff does not justify the setup for someone who is not already bought into this way of thinking about money.
-
-The app I built is a good solution to my specific problem. For your specific problem, one of the apps listed above is probably a better fit. YNAB in particular is worth a look if you want to take budgeting seriously without building your own tools.
+| Concern | Decision |
+|---|---|
+| Framework | Vite + React + TypeScript |
+| PWA | `vite-plugin-pwa` (replaces hand-rolled service worker) |
+| Charts | Recharts |
+| Data fetching | TanStack Query (replaces manual cache logic) |
+| Deployment | Cloudflare Workers with auto-deploy from git (not Pages) |
+| Demo mode | Remove entirely |
 
 ---
 
-## The Short Version
+## New Tab Structure
 
-I built this because I wanted complete ownership of my financial data and I was willing to do the work that comes with that. The app is a layer on top of a tool that rewards discipline and punishes inconsistency. It suits me. For most people, a purpose-built app with automatic bank syncing and a polished interface will serve them better, and there is no shame in that.
+Four tabs, replacing the current layout:
+
+| Tab | Contents |
+|---|---|
+| Dashboard | Heatmap, charts (see below) |
+| Envelopes | Existing envelope system, unchanged |
+| Transactions | Existing transaction list with search |
+| Reports | Balance tree, Monthly breakdown (selectable) |
+
+On mobile the tab bar is bottom nav. On the current app, Reports and Transactions swap position from what was discussed — final order left to right: Dashboard, Envelopes, Transactions, Reports.
+
+---
+
+## Features to Build (in order)
+
+### 1. Scaffold and Deploy Empty Shell
+- Set up Vite + React + TypeScript project
+- Configure `vite-plugin-pwa` for manifest and service worker
+- Update Worker to serve `dist/` build output instead of importing a single HTML file
+- Verify the empty app deploys and installs on phone as a PWA
+- No features yet — just proving the pipeline works
+
+### 2. Port Existing Views
+Port each existing view as a React component. The hledger JSON parsing logic stays the same — just moving from innerHTML string building to JSX. Port in this order:
+
+1. Transactions (simplest)
+2. Balance (tree render)
+3. Monthly (has select interaction)
+4. Envelopes (most complex — sheets, forms, assign flow)
+
+**During this step: remove demo mode entirely.**
+
+What to remove:
+- PIN modal
+- Demo banner
+- `sessionStorage` demo flag
+- All `/api/demo/*` routing in the Worker
+- KV namespace for demo data
+- All `isDemoMode()` conditional branches in the frontend
+
+The Worker gets meaningfully simpler after this.
+
+### 3. Privacy Toggle
+- Add a React Context holding a single boolean (`privacyMode`)
+- Create a `<MaskedAmount>` component: renders formatted currency normally, or `••••` when privacy mode is on
+- Replace every currency render in the app with `<MaskedAmount>`
+- Add eye icon to the header to toggle
+- State does **not** persist across sessions (in-memory only)
+
+**What gets masked:**
+- Net worth, assets, liabilities summary cards
+- Envelope balances
+- Income transaction amounts (anything under `income:` account prefix)
+- Profit/loss and net worth charts (blur overlay when privacy mode on)
+
+**What does not get masked:**
+- Expense transaction amounts
+- Account names
+- Dates and descriptions
+
+### 4. Tab Restructure
+- Establish four-tab layout: Dashboard (placeholder), Envelopes, Transactions, Reports
+- Move Balance tree and Monthly breakdown into the Reports tab
+- Reports tab has a selector for which report to view
+
+### 5. Monthly Drilldown
+- Tapping a category row in the Monthly report expands to show the transactions in that category
+- Filter by account prefix and date range using existing transaction data
+- Render in the same transaction list component from step 2
+
+### 6. Dashboard
+
+#### Heatmap
+- Shows transaction activity for the trailing 12 months, one cell per day
+- Style: GitHub contribution graph aesthetic
+- No color-coding for income vs expense — activity intensity only (darker = more transactions or higher total)
+- For performance: add a new FastAPI endpoint `/daily-totals` that returns aggregated daily transaction counts/amounts rather than doing it client-side from raw transactions
+- New endpoint should return: `{ date: string, count: number, total: number }[]` for a given date range
+
+#### Charts (all showing trailing 12 months)
+Four charts, no more:
+
+1. **Profit/Loss** — net income minus expenses, monthly bar or line chart, 12-month view
+2. **Spending by Category vs Prior Period** — bar chart comparing this month to either last month or 3-month rolling average; user can toggle between the two comparisons
+3. **Net Worth Over Time** — line chart, monthly data points, shows whether savings trend is positive or negative
+4. No "big number" summary at the top of the dashboard
+
+All chart data sourced from existing monthly endpoint where possible. Net worth line may need an additional endpoint or client-side aggregation from balance history.
+
+### 7. Documentation
+Rewrite README once all features are stable. It currently reads as a project plan with checkboxes. It should become:
+- What the project is (2–3 sentences)
+- Architecture diagram or description
+- Setup guide (how to get it running from scratch on a new machine)
+- API reference
+- How to deploy / update
+
+---
+
+## Project Structure
+
+```
+hledger-mobile/
+├── frontend/
+│   ├── src/
+│   │   ├── components/      # shared UI components (MaskedAmount, Sheet, etc.)
+│   │   ├── views/           # top-level tab views
+│   │   ├── hooks/           # data fetching hooks
+│   │   ├── context/         # PrivacyContext, etc.
+│   │   └── main.tsx
+│   ├── public/              # icons (managed by vite-plugin-pwa)
+│   ├── vite.config.ts
+│   └── package.json
+├── worker/
+│   └── src/index.ts         # mostly unchanged, serves dist/ instead of HTML import
+├── api/
+│   └── main.py              # unchanged except new /daily-totals endpoint in step 6
+└── README.md
+```
+
+---
+
+## Worker Changes (minimal)
+
+Current Worker imports `index.html` directly as a bundled asset. After migration it should:
+- Serve `dist/index.html` for `GET /`
+- Serve other static assets from `dist/` (JS, CSS, icons)
+- Keep all `/api/*` proxy logic completely unchanged
+- Remove all `/api/demo/*` routing and the `DEMO_DATA` KV binding
+
+The Worker secrets (`API_BASE_URL`, `BEARER_TOKEN`, `CF_ACCESS_CLIENT_ID`, `CF_ACCESS_CLIENT_SECRET`) are unchanged.
+
+---
+
+## Existing Code to Preserve
+
+All of the following logic exists in the current vanilla JS and should be carried over during the port — it is correct and just needs to be translated to React:
+
+- `extractAmount()` — parses hledger's nested aquantity format
+- `fmtAmount()` — formats currency with symbol
+- `amountClass()` — returns positive/negative/neutral CSS class
+- `escHtml()` — HTML escaping for rendered strings
+- All hledger JSON parsing in the balance, monthly, and transaction renderers
+- The swipe-to-close gesture on bottom sheets
+- The autocomplete logic for account names and descriptions in the Add Transaction flow
+- The `lookupDescription()` prefill behavior
+
+---
+
+## What Not to Change
+
+- FastAPI backend endpoints (except adding `/daily-totals` in step 6)
+- Cloudflare Tunnel and Access configuration
+- Bearer token auth pattern
+- The envelope data model and all envelope API endpoints
+- The git commit-and-push flow triggered by `/add` and envelope mutations

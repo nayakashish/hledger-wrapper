@@ -1,5 +1,6 @@
-import { extractAmount, fmtAmount, amountClass } from '../utils/format';
+import { extractAmount, amountClass } from '../utils/format';
 import type { BalanceRow } from '../types';
+import MaskedAmount from './MaskedAmount';
 
 interface Props {
 	balance: BalanceRow[][] | null;
@@ -28,15 +29,21 @@ export default function SummaryCards({ balance }: Props) {
 		<div className="summary-cards">
 			<div className="summary-card">
 				<div className="card-label">Assets</div>
-				<div className={`card-value amount-positive`}>{fmtAmount(assets, commodity)}</div>
+				<div className="card-value amount-positive">
+					<MaskedAmount value={assets} commodity={commodity} />
+				</div>
 			</div>
 			<div className="summary-card">
 				<div className="card-label">Liabilities</div>
-				<div className="card-value amount-negative">{fmtAmount(Math.abs(liabilities), commodity)}</div>
+				<div className="card-value amount-negative">
+					<MaskedAmount value={Math.abs(liabilities)} commodity={commodity} />
+				</div>
 			</div>
 			<div className="summary-card">
 				<div className="card-label">Net Worth</div>
-				<div className={`card-value ${amountClass(net)}`}>{fmtAmount(net, commodity)}</div>
+				<div className={`card-value ${amountClass(net)}`}>
+					<MaskedAmount value={net} commodity={commodity} />
+				</div>
 			</div>
 		</div>
 	);

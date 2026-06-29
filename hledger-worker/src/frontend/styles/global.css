@@ -59,6 +59,24 @@ header h1 {
 
 header h1 span { font-weight: 600; color: var(--accent); }
 
+.privacy-toggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  padding: 6px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: color 0.15s, background 0.15s;
+  flex-shrink: 0;
+}
+.privacy-toggle:hover { color: var(--accent); background: var(--border); }
+.privacy-toggle svg { width: 18px; height: 18px; }
+
 /* ── Sync row ── */
 .sync-row {
   display: flex;
@@ -433,33 +451,6 @@ nav button:hover:not(.active) { color: var(--text); }
 }
 
 /* ── Banners ── */
-.demo-banner {
-  display: none;
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  background: #b7791f;
-  color: #fff;
-  font-size: 12px;
-  font-weight: 500;
-  text-align: center;
-  padding: calc(env(safe-area-inset-top, 0px) + 10px) 16px 10px;
-  z-index: 600;
-  letter-spacing: 0.3px;
-  cursor: pointer;
-  transition: opacity 0.15s;
-  touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.demo-banner:hover { opacity: 0.9; }
-.demo-banner.visible { display: block; }
-
-body.is-demo header {
-  padding-top: calc(28px + env(safe-area-inset-top, 0px) + 37px) !important;
-}
-
 .offline-banner {
   display: none;
   position: fixed;
@@ -880,75 +871,6 @@ body.is-offline header {
   line-height: 1.5;
   padding: 6px 0;
 }
-
-/* ── PIN modal ── */
-.pin-modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.4);
-  z-index: 700;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-}
-
-.pin-modal {
-  background: var(--surface);
-  border-radius: 12px;
-  padding: 28px 24px;
-  width: 100%;
-  max-width: 300px;
-  text-align: center;
-}
-
-.pin-modal-title {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--accent);
-  margin-bottom: 6px;
-  letter-spacing: -0.2px;
-}
-
-.pin-modal-sub { font-size: 12px; color: var(--text-muted); font-weight: 300; margin-bottom: 20px; }
-
-.pin-dots { display: flex; justify-content: center; gap: 12px; margin-bottom: 20px; }
-
-.pin-dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  border: 2px solid var(--border);
-  background: transparent;
-  transition: background 0.15s, border-color 0.15s;
-}
-
-.pin-dot.filled { background: var(--accent); border-color: var(--accent); }
-.pin-dot.error { background: var(--negative); border-color: var(--negative); }
-
-.pin-keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-
-.pin-key {
-  font-family: 'Montserrat', sans-serif;
-  font-size: 18px;
-  font-weight: 400;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 14px 0;
-  cursor: pointer;
-  color: var(--text);
-  transition: background 0.1s;
-  text-align: center;
-  touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.pin-key:active { background: var(--border); }
-.pin-key.delete { font-size: 14px; color: var(--text-muted); }
-.pin-key.cancel { font-size: 12px; font-weight: 500; color: var(--text-muted); letter-spacing: 0.3px; }
-
-.pin-error-msg { font-size: 11px; color: var(--negative); margin-bottom: 12px; min-height: 16px; }
 
 /* ── Responsive: mobile nav ── */
 @media (max-width: 540px) {

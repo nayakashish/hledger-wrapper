@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import BalanceView from './BalanceView';
 import MonthlyView from './MonthlyView';
-import type { BalanceRow, MonthlyData } from '../../types';
+import type { BalanceRow, MonthlyData, Transaction } from '../../types';
 
 type ReportTab = 'balance' | 'monthly';
 
@@ -9,9 +9,10 @@ interface Props {
 	balance: BalanceRow[][] | null;
 	monthly: MonthlyData | null;
 	isActive: boolean;
+	onTxnClick: (txn: Transaction) => void;
 }
 
-export default function ReportsView({ balance, monthly, isActive }: Props) {
+export default function ReportsView({ balance, monthly, isActive, onTxnClick }: Props) {
 	const [tab, setTab] = useState<ReportTab>('balance');
 
 	return (
@@ -31,7 +32,7 @@ export default function ReportsView({ balance, monthly, isActive }: Props) {
 				</button>
 			</div>
 			<BalanceView data={balance} isActive={tab === 'balance'} />
-			<MonthlyView data={monthly} isActive={tab === 'monthly'} />
+			<MonthlyView data={monthly} isActive={tab === 'monthly'} onTxnClick={onTxnClick} />
 		</div>
 	);
 }

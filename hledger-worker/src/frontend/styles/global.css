@@ -872,6 +872,37 @@ body.is-offline header {
   padding: 6px 0;
 }
 
+/* ── Monthly drilldown ── */
+.drilldown-row {
+  cursor: pointer;
+  transition: background 0.1s;
+  border-radius: 4px;
+  -webkit-tap-highlight-color: transparent;
+}
+.drilldown-row:hover { background: var(--border); }
+.drilldown-row.expanded { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+
+.drilldown-txns {
+  margin: 0 0 4px 12px;
+  border-left: 2px solid var(--border);
+  padding-left: 10px;
+}
+
+.drilldown-txn {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.drilldown-txn:last-child { border-bottom: none; }
+.drilldown-txn:hover .txn-desc { color: var(--accent); }
+
+.drilldown-loading {
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 10px 0;
+}
+
 /* ── Report sub-tabs ── */
 .report-tab-bar {
   display: flex;

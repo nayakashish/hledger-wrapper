@@ -259,6 +259,7 @@ export default function App() {
 					balance={cache.balance ?? null}
 					monthly={cache.monthly ?? null}
 					isActive={activeView === 'reports'}
+					onTxnClick={txn => setDetailContent({ kind: 'transaction', txn })}
 				/>
 				<TransactionsView
 					data={cache.transactions ?? null}

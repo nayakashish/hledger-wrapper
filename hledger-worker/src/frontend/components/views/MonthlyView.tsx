@@ -1,14 +1,15 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { extractAmount, fmtAmount, amountClass } from '../../utils/format';
 import { usePrivacy } from '../../context/PrivacyContext';
-import type { MonthlyData, Amount } from '../../types';
+import type { MonthlyData, Amount, Transaction } from '../../types';
 
 interface Props {
 	data: MonthlyData | null;
 	isActive: boolean;
+	onTxnClick: (txn: Transaction) => void;
 }
 
-export default function MonthlyView({ data, isActive }: Props) {
+export default function MonthlyView({ data, isActive, onTxnClick }: Props) {
 	const periodLabels = useMemo(() => {
 		if (!data) return [];
 		return (data.prDates || []).map(d => {
@@ -42,9 +43,13 @@ export default function MonthlyView({ data, isActive }: Props) {
 							})}
 						</select>
 					</div>
-					<MonthlyTable data={data} periodIdx={periodIdx} />
+					<MonthlyTable
+						data={data}
+						periodIdx={periodIdx}
+						onTxnClick={onTxnClick}
+					/>
 					<div className="view-footer">
-						Data shown via <code>hledger balance --monthly</code>.
+						Data shown via <code>hledger balance --monthly</code>. Tap a row to see transactions.
 					</div>
 				</>
 			)}
@@ -52,8 +57,47 @@ export default function MonthlyView({ data, isActive }: Props) {
 	);
 }
 
-function MonthlyTable({ data, periodIdx }: { data: MonthlyData; periodIdx: number }) {
+function MonthlyTable({
+	data,
+	periodIdx,
+	onTxnClick,
+}: {
+	data: MonthlyData;
+	periodIdx: number;
+	onTxnClick: (txn: Transaction) => void;
+}) {
 	const { privacyMode } = usePrivacy();
+	const [expanded, setExpanded] = useState<string | null>(null);
+	const [txnsByMonth, setTxnsByMonth] = useState<Record<string, Transaction[]>>({});
+	const [loading, setLoading] = useState(false);
+
+	// Collapse expansion when period changes
+	useEffect(() => { setExpanded(null); }, [periodIdx]);
+
+	const monthKey = data.prDates[periodIdx]?.[0]?.contents?.slice(0, 7) ?? '';
+
+	const handleRowClick = async (fullName: string) => {
+		if (expanded === fullName) {
+			setExpanded(null);
+			return;
+		}
+		setExpanded(fullName);
+		if (monthKey && !txnsByMonth[monthKey]) {
+			setLoading(true);
+			try {
+				const r = await fetch(`/api/transactions?month=${monthKey}`);
+				if (!r.ok) throw new Error(String(r.status));
+				const json = await r.json() as { raw: string };
+				const txns = JSON.parse(json.raw) as Transaction[];
+				setTxnsByMonth(prev => ({ ...prev, [monthKey]: txns }));
+			} catch {
+				setTxnsByMonth(prev => ({ ...prev, [monthKey]: [] }));
+			} finally {
+				setLoading(false);
+			}
+		}
+	};
+
 	const amountMap: Record<string, Amount[]> = {};
 	data.prRows.forEach(row => {
 		const amts = row.prrAmounts?.[periodIdx] ?? [];
@@ -82,6 +126,8 @@ function MonthlyTable({ data, periodIdx }: { data: MonthlyData; periodIdx: numbe
 		if (name !== top) groups[top].push(name);
 	});
 
+	const monthTxns = txnsByMonth[monthKey] ?? [];
+
 	return (
 		<>
 			{groupOrder.map(group => (
@@ -94,22 +140,57 @@ function MonthlyTable({ data, periodIdx }: { data: MonthlyData; periodIdx: numbe
 						const label = fullName.split(':').pop() || fullName;
 						const indentPx = (depth - 1) * 16;
 						const hasChildren = sorted.some(n => n !== fullName && n.startsWith(fullName + ':'));
+						const isExpanded = expanded === fullName;
+						const rowTxns = monthTxns.filter(txn =>
+							(txn.tpostings || []).some(p => (p.paccount || '').startsWith(fullName))
+						);
 						return (
-							<div key={fullName} className="account-row">
-								<span
-									className="account-name"
-									style={{
-										paddingLeft: indentPx,
-										...(hasChildren ? { fontWeight: 500, color: 'var(--accent)' } : {}),
-									}}
+							<div key={fullName}>
+								<div
+									className={`account-row drilldown-row${isExpanded ? ' expanded' : ''}`}
+									onClick={() => void handleRowClick(fullName)}
 								>
-									{label}
-								</span>
-								<span className={`account-amount ${amountClass(val)}`}>
-									{amounts.length > 0
-										? (privacyMode && fullName.startsWith('income') ? '••••' : fmtAmount(val, commodity))
-										: ''}
-								</span>
+									<span
+										className="account-name"
+										style={{
+											paddingLeft: indentPx,
+											...(hasChildren ? { fontWeight: 500, color: 'var(--accent)' } : {}),
+										}}
+									>
+										{label}
+									</span>
+									<span className={`account-amount ${amountClass(val)}`}>
+										{amounts.length > 0
+											? (privacyMode && fullName.startsWith('income') ? '••••' : fmtAmount(val, commodity))
+											: ''}
+									</span>
+								</div>
+								{isExpanded && (
+									<div className="drilldown-txns">
+										{loading && !txnsByMonth[monthKey] ? (
+											<div className="drilldown-loading">Loading…</div>
+										) : rowTxns.length === 0 ? (
+											<div className="drilldown-loading">No transactions found.</div>
+										) : (
+											rowTxns.map((txn, i) => {
+												const desc = txn.tdescription || txn.tpayee || '—';
+												const postings = txn.tpostings || [];
+												const { val: tval, commodity: tcom } = extractAmount(postings[0]?.pamount);
+												return (
+													<div key={i} className="drilldown-txn" onClick={e => { e.stopPropagation(); onTxnClick(txn); }}>
+														<div className="txn-top">
+															<span className="txn-desc">{desc}</span>
+															<span className={`txn-amount ${amountClass(tval)}`}>
+																{fmtAmount(tval, tcom)}
+															</span>
+														</div>
+														<div className="txn-meta">{txn.tdate}</div>
+													</div>
+												);
+											})
+										)}
+									</div>
+								)}
 							</div>
 						);
 					})}

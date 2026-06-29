@@ -1,0 +1,21 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "hledger-worker",
+	"main": "src/index.ts",
+	"compatibility_date": "2026-03-01",
+	"compatibility_flags": ["nodejs_compat"],
+	"observability": {
+		"enabled": true
+	},
+	"rules": [
+		{ "type": "Text", "globs": ["**/*.html"], "fallthrough": true }
+	]
+
+	/**
+	 * Secrets (set via wrangler CLI, never committed):
+	 *   wrangler secret put BEARER_TOKEN
+	 *   wrangler secret put CF_ACCESS_CLIENT_ID
+	 *   wrangler secret put CF_ACCESS_CLIENT_SECRET
+	 *   wrangler secret put API_BASE_URL
+	 */
+}

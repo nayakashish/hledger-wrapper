@@ -135,20 +135,6 @@ export default function App() {
 		}
 	}, [isDemoMode]);
 
-	const enterDemoMode = useCallback(() => {
-		sessionStorage.setItem('hledger_demo', '1');
-		setIsDemoMode(true);
-		showToast('Demo mode on');
-		void loadAll(true);
-	}, [showToast]); // eslint-disable-line react-hooks/exhaustive-deps
-
-	const exitDemoMode = useCallback(() => {
-		sessionStorage.removeItem('hledger_demo');
-		setIsDemoMode(false);
-		showToast('Back to your data');
-		void loadAll(false);
-	}, [showToast]); // eslint-disable-line react-hooks/exhaustive-deps
-
 	const fetchAccounts = useCallback(
 		async (demo: boolean) => {
 			if (demo) return;
@@ -219,6 +205,25 @@ export default function App() {
 		await fetchDescriptions(demo);
 	}, [loadEnvelopes, fetchAccounts, fetchDescriptions]);
 
+	const enterDemoMode = useCallback(() => {
+		sessionStorage.setItem('hledger_demo', '1');
+		setIsDemoMode(true);
+		showToast('Demo mode on');
+		void loadAll(true);
+	}, [showToast, loadAll]);
+
+	const exitDemoMode = useCallback(() => {
+		sessionStorage.removeItem('hledger_demo');
+		setIsDemoMode(false);
+		showToast('Back to your data');
+		void loadAll(false);
+	}, [showToast, loadAll]);
+
+	const cacheRef = useRef(cache);
+	const envDataRef = useRef(envData);
+	cacheRef.current = cache;
+	envDataRef.current = envData;
+
 	const syncNow = useCallback(async () => {
 		setIsSyncing(true);
 		setSyncTimestamp('');
@@ -237,14 +242,14 @@ export default function App() {
 			}
 			await loadAll(isDemoMode);
 			const now = new Date().toISOString();
-			persistCache(cache, envData);
+			persistCache(cacheRef.current, envDataRef.current);
 			setSyncTimestamp(formatSyncTime(now));
 		} catch (e) {
 			showToast('Sync failed: ' + (e instanceof Error ? e.message : String(e)), 4000);
 		} finally {
 			setIsSyncing(false);
 		}
-	}, [isDemoMode, cache, envData, loadAll, showToast]);
+	}, [isDemoMode, loadAll, showToast]);
 
 	// Envelope actions
 	const scanTransactions = useCallback(async () => {

@@ -1746,7 +1746,37 @@ function renderEnvelopes(el, data) {
   }
 
   // Envelope tree
-  html += '<div class="env-section-title" style="margin-top:24px">Envelopes</div>';
+  // Calculate envelope grand total
+  const allEnvTotal = (envData.envelopes || []).reduce((sum, env) => {
+    return sum + (balances[env.id] || 0);
+  }, 0);
+ 
+  // Get hledger net worth from main cache for comparison
+  let hledgerNet = null;
+  if (cache && cache['balance']) {
+    const rows = Array.isArray(cache['balance']) && Array.isArray(cache['balance'][0]) ? cache['balance'][0] : [];
+    let assets = 0, liabilities = 0;
+    rows.forEach(row => {
+      const { val } = extractAmount(row[3]);
+      if (row[0].startsWith('assets')) assets += val;
+      if (row[0].startsWith('liabilities')) liabilities += val;
+    });
+    hledgerNet = assets + liabilities;
+  }
+ 
+  const diff = hledgerNet !== null ? Math.round((allEnvTotal - hledgerNet) * 100) / 100 : null;
+  const diffColor = diff === null ? '' : Math.abs(diff) < 0.02 ? 'color:var(--positive)' : 'color:var(--negative)';
+  const diffLabel = diff === null ? '' : Math.abs(diff) < 0.02 ? 'in sync' : (diff > 0 ? '+' : '') + fmtAmount(diff, '$') + ' vs hledger';
+ 
+  html += '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:24px;margin-bottom:4px">'
+    + '<div class="env-section-title" style="margin:0">Envelopes</div>'
+    + '<div style="text-align:right">'
+    + '<div style="font-size:15px;font-weight:500;font-variant-numeric:tabular-nums;' + amountClass(allEnvTotal) + '">' + fmtAmount(allEnvTotal, '$') + '</div>'
+    + (diff !== null ? '<div style="font-size:10px;font-weight:500;letter-spacing:0.3px;' + diffColor + '">' + diffLabel + '</div>' : '')
+    + '</div>'
+    + '</div>';
+ 
+
   const parents = envelopes.filter(e => !e.parent).sort((a, b) => (a.sort_order || 99) - (b.sort_order || 99));
 
   parents.forEach(parent => {
@@ -1838,32 +1868,44 @@ function openAssignSheet(txn) {
     + '<div class="assign-txn-amount ' + amtColor + '">' + amtSign + fmtAmount(txn.amount, '$') + '</div>'
     + '</div>';
 
+
   if (isIncome) {
-    // Income: split across envelopes
     const defaults = envData.income_split_default || {};
     const tithe_pct = defaults.tithe_pct || 0.10;
     const savings_pct = defaults.savings || 0.40;
-
+ 
     const presets = {};
-    presets['tithe'] = Math.round(txn.amount * tithe_pct * 100) / 100;
-    presets['savings'] = Math.round(txn.amount * savings_pct * 100) / 100;
+    presets['tithe']    = Math.round(txn.amount * tithe_pct * 100) / 100;
+    presets['savings']  = Math.round(txn.amount * savings_pct * 100) / 100;
     presets['chequing'] = Math.round((txn.amount - presets['tithe'] - presets['savings']) * 100) / 100;
-
-    html += '<div style="font-size:11px;color:var(--text-muted);font-weight:300;margin-bottom:12px">Split this income across envelopes. Pre-filled from your defaults.</div>';
+ 
+    html += '<div style="font-size:11px;color:var(--text-muted);font-weight:300;margin-bottom:12px">'
+      + 'Split this income across envelopes. Quick actions below.</div>';
+ 
+    // Quick action bar
+    html += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border)">'
+      + '<button onclick="allocQuickDefault(' + txn.amount + ')" style="' + _qbtn() + '">Reset defaults</button>'
+      + '<button onclick="allocClearAll()" style="' + _qbtn() + '">Clear all</button>'
+      + '<button onclick="allocAllTo()" style="' + _qbtn() + '">All to one</button>'
+      + '<button onclick="allocRemaining(' + txn.amount + ')" style="' + _qbtn() + '">Fill remaining</button>'
+      + '<button onclick="allocBalance(' + txn.amount + ')" style="' + _qbtn('var(--accent)', '#fff') + '">Auto-balance</button>'
+      + '</div>';
+ 
     html += '<div id="assignSplits">';
     envelopes.forEach(env => {
       const preset = presets[env.id] || 0;
       html += '<div class="assign-split-row">'
         + '<span class="assign-split-name">' + escHtml(env.name) + '</span>'
-        + '<input type="number" class="assign-split-input" id="asplit_' + env.id + '" step="0.01" placeholder="0.00" value="' + (preset > 0 ? preset.toFixed(2) : '') + '" oninput="recalcAssignRemainder(' + txn.amount + ')">'
+        + '<input type="number" class="assign-split-input" id="asplit_' + env.id + '" step="0.01" placeholder="0.00"'
+        + ' value="' + (preset > 0 ? preset.toFixed(2) : '') + '"'
+        + ' oninput="recalcAssignRemainder(' + txn.amount + ')">'
         + '</div>';
     });
     html += '</div>';
     html += '<div class="assign-remainder" id="assignRemainder"></div>';
     html += '<button class="assign-confirm" id="assignConfirm" onclick="submitAssign()" disabled>Allocate income</button>';
     html += '<button class="assign-dismiss" onclick="dismissPending(\'' + txn.txn_id + '\')">Dismiss without assigning</button>';
-
-    // Trigger initial calculation
+ 
     setTimeout(() => recalcAssignRemainder(txn.amount), 50);
 
   } else {
@@ -1995,16 +2037,22 @@ function openEnvDetail(envId) {
     html += '<div style="font-size:12px;color:var(--text-muted);font-weight:300;padding:8px 0">No activity yet.</div>';
   } else {
     history.forEach(h => {
-      const pos = h.amount > 0;
-      html += '<div class="env-history-row">'
-        + '<div style="min-width:0;flex:1">'
-        + '<div class="env-history-note">' + escHtml(h.note || h.type) + '</div>'
-        + '<div class="env-history-date">' + (h.date || '') + '</div>'
-        + '</div>'
-        + '<div class="env-history-amt ' + (pos ? 'amount-positive' : 'amount-negative') + '">'
-        + (pos ? '+' : '') + fmtAmount(h.amount, '$') + '</div>'
-        + '</div>';
-    });
+    const pos = h.amount > 0;
+    const isIncome = h.type === 'income_allocation';
+    html += '<div class="env-history-row">'
+      + '<div style="min-width:0;flex:1">'
+      + '<div class="env-history-note">' + escHtml(h.note || h.type)
+      + (isIncome ? ' <span style="font-size:10px;color:var(--text-muted);font-weight:300">(income)</span>' : '')
+      + '</div>'
+      + '<div class="env-history-date">' + (h.date || '') + '</div>'
+      + '</div>'
+      + '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0">'
+      + '<div class="env-history-amt ' + (pos ? 'amount-positive' : 'amount-negative') + '">'
+      + (pos ? '+' : '') + fmtAmount(h.amount, '$') + '</div>'
+      + (isIncome && h.txn_id ? '<button onclick="openIncomeCorrection(\'' + h.txn_id + '\',\'' + envId + '\')" style="font-family:\'Montserrat\',sans-serif;font-size:10px;font-weight:500;background:none;border:1px solid var(--border);border-radius:3px;padding:2px 6px;cursor:pointer;color:var(--text-muted);touch-action:manipulation">edit</button>' : '')
+      + '</div>'
+      + '</div>';
+  });
   }
 
   document.getElementById('txnDetailBody').innerHTML = html;
@@ -2087,6 +2135,228 @@ async function deleteEnvConfirm(envId) {
     await loadEnvelopes();
   } catch(e) { showToast('Error: ' + e.message, 4000); }
 }
+
+
+function openIncomeCorrection(txnId, fromEnvId) {
+  // Find all history entries for this txn_id across all envelopes
+  if (!envData) return;
+  const allHistory = envData.history || [];
+  const txnEntries = allHistory.filter(h => h.txn_id === txnId && h.type === 'income_allocation');
+  if (txnEntries.length === 0) { showToast('No allocation found for this transaction', 3000); return; }
+ 
+  const totalAllocated = txnEntries.reduce((s, h) => s + h.amount, 0);
+  const desc = txnEntries[0].note || 'Income';
+  const date = txnEntries[0].date || '';
+ 
+  // Open a correction sheet showing current breakdown
+  const slot = document.getElementById('envFormSlot');
+  if (!slot) return;
+ 
+  const envelopes = envData.envelopes || [];
+  const currentSplits = {};
+  txnEntries.forEach(h => { currentSplits[h.envelope] = h.amount; });
+ 
+  let html = '<div class="env-inline-form" style="margin-top:12px">';
+  html += '<div class="env-inline-label">Correct income allocation</div>';
+  html += '<div style="font-size:11px;color:var(--text-muted);font-weight:300;margin-bottom:10px">'
+    + escHtml(desc) + ' on ' + date + ' — total ' + fmtAmount(totalAllocated, '$')
+    + '<br>Adjust any amounts. Changes are additive adjustments.</div>';
+ 
+  envelopes.forEach(env => {
+    const cur = currentSplits[env.id] || 0;
+    html += '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">'
+      + '<span style="font-size:13px;font-weight:500;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escHtml(env.name) + '</span>'
+      + '<span style="font-size:11px;color:var(--text-muted);font-weight:300;flex-shrink:0">' + (cur > 0 ? 'was ' + fmtAmount(cur, '$') : '') + '</span>'
+      + '<input type="number" step="0.01" placeholder="new amt" value="' + (cur > 0 ? cur.toFixed(2) : '') + '" id="icorr_' + env.id + '" style="font-family:\'Montserrat\',sans-serif;font-size:13px;width:80px;border:1px solid var(--border);border-radius:4px;padding:6px 8px;text-align:right;background:var(--surface);color:var(--text);outline:none">'
+      + '</div>';
+  });
+ 
+  html += '<div style="font-size:11px;color:var(--text-muted);font-weight:300;padding:8px 0">Note: this creates adjustment entries for the differences. History is preserved.</div>';
+  html += '<button class="env-inline-submit" style="margin-top:10px" onclick="submitIncomeCorrection(\'' + txnId + '\',' + JSON.stringify(currentSplits) + ')">Apply corrections</button>';
+  html += '<span class="env-inline-cancel" onclick="document.getElementById(\'envFormSlot\').innerHTML=\'\'">Cancel</span>';
+  html += '</div>';
+ 
+  slot.innerHTML = html;
+  slot.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+ 
+async function submitIncomeCorrection(txnId, oldSplits) {
+  if (!envData) return;
+  const envelopes = envData.envelopes || [];
+  const corrections = [];
+ 
+  envelopes.forEach(env => {
+    const inp = document.getElementById('icorr_' + env.id);
+    const newVal = parseFloat(inp?.value || '') || 0;
+    const oldVal = oldSplits[env.id] || 0;
+    const diff = Math.round((newVal - oldVal) * 100) / 100;
+    if (Math.abs(diff) > 0.005) {
+      corrections.push({ envelope_id: env.id, diff });
+    }
+  });
+ 
+  if (corrections.length === 0) {
+    showToast('No changes made');
+    document.getElementById('envFormSlot').innerHTML = '';
+    return;
+  }
+ 
+  try {
+    // Apply each correction as an adjustment
+    for (const c of corrections) {
+      await envFetch('/api/envelopes/adjust', 'POST', {
+        envelope: c.envelope_id,
+        amount: c.diff,
+        note: 'Income correction (' + txnId.slice(0, 20) + ')'
+      });
+    }
+    showToast('Corrections applied');
+    document.getElementById('envFormSlot').innerHTML = '';
+    _doCloseTxnDetail();
+    await loadEnvelopes();
+  } catch(e) { showToast('Error: ' + e.message, 4000); }
+}
+ 
+
+
+// Style helper for quick action buttons
+function _qbtn(bg, color) {
+  const b = bg || 'var(--bg)';
+  const c = color || 'var(--text)';
+  return 'font-family:\'Montserrat\',sans-serif;font-size:11px;font-weight:600;letter-spacing:0.3px;text-transform:uppercase;background:' + b + ';color:' + c + ';border:1px solid var(--border);border-radius:4px;padding:6px 10px;cursor:pointer;touch-action:manipulation;flex-shrink:0';
+}
+ 
+// Reset to default percentage splits
+function allocQuickDefault(total) {
+  if (!envData) return;
+  const defaults = envData.income_split_default || {};
+  const tithe_pct   = defaults.tithe_pct || 0.10;
+  const savings_pct = defaults.savings   || 0.40;
+  const tithe   = Math.round(total * tithe_pct * 100) / 100;
+  const savings = Math.round(total * savings_pct * 100) / 100;
+  const cheq    = Math.round((total - tithe - savings) * 100) / 100;
+  const presets = { tithe, savings, chequing: cheq };
+  (envData.envelopes || []).forEach(env => {
+    const inp = document.getElementById('asplit_' + env.id);
+    if (!inp) return;
+    const val = presets[env.id] || 0;
+    inp.value = val > 0 ? val.toFixed(2) : '';
+  });
+  recalcAssignRemainder(total);
+}
+ 
+// Clear all split inputs
+function allocClearAll() {
+  if (!envData) return;
+  (envData.envelopes || []).forEach(env => {
+    const inp = document.getElementById('asplit_' + env.id);
+    if (inp) inp.value = '';
+  });
+  // Get total from current txn
+  const btn = document.getElementById('assignConfirm');
+  if (btn) btn.disabled = true;
+  const remEl = document.getElementById('assignRemainder');
+  if (remEl) { remEl.textContent = ''; remEl.className = 'assign-remainder'; }
+}
+ 
+// Allocate all to one envelope (prompts with a select)
+function allocAllTo() {
+  if (!envData) return;
+  const envelopes = envData.envelopes || [];
+  // Build a quick inline picker
+  const existing = document.getElementById('allocAllToSelect');
+  if (existing) { existing.remove(); return; }
+  const container = document.getElementById('assignSplits');
+  if (!container) return;
+  const sel = document.createElement('div');
+  sel.id = 'allocAllToSelect';
+  sel.style.cssText = 'background:var(--surface);border:1px solid var(--accent);border-radius:var(--radius);padding:10px;margin-bottom:10px;';
+  sel.innerHTML = '<div style="font-size:11px;color:var(--text-muted);font-weight:600;letter-spacing:0.5px;text-transform:uppercase;margin-bottom:8px">Allocate all to which envelope?</div>'
+    + envelopes.map(env =>
+        '<button onclick="allocAllToEnv(\'' + env.id + '\')" style="display:block;width:100%;text-align:left;font-family:\'Montserrat\',sans-serif;font-size:13px;background:none;border:none;border-bottom:1px solid var(--border);padding:9px 0;cursor:pointer;color:var(--text)">'
+        + escHtml(env.name) + '</button>'
+      ).join('');
+  container.before(sel);
+}
+ 
+function allocAllToEnv(envId) {
+  if (!envData) return;
+  // Find current total from the assignRemainder text or reconstruct
+  // We get total from the assign-confirm button context — grab from last known txn
+  if (!_assignTxn) return;
+  const total = _assignTxn.amount;
+  (envData.envelopes || []).forEach(env => {
+    const inp = document.getElementById('asplit_' + env.id);
+    if (!inp) return;
+    inp.value = env.id === envId ? total.toFixed(2) : '';
+  });
+  document.getElementById('allocAllToSelect')?.remove();
+  recalcAssignRemainder(total);
+}
+ 
+// Auto-balance: take the overallocation or underallocation and adjust chequing to compensate
+function allocBalance(total) {
+  if (!envData || !_assignTxn) return;
+  let assigned = 0;
+  (envData.envelopes || []).forEach(env => {
+    const inp = document.getElementById('asplit_' + env.id);
+    assigned += parseFloat(inp?.value || '') || 0;
+  });
+  const rem = Math.round((total - assigned) * 100) / 100;
+  if (Math.abs(rem) < 0.01) { showToast('Already balanced'); return; }
+ 
+  // Apply the remainder to chequing (or first envelope if chequing not found)
+  const targetId = (envData.envelopes || []).find(e => e.id === 'chequing')?.id
+                || (envData.envelopes || [])[0]?.id;
+  if (!targetId) return;
+  const inp = document.getElementById('asplit_' + targetId);
+  if (!inp) return;
+  const cur = parseFloat(inp.value || '') || 0;
+  inp.value = Math.round((cur + rem) * 100) / 100 > 0
+    ? (Math.round((cur + rem) * 100) / 100).toFixed(2)
+    : '0.00';
+  recalcAssignRemainder(total);
+  showToast(rem > 0 ? '+' + fmtAmount(rem, '$') + ' added to ' + _envName(targetId) : fmtAmount(Math.abs(rem), '$') + ' removed from ' + _envName(targetId));
+}
+ 
+// Fill remaining: opens a picker to choose which envelope gets the leftover
+function allocRemaining(total) {
+  if (!envData) return;
+  let assigned = 0;
+  (envData.envelopes || []).forEach(env => {
+    const inp = document.getElementById('asplit_' + env.id);
+    assigned += parseFloat(inp?.value || '') || 0;
+  });
+  const rem = Math.round((total - assigned) * 100) / 100;
+  if (rem <= 0) { showToast(rem === 0 ? 'Nothing remaining' : 'Over-allocated — use Auto-balance'); return; }
+ 
+  const envelopes = envData.envelopes || [];
+  const existing = document.getElementById('allocRemainingSelect');
+  if (existing) { existing.remove(); return; }
+  const container = document.getElementById('assignSplits');
+  if (!container) return;
+  const sel = document.createElement('div');
+  sel.id = 'allocRemainingSelect';
+  sel.style.cssText = 'background:var(--surface);border:1px solid var(--accent);border-radius:var(--radius);padding:10px;margin-bottom:10px;';
+  sel.innerHTML = '<div style="font-size:11px;color:var(--text-muted);font-weight:600;letter-spacing:0.5px;text-transform:uppercase;margin-bottom:8px">Add remaining ' + fmtAmount(rem, '$') + ' to which envelope?</div>'
+    + envelopes.map(env =>
+        '<button onclick="allocRemainingToEnv(\'' + env.id + '\',' + rem + ',' + total + ')" style="display:block;width:100%;text-align:left;font-family:\'Montserrat\',sans-serif;font-size:13px;background:none;border:none;border-bottom:1px solid var(--border);padding:9px 0;cursor:pointer;color:var(--text)">'
+        + escHtml(env.name) + '</button>'
+      ).join('');
+  container.before(sel);
+}
+ 
+function allocRemainingToEnv(envId, rem, total) {
+  const inp = document.getElementById('asplit_' + envId);
+  if (!inp) return;
+  const cur = parseFloat(inp.value || '') || 0;
+  inp.value = Math.round((cur + rem) * 100) / 100 > 0
+    ? (Math.round((cur + rem) * 100) / 100).toFixed(2)
+    : inp.value;
+  document.getElementById('allocRemainingSelect')?.remove();
+  recalcAssignRemainder(total);
+}
+ 
 
 // ============================================================================
 // New envelope sheet

@@ -1,0 +1,96 @@
+{
+  "income_split_default": {
+    "savings": 0.40,
+    "chequing": 0.50,
+    "tithe_pct": 0.10,
+    "note": "tithe is 10% of gross income, comes out of chequing slice"
+  },
+  "envelopes": [
+    {
+      "id": "savings",
+      "name": "Savings",
+      "parent": null,
+      "type": "container",
+      "sort_order": 1
+    },
+    {
+      "id": "tfsa",
+      "name": "TFSA",
+      "parent": "savings",
+      "type": "sinking_fund",
+      "monthly_amount": 0.00,
+      "match_accounts": ["expenses:tfsa"],
+      "sort_order": 1
+    },
+    {
+      "id": "chequing",
+      "name": "Chequing",
+      "parent": null,
+      "type": "container",
+      "sort_order": 2
+    },
+    {
+      "id": "tithe",
+      "name": "Tithe",
+      "parent": "chequing",
+      "type": "promise",
+      "income_pct": 0.10,
+      "match_accounts": ["expenses:generosity:tithe"],
+      "sort_order": 1
+    },
+    {
+      "id": "car_insurance",
+      "name": "Car Insurance",
+      "parent": "chequing",
+      "type": "sinking_fund",
+      "monthly_amount": 120.00,
+      "match_accounts": [],
+      "sort_order": 2
+    },
+    {
+      "id": "phone_plan",
+      "name": "Phone Plan",
+      "parent": "chequing",
+      "type": "sinking_fund",
+      "monthly_amount": 0.00,
+      "match_accounts": ["expenses:phoneplan"],
+      "sort_order": 3
+    },
+    {
+      "id": "dining_out",
+      "name": "Dining Out",
+      "parent": "chequing",
+      "type": "budget",
+      "monthly_amount": 0.00,
+      "match_accounts": ["expenses:food:diningout"],
+      "sort_order": 4
+    },
+    {
+      "id": "groceries",
+      "name": "Groceries",
+      "parent": "chequing",
+      "type": "budget",
+      "monthly_amount": 0.00,
+      "match_accounts": ["expenses:food:groceries"],
+      "sort_order": 5
+    },
+    {
+      "id": "gas",
+      "name": "Gas",
+      "parent": "chequing",
+      "type": "budget",
+      "monthly_amount": 0.00,
+      "match_accounts": ["expenses:jetta:gas"],
+      "sort_order": 6
+    },
+    {
+      "id": "entertainment",
+      "name": "Entertainment",
+      "parent": "chequing",
+      "type": "budget",
+      "monthly_amount": 0.00,
+      "match_accounts": ["expenses:entertainment"],
+      "sort_order": 7
+    }
+  ]
+}

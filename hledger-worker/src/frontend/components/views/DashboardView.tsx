@@ -82,10 +82,9 @@ function Heatmap({
 	const byDate = new Map(data.map(d => [d.date, d]));
 
 	const today = new Date();
+	const startOfYear = new Date(today.getFullYear(), 0, 1);
 	const days: { date: string; val: number }[] = [];
-	for (let i = 364; i >= 0; i--) {
-		const d = new Date(today);
-		d.setDate(d.getDate() - i);
+	for (let d = new Date(startOfYear); d <= today; d.setDate(d.getDate() + 1)) {
 		const ds = d.toISOString().slice(0, 10);
 		const entry = byDate.get(ds);
 		days.push({ date: ds, val: entry ? entry.count : 0 });
@@ -232,7 +231,8 @@ export default function DashboardView({ isActive, monthly }: Props) {
 
 	const fetchDailyTotals = useCallback(async () => {
 		try {
-			const r = await fetch('/api/daily-totals');
+			const fromDate = `${new Date().getFullYear()}-01-01`;
+			const r = await fetch(`/api/daily-totals?from_date=${fromDate}`);
 			if (!r.ok) { setDailyError(true); return; }
 			setDailyTotals(await r.json() as DailyTotal[]);
 		} catch {
@@ -279,7 +279,6 @@ export default function DashboardView({ isActive, monthly }: Props) {
 	return (
 		<div className={`view${isActive ? ' active' : ''}`} id="view-dashboard">
 			{/* Heatmap */}
-			<div className="dash-section-title">Activity — trailing 12 months</div>
 			{dailyError ? (
 				<div className="state-msg" style={{ fontSize: 12 }}>
 					Heatmap requires <code>/api/daily-totals</code> endpoint.

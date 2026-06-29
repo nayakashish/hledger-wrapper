@@ -334,17 +334,23 @@ def lookup_description(description: str, token: str = Security(verify_token)):
 # ---------------------------------------------------------------------------
 
 @app.get("/daily-totals")
-def get_daily_totals(token: str = Security(verify_token)):
+def get_daily_totals(from_date: str = None, token: str = Security(verify_token)):
     """
-    Returns transaction counts and absolute totals per day for the trailing 365 days.
-    Used by the dashboard heatmap.
+    Returns transaction counts and absolute totals per day from from_date to today.
+    Defaults to Jan 1 of the current year.
     Response: [{ date: "YYYY-MM-DD", count: int, total: float }, ...]
     """
     import json
-    from datetime import date, timedelta
+    from datetime import date
 
     today = date.today()
-    start = today - timedelta(days=364)
+    if from_date:
+        try:
+            start = date.fromisoformat(from_date)
+        except ValueError:
+            start = date(today.year, 1, 1)
+    else:
+        start = date(today.year, 1, 1)
     date_filter = f"{start.isoformat()}..{today.isoformat()}"
 
     output = run_hledger("print", "--output-format", "json", "-p", date_filter)

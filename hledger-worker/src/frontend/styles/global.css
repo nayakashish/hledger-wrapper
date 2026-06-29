@@ -967,11 +967,11 @@ body.is-offline header {
 .heatmap-cell[title]:not(.level-empty):not(.level-0) { cursor: pointer; }
 .heatmap-cell.level-empty { background: transparent; }
 .heatmap-cell.level-0 { background: var(--border); }
-.heatmap-cell.level-1 { background: color-mix(in srgb, var(--accent) 25%, var(--border)); }
-.heatmap-cell.level-2 { background: color-mix(in srgb, var(--accent) 50%, var(--border)); }
-.heatmap-cell.level-3 { background: color-mix(in srgb, var(--accent) 75%, var(--border)); }
-.heatmap-cell.level-4 { background: var(--accent); }
-.heatmap-cell.selected { outline: 2px solid var(--accent); outline-offset: 1px; }
+.heatmap-cell.level-1 { background: color-mix(in srgb, #0d9488 25%, var(--border)); }
+.heatmap-cell.level-2 { background: color-mix(in srgb, #0d9488 50%, var(--border)); }
+.heatmap-cell.level-3 { background: color-mix(in srgb, #0d9488 75%, var(--border)); }
+.heatmap-cell.level-4 { background: #0d9488; }
+.heatmap-cell.selected { outline: 2px solid #0d9488; outline-offset: 1px; }
 
 /* Day detail panel */
 .day-detail {

@@ -7,21 +7,22 @@ import type { BalanceRow, Transaction } from '../../types';
 interface Props {
 	data: BalanceRow[][] | null;
 	isActive: boolean;
+	onTxnClick: (txn: Transaction) => void;
 }
 
-export default function BalanceView({ data, isActive }: Props) {
+export default function BalanceView({ data, isActive, onTxnClick }: Props) {
 	return (
 		<div className={`view${isActive ? ' active' : ''}`} id="view-balance">
 			{!data ? (
 				<div className="state-msg">Tap sync to load data.</div>
 			) : (
-				<BalanceContent data={data} />
+				<BalanceContent data={data} onTxnClick={onTxnClick} />
 			)}
 		</div>
 	);
 }
 
-function BalanceContent({ data }: { data: BalanceRow[][] }) {
+function BalanceContent({ data, onTxnClick }: { data: BalanceRow[][], onTxnClick: (txn: Transaction) => void }) {
 	const rows = Array.isArray(data[0]) ? data[0] : [];
 	if (rows.length === 0) return <div className="state-msg">No data.</div>;
 
@@ -62,7 +63,7 @@ function BalanceContent({ data }: { data: BalanceRow[][] }) {
 	const allNames = new Set<string>();
 	rows.forEach(row => {
 		const parts = (row[0] as string).split(':');
-		for (let i = 1; i <= parts.length; i++) allNames.add(parts.slice(0, i).join(':'));
+		for (let i = 1; i <= Math.min(parts.length, 2); i++) allNames.add(parts.slice(0, i).join(':'));
 	});
 
 	const sorted = Array.from(allNames).sort();
@@ -125,7 +126,7 @@ function BalanceContent({ data }: { data: BalanceRow[][] }) {
 												const postings = txn.tpostings || [];
 												const { val: tval, commodity: tcom } = extractAmount(postings[0]?.pamount);
 												return (
-													<div key={i} className="drilldown-txn">
+													<div key={i} className="drilldown-txn" onClick={e => { e.stopPropagation(); onTxnClick(txn); }}>
 														<div className="txn-top">
 															<span className="txn-desc">{desc}</span>
 															<span className={`txn-amount ${amountClass(tval)}`}>

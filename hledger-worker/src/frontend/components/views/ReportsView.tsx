@@ -31,7 +31,7 @@ export default function ReportsView({ balance, monthly, isActive, onTxnClick }: 
 					Monthly
 				</button>
 			</div>
-			<BalanceView data={balance} isActive={tab === 'balance'} />
+			<BalanceView data={balance} isActive={tab === 'balance'} onTxnClick={onTxnClick} />
 			<MonthlyView data={monthly} isActive={tab === 'monthly'} onTxnClick={onTxnClick} />
 		</div>
 	);

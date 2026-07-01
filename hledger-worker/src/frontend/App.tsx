@@ -70,6 +70,7 @@ export default function App() {
 		}
 	});
 	const [isSyncing, setIsSyncing] = useState(false);
+	const [syncKey, setSyncKey] = useState(0);
 	const [accountsList, setAccountsList] = useState<string[]>(() => {
 		try {
 			const c = localStorage.getItem('hledger_accounts');
@@ -204,6 +205,7 @@ export default function App() {
 				return;
 			}
 			await loadAll();
+			setSyncKey(prev => prev + 1);
 			const now = new Date().toISOString();
 			persistCache(cacheRef.current, envDataRef.current);
 			setSyncTimestamp(formatSyncTime(now));
@@ -257,6 +259,7 @@ export default function App() {
 				<DashboardView
 					isActive={activeView === 'dashboard'}
 					monthly={cache.monthly ?? null}
+					syncKey={syncKey}
 				/>
 				<ReportsView
 					balance={cache.balance ?? null}

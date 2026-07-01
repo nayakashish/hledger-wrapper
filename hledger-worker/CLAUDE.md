@@ -141,3 +141,4 @@ npm run cf-typegen   # regenerates worker-configuration.d.ts
 - CSS lives in `src/frontend/styles/global.css` using the same class names as the original design.
 - Commits early and often; branches for significant changes.
 - No `console.log` in production code.
+- Use feat, style, chore, etc for commit prefixes.

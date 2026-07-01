@@ -9,6 +9,7 @@ import type { DailyTotal, MonthlyData, Transaction } from '../../types';
 interface Props {
 	isActive: boolean;
 	monthly: MonthlyData | null;
+	syncKey: number;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -143,7 +144,7 @@ function Heatmap({
 									key={di}
 									className={`heatmap-cell level-${day ? intensity(day.val) : 'empty'}${day && day.date === selectedDay ? ' selected' : ''}`}
 									title={day ? `${day.date}: ${day.val} txn${day.val !== 1 ? 's' : ''}` : ''}
-									onClick={() => day && day.val > 0 && onDayClick(day.date)}
+									onClick={() => day && onDayClick(day.date)}
 								/>
 							))}
 						</div>
@@ -180,7 +181,7 @@ function DayDetail({
 			{loading ? (
 				<div className="drilldown-loading">Loading…</div>
 			) : txns.length === 0 ? (
-				<div className="drilldown-loading">No transactions.</div>
+				<div className="drilldown-loading">No activity on this day.</div>
 			) : (
 				txns.map((txn, i) => {
 					const desc = txn.tdescription || txn.tpayee || '—';
@@ -246,7 +247,7 @@ function SpendingChart({ chartData }: { chartData: ReturnType<typeof buildMonthl
 
 // ── Main dashboard ────────────────────────────────────────────────────────────
 
-export default function DashboardView({ isActive, monthly }: Props) {
+export default function DashboardView({ isActive, monthly, syncKey }: Props) {
 	const [dailyTotals, setDailyTotals] = useState<DailyTotal[] | null>(null);
 	const [dailyError, setDailyError] = useState(false);
 	const [selectedDay, setSelectedDay] = useState<string | null>(null);
@@ -267,6 +268,15 @@ export default function DashboardView({ isActive, monthly }: Props) {
 	useEffect(() => {
 		if (isActive && !dailyTotals && !dailyError) void fetchDailyTotals();
 	}, [isActive, dailyTotals, dailyError, fetchDailyTotals]);
+
+	useEffect(() => {
+		if (syncKey > 0) {
+			setDailyTotals(null);
+			setDailyError(false);
+			setTxnsByMonth({});
+			void fetchDailyTotals();
+		}
+	}, [syncKey, fetchDailyTotals]);
 
 	const handleDayClick = useCallback(async (date: string) => {
 		if (selectedDay === date) {

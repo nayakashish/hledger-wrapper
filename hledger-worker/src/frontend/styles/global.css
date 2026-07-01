@@ -1007,14 +1007,14 @@ body.is-offline header {
   transition: opacity 0.1s, outline 0.1s;
 }
 
-.heatmap-cell[title]:not(.level-empty):not(.level-0) { cursor: pointer; }
+.heatmap-cell[title]:not(.level-empty) { cursor: pointer; }
 .heatmap-cell.level-empty { background: transparent; }
-.heatmap-cell.level-0 { background: var(--border); }
-.heatmap-cell.level-1 { background: color-mix(in srgb, var(--accent) 20%, var(--border)); }
-.heatmap-cell.level-2 { background: color-mix(in srgb, var(--accent) 45%, var(--border)); }
-.heatmap-cell.level-3 { background: color-mix(in srgb, var(--accent) 70%, var(--border)); }
-.heatmap-cell.level-4 { background: var(--accent); }
-.heatmap-cell.selected { outline: 2px solid var(--accent); outline-offset: 1px; }
+.heatmap-cell.level-0 { background: #ede8e8; }
+.heatmap-cell.level-1 { background: #f0b8b8; }
+.heatmap-cell.level-2 { background: #d96060; }
+.heatmap-cell.level-3 { background: #b83030; }
+.heatmap-cell.level-4 { background: #8b1a1a; }
+.heatmap-cell.selected { outline: 2px solid #b83030; outline-offset: 1px; }
 
 /* Day detail panel */
 .day-detail {

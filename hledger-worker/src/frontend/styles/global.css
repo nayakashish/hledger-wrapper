@@ -933,6 +933,181 @@ body.is-offline header {
   color: #fff;
 }
 
+/* ── Spending pace bars ── */
+.pace-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.pace-row:last-of-type { margin-bottom: 0; }
+.pace-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  min-width: 86px;
+  flex-shrink: 0;
+}
+.pace-bar-track {
+  flex: 1;
+  height: 6px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.pace-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: #2a938c;
+}
+.pace-bar-fill.ahead { background: var(--negative); }
+.pace-pct {
+  font-size: 11px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  width: 30px;
+  text-align: right;
+  flex-shrink: 0;
+  color: var(--text);
+}
+.pace-detail {
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+.pace-fast-badge {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: var(--negative);
+}
+
+/* ── Category picker pills ── */
+.cat-picker {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  margin-bottom: 10px;
+}
+.cat-pill {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 10px;
+  font-weight: 500;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 3px 10px;
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+  flex-shrink: 0;
+}
+.cat-pill.active {
+  background: #2a938c;
+  color: #fff;
+  border-color: #2a938c;
+}
+
+/* ── Category chart tooltip ── */
+.cat-tooltip {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 11px;
+  min-width: 160px;
+}
+.cat-tooltip-month {
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+.cat-tooltip-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 3px;
+  color: var(--text-muted);
+}
+.cat-tooltip-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+.cat-tooltip-name { flex: 1; }
+.cat-tooltip-val {
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  color: var(--text);
+}
+.cat-tooltip-total {
+  display: flex;
+  justify-content: space-between;
+  border-top: 1px solid var(--border);
+  margin-top: 5px;
+  padding-top: 5px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* ── Category chart legend ── */
+.cat-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin-top: 8px;
+}
+.cat-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+.cat-legend-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+/* ── Recap card ── */
+.recap-heading {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+.recap-stat {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 13px;
+  color: var(--text);
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border);
+}
+.recap-stat:last-of-type { border-bottom: none; }
+.recap-stat-label {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.recap-note {
+  margin-top: 10px;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 300;
+  font-style: italic;
+}
+
 /* Heatmap */
 .heatmap-outer {
   display: flex;

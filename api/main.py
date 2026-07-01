@@ -125,6 +125,13 @@ def get_monthly(token: str = Security(verify_token)):
     return {"raw": output}
 
 
+@app.get("/monthly-detail")
+def get_monthly_detail(token: str = Security(verify_token)):
+    """Monthly balance breakdown at full account depth (for sub-account charts)."""
+    output = run_hledger("balance", "--monthly", "--output-format", "json")
+    return {"raw": output}
+
+
 @app.get("/transactions")
 def get_transactions(month: str = None, token: str = Security(verify_token)):
     """

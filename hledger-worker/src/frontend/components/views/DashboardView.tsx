@@ -69,6 +69,8 @@ function buildMonthlyChartData(monthly: MonthlyData | null) {
 
 // ── Heatmap ───────────────────────────────────────────────────────────────────
 
+const DOW_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+
 function Heatmap({
 	data,
 	onDayClick,
@@ -103,6 +105,13 @@ function Heatmap({
 		weeks.push(paddedDays.slice(i, i + 7));
 	}
 
+	// Month label: show abbreviation above first week that contains the 1st of a month
+	const monthLabels: (string | null)[] = weeks.map(week => {
+		const first = week.find(d => d && d.date.slice(8) === '01');
+		if (!first) return null;
+		return new Date(first.date + 'T00:00:00').toLocaleDateString('en-CA', { month: 'short' });
+	});
+
 	// Scroll to most recent (right edge) on mount
 	useEffect(() => {
 		if (scrollRef.current) {
@@ -111,20 +120,35 @@ function Heatmap({
 	}, []);
 
 	return (
-		<div className="heatmap-wrap" ref={scrollRef}>
-			<div className="heatmap-grid">
-				{weeks.map((week, wi) => (
-					<div key={wi} className="heatmap-col">
-						{week.map((day, di) => (
-							<div
-								key={di}
-								className={`heatmap-cell level-${day ? intensity(day.val) : 'empty'}${day && day.date === selectedDay ? ' selected' : ''}`}
-								title={day ? `${day.date}: ${day.val} txn${day.val !== 1 ? 's' : ''}` : ''}
-								onClick={() => day && day.val > 0 && onDayClick(day.date)}
-							/>
-						))}
-					</div>
+		<div className="heatmap-outer">
+			<div className="heatmap-dow-col">
+				<div className="heatmap-month-spacer" />
+				{DOW_LABELS.map((d, i) => (
+					<div key={i} className="heatmap-dow-label">{d}</div>
 				))}
+			</div>
+			<div className="heatmap-scroll" ref={scrollRef}>
+				<div className="heatmap-months-row">
+					{weeks.map((_, wi) => (
+						<div key={wi} className="heatmap-month-cell">
+							{monthLabels[wi] ?? ''}
+						</div>
+					))}
+				</div>
+				<div className="heatmap-grid">
+					{weeks.map((week, wi) => (
+						<div key={wi} className="heatmap-col">
+							{week.map((day, di) => (
+								<div
+									key={di}
+									className={`heatmap-cell level-${day ? intensity(day.val) : 'empty'}${day && day.date === selectedDay ? ' selected' : ''}`}
+									title={day ? `${day.date}: ${day.val} txn${day.val !== 1 ? 's' : ''}` : ''}
+									onClick={() => day && day.val > 0 && onDayClick(day.date)}
+								/>
+							))}
+						</div>
+					))}
+				</div>
 			</div>
 		</div>
 	);

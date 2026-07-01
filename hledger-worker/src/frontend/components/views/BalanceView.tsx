@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { extractAmount, fmtAmount, amountClass } from '../../utils/format';
 import { currentMonth } from '../../utils/format';
+import { usePrivacy } from '../../context/PrivacyContext';
 import type { BalanceRow, Transaction } from '../../types';
 
 interface Props {
@@ -24,6 +25,7 @@ function BalanceContent({ data }: { data: BalanceRow[][] }) {
 	const rows = Array.isArray(data[0]) ? data[0] : [];
 	if (rows.length === 0) return <div className="state-msg">No data.</div>;
 
+	const { privacyMode } = usePrivacy();
 	const [expanded, setExpanded] = useState<string | null>(null);
 	const [txnsByMonth, setTxnsByMonth] = useState<Record<string, Transaction[]>>({});
 	const [loading, setLoading] = useState(false);
@@ -106,7 +108,9 @@ function BalanceContent({ data }: { data: BalanceRow[][] }) {
 										{label}
 									</span>
 									<span className={`account-amount ${amountClass(val)}`}>
-										{amounts.length > 0 ? fmtAmount(val, commodity) : ''}
+										{amounts.length > 0
+											? (privacyMode && fullName.startsWith('income') ? '••••' : fmtAmount(val, commodity))
+											: ''}
 									</span>
 								</div>
 								{isExpanded && (

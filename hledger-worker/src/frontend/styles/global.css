@@ -934,19 +934,62 @@ body.is-offline header {
 }
 
 /* Heatmap */
-.heatmap-wrap {
-  overflow-x: auto;
+.heatmap-outer {
+  display: flex;
+  align-items: flex-start;
   margin-bottom: 12px;
+}
+
+.heatmap-dow-col {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-right: 4px;
+  flex-shrink: 0;
+}
+
+.heatmap-month-spacer {
+  height: 14px;
+}
+
+.heatmap-dow-label {
+  width: 10px;
+  height: 13px;
+  font-size: 9px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  line-height: 1;
+}
+
+.heatmap-scroll {
+  overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
 }
-.heatmap-wrap::-webkit-scrollbar { display: none; }
+.heatmap-scroll::-webkit-scrollbar { display: none; }
+
+.heatmap-months-row {
+  display: flex;
+  gap: 3px;
+  min-width: max-content;
+  margin-bottom: 2px;
+}
+
+.heatmap-month-cell {
+  width: 13px;
+  font-size: 9px;
+  color: var(--text-muted);
+  line-height: 1;
+  white-space: nowrap;
+  overflow: visible;
+}
 
 .heatmap-grid {
   display: flex;
   gap: 3px;
   min-width: max-content;
-  padding-bottom: 2px;
 }
 
 .heatmap-col {
@@ -967,11 +1010,11 @@ body.is-offline header {
 .heatmap-cell[title]:not(.level-empty):not(.level-0) { cursor: pointer; }
 .heatmap-cell.level-empty { background: transparent; }
 .heatmap-cell.level-0 { background: var(--border); }
-.heatmap-cell.level-1 { background: color-mix(in srgb, #0d9488 25%, var(--border)); }
-.heatmap-cell.level-2 { background: color-mix(in srgb, #0d9488 50%, var(--border)); }
-.heatmap-cell.level-3 { background: color-mix(in srgb, #0d9488 75%, var(--border)); }
-.heatmap-cell.level-4 { background: #0d9488; }
-.heatmap-cell.selected { outline: 2px solid #0d9488; outline-offset: 1px; }
+.heatmap-cell.level-1 { background: color-mix(in srgb, var(--accent) 20%, var(--border)); }
+.heatmap-cell.level-2 { background: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+.heatmap-cell.level-3 { background: color-mix(in srgb, var(--accent) 70%, var(--border)); }
+.heatmap-cell.level-4 { background: var(--accent); }
+.heatmap-cell.selected { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 /* Day detail panel */
 .day-detail {

@@ -1,31 +1,66 @@
 # hledger Mobile
 
-A self-hosted, privacy-first mobile PWA for [hledger](https://hledger.org/). Checks balances, adds transactions, and views spending from any phone — without any financial data leaving the home server.
+A self-hosted, privacy-first personal finance PWA that puts a mobile interface on top of [hledger](https://hledger.org/) — without any financial data ever leaving your home server.
 
 ---
 
-## Architecture
+## The Problem
+
+hledger is a fast, reliable plain-text accounting tool. It is also entirely terminal-based. Checking your balance from your phone means either SSHing into a server or keeping a spreadsheet somewhere — neither of which is acceptable when you want to add a coffee purchase before you forget it.
+
+This project solves that by building a secure API layer around hledger and serving a mobile-first PWA through Cloudflare — all without storing any financial data in a cloud service.
+
+---
+
+## How It Works
 
 ```
-Phone / Browser (React PWA)
-        │
-        │  HTTPS
-        ▼
-Cloudflare Worker  (hledger-worker/)
-        │── /api/*          → proxy to FastAPI, injects auth secrets server-side
-        │── everything else → Workers Assets (built React SPA)
-        │
-        │  Cloudflare Tunnel (zero open ports)
-        ▼
-Linux machine  (always-on home server)
-        │── FastAPI  (api/main.py)
-        │── hledger  (reads journal.hledger)
-        └── cloudflared daemon
+Phone  ──HTTPS──▶  Cloudflare Worker  ──Tunnel──▶  Home Server
+                   (injects auth)                   FastAPI + hledger
+                   (serves React SPA)               journal.hledger (git)
 ```
 
-Auth secrets (`BEARER_TOKEN`, `CF_ACCESS_CLIENT_ID`, `CF_ACCESS_CLIENT_SECRET`) live as Cloudflare Worker secrets — they are injected server-side and never reach the browser.
+The Cloudflare Worker does two things: serves the React SPA as static assets, and proxies `/api/*` requests to the home server — injecting the auth secrets server-side so they never reach the browser. The home server exposes nothing to the internet directly; all inbound traffic comes through a Cloudflare Tunnel (zero open ports).
 
-See [`docs/architecture.md`](docs/architecture.md) for a detailed breakdown.
+See [`docs/architecture.md`](docs/architecture.md) for the full request flow with sequence diagrams.
+
+---
+
+## Features
+
+**Dashboard**
+- Year-to-date activity heatmap — tap any day to see that day's transactions
+- Profit / loss bar chart (trailing 12 months)
+- Spending vs prior period with last-month / 3-month-average toggle
+- Net worth trend line
+
+**Envelopes**
+- Virtual envelope budgeting layered over hledger (no journal changes required)
+- Scan for new unassigned transactions, assign income splits, assign expenses
+- Transfer between envelopes, manual adjustments, full history
+
+**Transactions**
+- Month picker and full-text search across all transactions
+- Tap to expand: postings, comments, raw hledger journal entry
+
+**Reports**
+- Balance tree and monthly breakdown in one tab with sub-tab toggle
+- Tap any account row to expand this month's transactions inline (both views)
+
+**Privacy toggle**
+- Eye icon in the header masks income amounts, net worth, and envelope balances in-memory
+- Does not persist — resets on page load
+- Charts remain visible (aggregate data, not sensitive)
+
+**Add transaction**
+- 7-step guided form: date → description → account → amount → account → amount → preview
+- Live autocomplete for account names and descriptions
+- Description lookup pre-fills accounts from your most recent matching transaction
+- Editable raw preview before submit
+
+**PWA**
+- Installable on iOS and Android via "Add to Home Screen"
+- Offline support via service worker cache
 
 ---
 
@@ -33,155 +68,55 @@ See [`docs/architecture.md`](docs/architecture.md) for a detailed breakdown.
 
 | Layer | Technology |
 |-------|------------|
-| Frontend | React 19, Vite 6, TypeScript |
-| Charts | Recharts |
+| Frontend | React 19, Vite 6, TypeScript, Recharts |
 | Edge runtime | Cloudflare Workers + Workers Assets |
 | API server | FastAPI + uvicorn (Python) |
-| Accounting engine | hledger |
-| Journal storage | Plain-text `.hledger` file in git |
+| Accounting engine | hledger (plain-text double-entry) |
+| Journal storage | `.hledger` file in a git repository |
 | Tunnel | Cloudflare Tunnel (cloudflared) |
-| Auth gate | Cloudflare Access (service token) |
+| Auth | Cloudflare Access (service token) |
 
 ---
 
-## Features
+## Security model
 
-- **Dashboard** — 365-day activity heatmap (tap a day to see transactions), profit/loss bar chart, spending vs prior period, net worth trend line
-- **Envelopes** — virtual envelope budgeting layered over hledger; assign income and expenses per envelope, transfer between envelopes, scan for new transactions
-- **Transactions** — month picker + full-text search; tap any transaction to expand postings and raw journal entry
-- **Reports** — Balance tree and Monthly breakdown (depth-2 by default, tap a row to drill into transactions for that account/month)
-- **Add Transaction** — 7-step guided form with account autocomplete, description lookup, and editable preview
-- **Privacy toggle** — eye icon in header masks income amounts, net worth, and envelope balances in-memory (no persistence)
-- **PWA** — installable on iOS/Android via "Add to Home Screen", works offline from cache
+Auth secrets (`BEARER_TOKEN`, `CF-Access-Client-Id`, `CF-Access-Client-Secret`) are stored as Cloudflare Worker secrets. They are injected into API proxy requests server-side — the browser never sees them and they never appear in the client bundle.
+
+The journal file and all raw financial data live only on the home server. The Worker only ever forwards JSON query results, never raw journal content.
 
 ---
 
-## Project Layout
+## Changelog
 
-```
-hledger-wrapper/
-├── api/
-│   └── main.py             ← FastAPI app (hledger wrapper)
-├── hledger-worker/
-│   ├── CLAUDE.md           ← developer reference (AI-readable)
-│   ├── wrangler.jsonc      ← Cloudflare Worker config
-│   ├── vite.config.ts
-│   ├── index.html          ← Vite entry point
-│   ├── public/             ← PWA manifest, icons, service worker
-│   └── src/
-│       ├── index.ts        ← Worker entry (API proxy + Assets fallback)
-│       └── frontend/       ← React SPA
-│           ├── App.tsx
-│           ├── types.ts
-│           ├── context/    ← PrivacyContext
-│           ├── utils/      ← format.ts, api.ts
-│           ├── hooks/      ← useSheetSwipe
-│           ├── components/ ← shared: Header, Nav, MaskedAmount, Toast, …
-│           │   ├── views/  ← DashboardView, EnvelopesView, TransactionsView, ReportsView
-│           │   ├── sheets/ ← AddSheet, DetailSheet, AssignSheet
-│           │   └── modals/ ← (empty — PinModal removed with demo mode)
-│           └── styles/
-│               └── global.css
-└── docs/
-    └── architecture.md
-```
+### v2 — React rewrite (current)
+
+The entire frontend was migrated from a monolithic ~2,400-line vanilla JS/HTML file to a typed React 19 + Vite 6 component tree (~20 files). This was a prerequisite for the features below.
+
+| What changed | Detail |
+|---|---|
+| Frontend | Vanilla JS → React 19 + TypeScript + Vite 6 |
+| Demo mode | Removed entirely (PIN modal, KV namespace, `/api/demo/*` routes) |
+| Privacy toggle | Eye icon masks income amounts and balances in-memory |
+| Tab layout | 4 tabs: Dashboard, Envelopes, Transactions, Reports |
+| Dashboard | YTD heatmap, profit/loss, spending comparison, net worth line |
+| Monthly report | Depth-2 by default; tap a row to expand transactions |
+| Balance report | Tap any account row to expand this month's transactions |
+| Bundle | Workers Assets (static file serving) replaces bundled HTML import |
+| XSS protection | React JSX auto-escaping replaces manual `escHtml()` calls |
+
+### v1 — Vanilla JS SPA
+
+- Balance, income statement, monthly, and transactions views
+- Add transaction form with account/description autocomplete
+- Sync button (git pull + hledger rebuild)
+- Demo mode backed by Cloudflare KV
+- Envelope budgeting system (scan, assign, transfer, adjust)
+- Search across all transactions
+- PWA: installable, offline cache via hand-rolled service worker
 
 ---
 
-## API Endpoints
+## Docs
 
-All endpoints are authenticated via Bearer token. The Worker injects the token server-side.
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/sync` | `git pull` + rebuild hledger data |
-| `GET` | `/balance` | Account balances (JSON) |
-| `GET` | `/is` | Income statement |
-| `GET` | `/monthly` | Monthly breakdown at depth 2 |
-| `GET` | `/transactions` | `?month=YYYY-MM` — transactions for a month |
-| `GET` | `/search` | `?q=<query>` — full-text search |
-| `GET` | `/daily-totals` | `[{date, count, total}]` for trailing 365 days (heatmap) |
-| `POST` | `/add` | Append transaction to journal, commit, push |
-| `GET` | `/accounts` | Account name list (autocomplete) |
-| `GET` | `/descriptions` | Recent description list (autocomplete) |
-| `GET` | `/lookup` | `?description=<text>` — predicted postings |
-| `GET` | `/envelopes` | Envelope balances + pending transactions |
-| `POST` | `/envelopes/scan` | Scan for new unassigned transactions |
-| `POST` | `/envelopes/assign` | Assign transaction to envelope(s) |
-| `POST` | `/envelopes/transfer` | Transfer between envelopes |
-| `POST` | `/envelopes/adjust` | Manual balance adjustment |
-| `POST` | `/envelopes/dismiss` | Dismiss a pending transaction |
-| `POST` | `/envelopes/create` | Create a new envelope |
-| `DELETE` | `/envelopes/<id>` | Delete an envelope |
-| `GET` | `/health` | Health check (no auth) |
-
----
-
-## Setup
-
-### 1. Home server (Linux)
-
-```bash
-# Install hledger (https://hledger.org/install.html)
-# Install Python deps
-cd api && pip install -r requirements.txt
-# Set environment variables
-export JOURNAL_DIR=/path/to/journal-repo
-export API_TOKEN=<your-bearer-token>
-# Run
-uvicorn main:app --host 127.0.0.1 --port 8000
-```
-
-Configure as a `systemd` service so it starts on boot and restarts on crash (see `docs/architecture.md`).
-
-### 2. Cloudflare Tunnel
-
-```bash
-cloudflared tunnel create hledger
-cloudflared tunnel route dns hledger api.yourdomain.com
-# Run cloudflared as a systemd service pointing to localhost:8000
-```
-
-### 3. Cloudflare Access
-
-In the Cloudflare Zero Trust dashboard:
-- Create an Access application protecting `api.yourdomain.com`
-- Create a service token; note the Client ID and Secret
-
-### 4. Worker secrets
-
-```bash
-cd hledger-worker
-wrangler secret put API_BASE_URL        # e.g. https://api.yourdomain.com
-wrangler secret put BEARER_TOKEN
-wrangler secret put CF_ACCESS_CLIENT_ID
-wrangler secret put CF_ACCESS_CLIENT_SECRET
-```
-
-### 5. Deploy
-
-```bash
-cd hledger-worker
-npm install
-npm run deploy   # runs vite build && wrangler deploy
-```
-
----
-
-## Development
-
-```bash
-cd hledger-worker
-npm run dev      # Vite dev server + Worker via @cloudflare/vite-plugin
-```
-
-The dev server proxies `/api/*` to a local Wrangler instance. You will need a `.dev.vars` file with the secrets for local testing.
-
----
-
-## Security notes
-
-- No secrets in code or committed files — all secrets go through `wrangler secret put`
-- Auth headers are injected by the Worker; the browser never sees them
-- React JSX provides automatic XSS protection (no manual escaping)
-- Privacy toggle is in-memory only and resets on page reload — it is a screen-share convenience, not a security boundary
+- [`docs/architecture.md`](docs/architecture.md) — request flow, auth layers, caching strategy, sequence diagrams
+- [`docs/deploy.md`](docs/deploy.md) — setup guide: home server, Cloudflare Tunnel, Access, Worker, local dev

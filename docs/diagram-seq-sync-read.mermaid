@@ -1,23 +1,30 @@
 ---
-title: Flow 2 - Sync and Read
+title: Sync & Read Flow
 ---
 sequenceDiagram
-    actor User
-    participant W as Workers
-    participant F as FastAPI
-    participant G as Git
+    actor User as User (Browser)
+    participant W as Cloudflare Worker
+    participant API as FastAPI (Home Server)
+    participant Git as Git Remote
     participant H as hledger
 
     User->>W: POST /api/sync
-    W->>F: POST /sync
-    F->>G: git pull
-    G-->>F: ok
-    F-->>W: synced + timestamp
-    W-->>User: timestamp shown
+    W->>API: POST /sync (+ auth headers)
+    API->>Git: git pull
+    Git-->>API: latest commits
+    API-->>W: {detail: "ok"}
+    W-->>User: sync timestamp shown
 
     User->>W: GET /api/balance
-    W->>F: GET /balance
-    F->>H: balance --json
-    H-->>F: JSON
-    F-->>W: JSON
-    W-->>User: render view
+    W->>API: GET /balance (+ auth headers)
+    API->>H: hledger balance --output-format json
+    H-->>API: account tree JSON
+    API-->>W: {raw: "..."}
+    W-->>User: balance view rendered
+
+    User->>W: GET /api/daily-totals?from_date=YYYY-01-01
+    W->>API: GET /daily-totals (+ auth headers)
+    API->>H: hledger print --output-format json -p YYYY-01-01..today
+    H-->>API: transaction list
+    API-->>W: [{date, count, total}, ...]
+    W-->>User: YTD heatmap rendered

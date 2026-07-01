@@ -4,25 +4,40 @@ A self-hosted, privacy-first personal finance PWA that puts a mobile interface o
 
 ---
 
-## The Problem
+## Overview
 
-hledger is a fast, reliable plain-text accounting tool. It is also entirely terminal-based. Checking your balance from your phone means either SSHing into a server or keeping a spreadsheet somewhere — neither of which is acceptable when you want to add a coffee purchase before you forget it.
+hledger is a fast, reliable plain-text accounting tool — and entirely terminal-based. Checking your balance from your phone means either SSHing into a server or maintaining a spreadsheet somewhere. This project solves that by wrapping hledger in a secure API layer and serving a mobile-first PWA through Cloudflare, without any financial data ever leaving the home server.
 
-This project solves that by building a secure API layer around hledger and serving a mobile-first PWA through Cloudflare — all without storing any financial data in a cloud service.
+```mermaid
+sequenceDiagram
+    participant App as PWA (Cloudflare)
+    participant Server as Home Server (FastAPI + hledger)
+    participant Journal as Journal (git)
+    participant Dev as Developer
 
----
+    Dev->>Journal: git push (edit journal on desktop)
 
-## How It Works
+    Note over App: user taps Sync
+    App->>Server: POST /api/sync
+    Server->>Journal: git pull
+    Journal-->>Server: latest commits
+    Server-->>App: synced
 
+    Note over App: user reads data
+    App->>Server: GET /api/balance, /api/transactions, etc.
+    Server->>Journal: hledger query
+    Journal-->>Server: results
+    Server-->>App: rendered in app
+
+    Note over App: user adds a transaction
+    App->>Server: POST /api/add
+    Server->>Journal: append + git commit + git push
+    Journal-->>Dev: available on next pull
 ```
-Phone  ──HTTPS──▶  Cloudflare Worker  ──Tunnel──▶  Home Server
-                   (injects auth)                   FastAPI + hledger
-                   (serves React SPA)               journal.hledger (git)
-```
 
-The Cloudflare Worker does two things: serves the React SPA as static assets, and proxies `/api/*` requests to the home server — injecting the auth secrets server-side so they never reach the browser. The home server exposes nothing to the internet directly; all inbound traffic comes through a Cloudflare Tunnel (zero open ports).
+The Worker injects auth secrets server-side — the browser never sees them. The home server has zero open inbound ports; all traffic arrives through a Cloudflare Tunnel.
 
-See [`docs/architecture.md`](docs/architecture.md) for the full request flow with sequence diagrams.
+See [`docs/architecture.md`](docs/architecture.md) for detailed sequence diagrams.
 
 ---
 

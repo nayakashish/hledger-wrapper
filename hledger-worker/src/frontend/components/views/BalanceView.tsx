@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { extractAmount, fmtAmount, amountClass } from '../../utils/format';
 import { currentMonth } from '../../utils/format';
 import { usePrivacy } from '../../context/PrivacyContext';
-import type { BalanceRow, Transaction } from '../../types';
+import type { Amount, BalanceRow, Transaction } from '../../types';
 
 interface Props {
 	data: BalanceRow[][] | null;
@@ -27,21 +27,84 @@ function BalanceContent({ data, onTxnClick }: { data: BalanceRow[][], onTxnClick
 	if (rows.length === 0) return <div className="state-msg">No data.</div>;
 
 	const { privacyMode } = usePrivacy();
-	const [expanded, setExpanded] = useState<string | null>(null);
+	// accounts whose children are currently shown
+	const [expandedAccounts, setExpandedAccounts] = useState<Set<string>>(new Set());
+	// leaf account whose transactions are shown
+	const [expandedTxns, setExpandedTxns] = useState<string | null>(null);
 	const [txnsByMonth, setTxnsByMonth] = useState<Record<string, Transaction[]>>({});
 	const [loading, setLoading] = useState(false);
 
 	const month = currentMonth();
 
-	// Reset expansion when data changes (e.g. after sync)
-	useEffect(() => { setExpanded(null); }, [data]);
+	useEffect(() => {
+		setExpandedAccounts(new Set());
+		setExpandedTxns(null);
+	}, [data]);
 
-	const handleRowClick = async (fullName: string) => {
-		if (expanded === fullName) {
-			setExpanded(null);
+	// row[3] has the leaf account's own amount (flat mode: only leaf accounts are returned)
+	const amountMap: Record<string, Amount[]> = {};
+	rows.forEach(row => { amountMap[row[0]] = row[3]; });
+
+	const allNames = new Set<string>();
+	rows.forEach(row => {
+		const parts = (row[0] as string).split(':');
+		for (let i = 1; i <= parts.length; i++) allNames.add(parts.slice(0, i).join(':'));
+	});
+
+	const sorted = Array.from(allNames).sort();
+
+	// Synthesized parents aren't in the API output — sum all their leaf descendants
+	for (const name of sorted) {
+		if (amountMap[name]?.length) continue;
+		const byCommodity: Record<string, number> = {};
+		rows.forEach(row => {
+			const rowName = row[0] as string;
+			if (!rowName.startsWith(name + ':')) return;
+			(row[3] as Amount[]).forEach(amt => {
+				byCommodity[amt.acommodity] = (byCommodity[amt.acommodity] ?? 0) + extractAmount([amt]).val;
+			});
+		});
+		if (Object.keys(byCommodity).length) {
+			amountMap[name] = Object.entries(byCommodity).map(([acommodity, aquantity]) => ({ acommodity, aquantity }));
+		}
+	}
+
+	// Visible if depth ≤ 1 (one colon), or every ancestor from depth 2 up is expanded
+	const isVisible = (fullName: string) => {
+		const parts = fullName.split(':');
+		if (parts.length <= 2) return true;
+		for (let i = 2; i < parts.length; i++) {
+			if (!expandedAccounts.has(parts.slice(0, i).join(':'))) return false;
+		}
+		return true;
+	};
+
+	const handleClick = async (fullName: string) => {
+		const hasChildren = sorted.some(n => n !== fullName && n.startsWith(fullName + ':'));
+
+		if (hasChildren) {
+			setExpandedTxns(null);
+			setExpandedAccounts(prev => {
+				const next = new Set(prev);
+				if (next.has(fullName)) {
+					// collapse this node and all its expanded descendants
+					for (const n of Array.from(next)) {
+						if (n === fullName || n.startsWith(fullName + ':')) next.delete(n);
+					}
+				} else {
+					next.add(fullName);
+				}
+				return next;
+			});
 			return;
 		}
-		setExpanded(fullName);
+
+		// leaf: toggle transaction drilldown
+		if (expandedTxns === fullName) {
+			setExpandedTxns(null);
+			return;
+		}
+		setExpandedTxns(fullName);
 		if (!txnsByMonth[month]) {
 			setLoading(true);
 			try {
@@ -57,16 +120,6 @@ function BalanceContent({ data, onTxnClick }: { data: BalanceRow[][], onTxnClick
 		}
 	};
 
-	const amountMap: Record<string, BalanceRow[3]> = {};
-	rows.forEach(row => { amountMap[row[0]] = row[3]; });
-
-	const allNames = new Set<string>();
-	rows.forEach(row => {
-		const parts = (row[0] as string).split(':');
-		for (let i = 1; i <= Math.min(parts.length, 2); i++) allNames.add(parts.slice(0, i).join(':'));
-	});
-
-	const sorted = Array.from(allNames).sort();
 	const groups: Record<string, string[]> = {};
 	const groupOrder: string[] = [];
 	sorted.forEach(name => {
@@ -77,27 +130,31 @@ function BalanceContent({ data, onTxnClick }: { data: BalanceRow[][], onTxnClick
 
 	const monthTxns = txnsByMonth[month] ?? [];
 
+	const PRIVACY_HIDDEN_GROUPS = new Set(['assets', 'equity']);
+
 	return (
 		<>
-			{groupOrder.map(group => (
+			{groupOrder.filter(group => !privacyMode || !PRIVACY_HIDDEN_GROUPS.has(group)).map(group => (
 				<div key={group}>
 					<div className="section-title">{group}</div>
-					{groups[group].map(fullName => {
+					{groups[group].filter(isVisible).map(fullName => {
 						const depth = (fullName.match(/:/g) || []).length;
 						const amounts = amountMap[fullName] || [];
-						const { val, commodity } = extractAmount(amounts as Parameters<typeof extractAmount>[0]);
+						const { val, commodity } = extractAmount(amounts);
 						const label = fullName.split(':').pop() || fullName;
 						const indentPx = (depth - 1) * 16;
 						const hasChildren = sorted.some(n => n !== fullName && n.startsWith(fullName + ':'));
-						const isExpanded = expanded === fullName;
+						const isAccExpanded = expandedAccounts.has(fullName);
+						const isTxnExpanded = expandedTxns === fullName;
 						const rowTxns = monthTxns.filter(txn =>
 							(txn.tpostings || []).some(p => (p.paccount || '').startsWith(fullName))
 						);
+
 						return (
 							<div key={fullName}>
 								<div
-									className={`account-row drilldown-row${isExpanded ? ' expanded' : ''}`}
-									onClick={() => void handleRowClick(fullName)}
+									className={`account-row drilldown-row${isAccExpanded || isTxnExpanded ? ' expanded' : ''}`}
+									onClick={() => void handleClick(fullName)}
 								>
 									<span
 										className="account-name"
@@ -114,7 +171,7 @@ function BalanceContent({ data, onTxnClick }: { data: BalanceRow[][], onTxnClick
 											: ''}
 									</span>
 								</div>
-								{isExpanded && (
+								{isTxnExpanded && (
 									<div className="drilldown-txns">
 										{loading && !txnsByMonth[month] ? (
 											<div className="drilldown-loading">Loading…</div>
@@ -147,7 +204,7 @@ function BalanceContent({ data, onTxnClick }: { data: BalanceRow[][], onTxnClick
 				</div>
 			))}
 			<div className="view-footer">
-				Data shown via <code>hledger balance</code>. Tap a row to see this month's transactions.
+				Data shown via <code>hledger balance</code>. Tap a parent account to expand, or a leaf to see this month's transactions.
 			</div>
 		</>
 	);

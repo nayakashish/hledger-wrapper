@@ -7,6 +7,7 @@ import { extractAmount, fmtAmount, amountClass } from '../../utils/format';
 import { usePrivacy } from '../../context/PrivacyContext';
 import { loadRawEndpoint } from '../../utils/api';
 import MaskedAmount from '../MaskedAmount';
+import VerseCard from '../VerseCard';
 import type { DailyTotal, MonthlyData, Transaction } from '../../types';
 
 interface Props {
@@ -720,6 +721,8 @@ export default function DashboardView({ isActive, monthly, syncKey }: Props) {
 					)}
 				</>
 			)}
+
+			<VerseCard />
 
 			{!monthly ? (
 				<div className="state-msg">Tap sync to load chart data.</div>

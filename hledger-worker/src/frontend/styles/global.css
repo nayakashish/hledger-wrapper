@@ -933,6 +933,39 @@ body.is-offline header {
   color: #fff;
 }
 
+/* ── Verse card ── */
+.verse-card { position: relative; }
+.verse-cycle-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: none;
+  border: none;
+  font-size: 15px;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  line-height: 1;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: color 0.15s;
+}
+.verse-cycle-btn:hover { color: var(--accent); }
+.verse-text {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text);
+  line-height: 1.65;
+  margin-bottom: 8px;
+  padding-right: 22px;
+}
+.verse-ref {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
 /* ── Spending pace bars ── */
 .pace-row {
   display: flex;

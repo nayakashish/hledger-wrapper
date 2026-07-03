@@ -10,7 +10,7 @@ import type {
 	BalanceRow,
 } from './types';
 import { formatSyncTime, currentMonth } from './utils/format';
-import { loadRawEndpoint, apiPost } from './utils/api';
+import { loadRawEndpoint, apiGet, apiPost } from './utils/api';
 import { PrivacyProvider } from './context/PrivacyContext';
 import Banners from './components/Banners';
 import Header from './components/Header';
@@ -24,6 +24,7 @@ import EnvelopesView from './components/views/EnvelopesView';
 import AddSheet from './components/sheets/AddSheet';
 import DetailSheet from './components/sheets/DetailSheet';
 import AssignSheet from './components/sheets/AssignSheet';
+import InboxSheet from './components/sheets/InboxSheet';
 import Toast from './components/Toast';
 
 const CACHE_KEY = 'hledger_cache';
@@ -92,6 +93,8 @@ export default function App() {
 	const [addSheetOpen, setAddSheetOpen] = useState(false);
 	const [detailContent, setDetailContent] = useState<DetailContent | null>(null);
 	const [assignTxn, setAssignTxn] = useState<PendingTxn | null>(null);
+	const [inboxOpen, setInboxOpen] = useState(false);
+	const [inboxPending, setInboxPending] = useState(0);
 
 	// Toast
 	const [toastMsg, setToastMsg] = useState('');
@@ -150,6 +153,19 @@ export default function App() {
 		}
 	}, []);
 
+	const refreshInboxCount = useCallback(async () => {
+		try {
+			const r = await apiGet<{ pending?: number }>('/api/inbox/count');
+			setInboxPending(r.pending || 0);
+		} catch {
+			// fail silently
+		}
+	}, []);
+
+	useEffect(() => {
+		void refreshInboxCount();
+	}, [refreshInboxCount]);
+
 	const loadEnvelopes = useCallback(async () => {
 		try {
 			const data = await (
@@ -183,7 +199,8 @@ export default function App() {
 		await loadEnvelopes();
 		await fetchAccounts();
 		await fetchDescriptions();
-	}, [loadEnvelopes, fetchAccounts, fetchDescriptions]);
+		await refreshInboxCount();
+	}, [loadEnvelopes, fetchAccounts, fetchDescriptions, refreshInboxCount]);
 
 	const cacheRef = useRef(cache);
 	const envDataRef = useRef(envData);
@@ -242,11 +259,21 @@ export default function App() {
 		await loadEnvelopes();
 	}, [loadEnvelopes]);
 
+	// After posting/dismissing an inbox item the journal changed server-side;
+	// reload everything so balances and transactions reflect it.
+	const handleInboxChange = useCallback(async () => {
+		await loadAll();
+		persistCache(cacheRef.current, envDataRef.current);
+	}, [loadAll]);
+
 	return (
 		<PrivacyProvider>
 			<Banners isOffline={isOffline} />
 			<div className="app">
-				<Header />
+				<Header
+					inboxPending={inboxPending > 0}
+					onInboxOpen={() => setInboxOpen(true)}
+				/>
 				<SyncRow
 					isSyncing={isSyncing}
 					onSync={syncNow}
@@ -307,6 +334,13 @@ export default function App() {
 				envData={envData}
 				onClose={() => setAssignTxn(null)}
 				onSuccess={handleEnvAction}
+				showToast={showToast}
+			/>
+
+			<InboxSheet
+				isOpen={inboxOpen}
+				onClose={() => setInboxOpen(false)}
+				onChange={handleInboxChange}
 				showToast={showToast}
 			/>
 		</PrivacyProvider>

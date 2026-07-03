@@ -9,6 +9,7 @@
   --accent: #37352f;
   --positive: #2d6a4f;
   --negative: #c0392b;
+  --teal: #0d9488;
   --radius: 6px;
   --max-w: 520px;
 }
@@ -1814,3 +1815,94 @@ body.is-offline header {
 .env-config-row:last-child { border-bottom: none; }
 .env-config-label { color: var(--text); font-weight: 400; }
 .env-config-value { color: var(--text-muted); font-weight: 300; font-variant-numeric: tabular-nums; }
+
+/* ── Transaction inbox ── */
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.inbox-toggle.has-pending { color: var(--teal); }
+.inbox-toggle.has-pending:hover { color: var(--teal); background: var(--border); }
+
+.inbox-empty {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 300;
+  padding: 40px 0;
+}
+
+.inbox-row {
+  font-family: 'Montserrat', sans-serif;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 14px 2px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  text-align: left;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.inbox-row-main { flex: 1; min-width: 0; }
+
+.inbox-row-desc {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inbox-row-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 300;
+  margin-top: 2px;
+}
+
+.inbox-row-amount {
+  font-size: 14px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.inbox-chip {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  border-radius: 3px;
+  padding: 2px 5px;
+  flex-shrink: 0;
+}
+
+.inbox-chip.high { background: rgba(45, 106, 79, 0.12); color: var(--positive); }
+.inbox-chip.medium { background: rgba(154, 123, 28, 0.14); color: #9a7b1c; }
+.inbox-chip.low { background: rgba(192, 57, 43, 0.10); color: var(--negative); }
+.inbox-chip.journal { background: rgba(13, 148, 136, 0.12); color: var(--teal); }
+
+.inbox-journal-banner {
+  background: rgba(13, 148, 136, 0.08);
+  border: 1px solid rgba(13, 148, 136, 0.35);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  font-size: 12px;
+  font-weight: 300;
+  color: var(--text);
+  line-height: 1.5;
+  margin-bottom: 16px;
+}
+
+.inbox-journal-banner strong { color: var(--teal); font-weight: 600; }
+
+.inbox-dismiss { color: var(--negative); border-color: rgba(192, 57, 43, 0.3); }

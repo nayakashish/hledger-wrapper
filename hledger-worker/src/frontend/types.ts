@@ -121,3 +121,40 @@ export type DetailContent =
 	| { kind: 'transaction'; txn: Transaction }
 	| { kind: 'envelope'; envId: string }
 	| { kind: 'new-envelope' };
+
+export interface InboxSuggestion {
+	description: string;
+	account1: string;
+	amount1: number;
+	account2: string;
+	amount2: number;
+	confidence: 'high' | 'medium' | 'low';
+	matched_on: string;
+}
+
+export interface InboxJournalMatch {
+	date: string;
+	description: string;
+}
+
+export interface InboxItem {
+	id: string;
+	source: string;
+	received_at: string;
+	txn_date: string;
+	amount: number;
+	currency: string;
+	merchant_raw: string;
+	merchant_clean: string;
+	card_last4: string;
+	raw_subject?: string;
+	bank?: string;
+	parsed?: boolean;
+	suggestion: InboxSuggestion;
+	journal_match?: InboxJournalMatch | null;
+}
+
+export interface InboxResponse {
+	items: InboxItem[];
+	pending: number;
+}

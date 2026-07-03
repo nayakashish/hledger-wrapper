@@ -14,6 +14,11 @@
 		"binding": "ASSETS",
 		"not_found_handling": "single-page-application"
 	},
+	"vars": {
+		// Gmail forwarding-confirmation emails get forwarded here (must be a
+		// verified destination address in Email Routing)
+		"FORWARD_VERIFICATION_EMAIL": "a.samuel.nayak@gmail.com"
+	},
 	/**
 	 * Secrets (set via wrangler CLI, never committed):
 	 *   wrangler secret put BEARER_TOKEN

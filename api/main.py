@@ -1,5 +1,7 @@
 import os
+import re as _re
 import subprocess
+import threading
 from datetime import date
 from functools import wraps
 
@@ -10,6 +12,7 @@ from pydantic import BaseModel
 
 import json as _json
 from datetime import date as _date
+from datetime import datetime as _datetime, timezone as _timezone
 import uuid as _uuid
 
 # ---------------------------------------------------------------------------
@@ -24,6 +27,7 @@ DEFAULT_CURRENCY = os.getenv("DEFAULT_CURRENCY", "$")
 ENVELOPE_CONFIG_FILE = os.getenv("ENVELOPE_CONFIG_FILE", "")
 ENVELOPE_DATA_FILE   = os.getenv("ENVELOPE_DATA_FILE", "")
 ENVELOPE_DATA_FILE = os.getenv("ENVELOPE_DATA_FILE", "")
+INBOX_DATA_FILE = os.getenv("INBOX_DATA_FILE", "")
 
 app = FastAPI(title="hledger API", version="1.0.0")
 security = HTTPBearer()
@@ -779,4 +783,352 @@ def delete_envelope(envelope_id: str, token: str = Security(verify_token)):
     data["balances"].pop(envelope_id, None)
     _save_env_data(data)
     _commit_env(f"envelopes: delete {envelope_id}")
+    return {"status": "ok"}
+
+
+# ---------------------------------------------------------------------------
+# Transaction Inbox — staging area for bank-alert transactions
+# ---------------------------------------------------------------------------
+
+_inbox_lock = threading.Lock()
+
+INBOX_MAX_PENDING = 200
+INBOX_SEEN_IDS_MAX = 200
+INBOX_MATCH_WINDOW_DAYS = 2
+INBOX_FALLBACK_ACCOUNT = "expenses:uncategorized"
+INBOX_UNKNOWN_CARD_ACCOUNT = "liabilities:cc:unknown"
+
+_MERCHANT_PREFIXES = (
+    "SQ *", "SQ*", "TST-", "TST*", "TST ",
+    "PAYPAL *", "PAYPAL*", "PY *", "SP ", "APLPAY ",
+)
+
+
+def _default_inbox_data() -> dict:
+    return {"items": [], "seen_message_ids": [], "merchant_rules": [], "card_map": {}}
+
+
+def _load_inbox_data() -> dict:
+    if not INBOX_DATA_FILE:
+        raise HTTPException(status_code=503, detail="INBOX_DATA_FILE not configured. Set it in .env")
+    if not os.path.exists(INBOX_DATA_FILE):
+        return _default_inbox_data()
+    with open(INBOX_DATA_FILE) as f:
+        data = _json.load(f)
+    for key, default in _default_inbox_data().items():
+        data.setdefault(key, default)
+    return data
+
+
+def _save_inbox_data(data: dict):
+    data["seen_message_ids"] = data.get("seen_message_ids", [])[-INBOX_SEEN_IDS_MAX:]
+    with open(INBOX_DATA_FILE, "w") as f:
+        _json.dump(data, f, indent=2)
+
+
+def _commit_inbox(message: str):
+    run_git("add", INBOX_DATA_FILE)
+    run_git("commit", "-m", f"{message}\n\nSource: hledger-mobile-api")
+    run_git("push")
+
+
+def _clean_merchant(raw: str) -> str:
+    """Strip payment-processor prefixes and trailing store numbers from a
+    bank merchant descriptor, e.g. 'TST-The Samosa Factory' -> 'The Samosa Factory'."""
+    s = raw.strip()
+    upper = s.upper()
+    for prefix in _MERCHANT_PREFIXES:
+        if upper.startswith(prefix):
+            s = s[len(prefix):].strip()
+            break
+    s = _re.sub(r"[#\s][\d-]{3,}$", "", s).strip()
+    return s or raw.strip()
+
+
+def _merchant_tokens(s: str) -> set:
+    return {t for t in _re.split(r"[^a-z0-9]+", s.lower()) if len(t) >= 3}
+
+
+def _journal_txns() -> list:
+    try:
+        return _json.loads(run_hledger("print", "--output-format", "json"))
+    except _json.JSONDecodeError:
+        return []
+
+
+def _history_match(merchant_clean: str, txns: list):
+    """Find the best past transaction matching a merchant descriptor.
+    Returns (description, expense_account, matched_on) or None."""
+    target = merchant_clean.lower()
+    tokens = _merchant_tokens(merchant_clean)
+    best = None  # (score, description, account)
+    for txn in reversed(txns):  # most recent first
+        desc = txn.get("tdescription", "").strip()
+        if not desc:
+            continue
+        acct = next(
+            (p.get("paccount", "") for p in txn.get("tpostings", [])
+             if p.get("paccount", "").startswith("expenses")),
+            None,
+        )
+        if not acct:
+            continue
+        if desc.lower() == target:
+            return desc, acct, "history:exact"
+        if tokens:
+            overlap = len(tokens & _merchant_tokens(desc)) / len(tokens)
+            if overlap >= 0.5 and (best is None or overlap > best[0]):
+                best = (overlap, desc, acct)
+    if best:
+        return best[1], best[2], "history:tokens"
+    return None
+
+
+def _suggest_inbox_posting(merchant_raw: str, amount: float, card_last4: str, data: dict, txns: list) -> dict:
+    merchant_clean = _clean_merchant(merchant_raw)
+    account2 = data.get("card_map", {}).get(card_last4)
+    card_known = account2 is not None
+    if not card_known:
+        account2 = INBOX_UNKNOWN_CARD_ACCOUNT
+
+    description = merchant_clean
+    account1 = INBOX_FALLBACK_ACCOUNT
+    confidence = "low"
+    matched_on = "fallback"
+
+    upper = merchant_raw.upper()
+    rule = next(
+        (r for r in data.get("merchant_rules", [])
+         if r.get("pattern") and r["pattern"].upper() in upper),
+        None,
+    )
+    if rule:
+        account1 = rule.get("account", INBOX_FALLBACK_ACCOUNT)
+        description = rule.get("description") or merchant_clean
+        confidence = "high"
+        matched_on = "rule"
+    else:
+        hist = _history_match(merchant_clean, txns)
+        if hist:
+            description, account1, matched_on = hist
+            confidence = "high" if matched_on == "history:exact" else "medium"
+
+    if not card_known:
+        confidence = "low"
+
+    return {
+        "description": description,
+        "account1": account1,
+        "amount1": round(amount, 2),
+        "account2": account2,
+        "amount2": round(-amount, 2),
+        "confidence": confidence,
+        "matched_on": matched_on,
+    }
+
+
+def _find_journal_match(txns: list, amount: float, txn_date: str):
+    """Look for a journal transaction with the same amount within
+    INBOX_MATCH_WINDOW_DAYS of txn_date (the 'already posted from the Mac' case)."""
+    try:
+        center = _date.fromisoformat(txn_date)
+    except ValueError:
+        return None
+    target = round(abs(amount), 2)
+    if target == 0:
+        return None
+    for txn in reversed(txns):
+        try:
+            d = _date.fromisoformat(txn.get("tdate", ""))
+        except ValueError:
+            continue
+        if abs((d - center).days) > INBOX_MATCH_WINDOW_DAYS:
+            continue
+        for p in txn.get("tpostings", []):
+            if round(abs(_extract_amount(p)), 2) == target:
+                return {"date": txn.get("tdate", ""), "description": txn.get("tdescription", "")}
+    return None
+
+
+class InboxIngest(BaseModel):
+    amount: float
+    merchant: str
+    card_last4: str = ""
+    txn_date: str = ""
+    email_message_id: str = ""
+    raw_subject: str = ""
+    bank: str = ""
+    parsed: bool = True
+
+
+@app.post("/inbox/ingest")
+def inbox_ingest(body: InboxIngest, token: str = Security(verify_token)):
+    """
+    Called by the Worker email handler when a bank alert arrives.
+    Dedupes (message id, pending items, journal), generates a suggested
+    posting, and stores the item as pending.
+    """
+    if abs(body.amount) > 1_000_000:
+        raise HTTPException(status_code=400, detail="amount out of range")
+    if body.parsed and round(body.amount, 2) == 0:
+        raise HTTPException(status_code=400, detail="amount required for parsed alerts")
+    merchant = body.merchant.strip()[:200]
+    if not merchant:
+        raise HTTPException(status_code=400, detail="merchant required")
+    txn_date = body.txn_date.strip()
+    try:
+        center = _date.fromisoformat(txn_date)
+    except ValueError:
+        center = _date.today()
+        txn_date = center.isoformat()
+
+    with _inbox_lock:
+        data = _load_inbox_data()
+
+        msg_id = body.email_message_id.strip()[:200]
+        if msg_id and msg_id in data["seen_message_ids"]:
+            return {"status": "duplicate", "reason": "message_id"}
+
+        # Same amount + card within the window already pending
+        for item in data["items"]:
+            if (
+                item.get("card_last4") == body.card_last4
+                and round(item.get("amount", 0), 2) == round(body.amount, 2)
+            ):
+                try:
+                    d = _date.fromisoformat(item.get("txn_date", ""))
+                except ValueError:
+                    continue
+                if abs((d - center).days) <= INBOX_MATCH_WINDOW_DAYS:
+                    if msg_id:
+                        data["seen_message_ids"].append(msg_id)
+                        _save_inbox_data(data)
+                    return {"status": "duplicate", "reason": "pending"}
+
+        if len(data["items"]) >= INBOX_MAX_PENDING:
+            raise HTTPException(status_code=429, detail="Inbox full")
+
+        txns = _journal_txns()
+
+        # Already posted manually (e.g. from the Mac) before the alert landed
+        if body.parsed and _find_journal_match(txns, body.amount, txn_date):
+            if msg_id:
+                data["seen_message_ids"].append(msg_id)
+                _save_inbox_data(data)
+            return {"status": "duplicate", "reason": "journal"}
+
+        item = {
+            "id": f"ibx-{_uuid.uuid4().hex[:6]}",
+            "source": "email",
+            "received_at": _datetime.now(_timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "txn_date": txn_date,
+            "amount": round(body.amount, 2),
+            "currency": DEFAULT_CURRENCY,
+            "merchant_raw": merchant,
+            "merchant_clean": _clean_merchant(merchant),
+            "card_last4": body.card_last4.strip()[:4],
+            "email_message_id": msg_id,
+            "raw_subject": body.raw_subject.strip()[:300],
+            "bank": body.bank.strip()[:40],
+            "parsed": body.parsed,
+            "suggestion": _suggest_inbox_posting(merchant, body.amount, body.card_last4, data, txns),
+        }
+        data["items"].append(item)
+        if msg_id:
+            data["seen_message_ids"].append(msg_id)
+        _save_inbox_data(data)
+        _commit_inbox(f"inbox: ingest {item['merchant_clean'][:40]} {txn_date}")
+
+    return {"status": "ok", "id": item["id"]}
+
+
+@app.get("/inbox")
+def get_inbox(token: str = Security(verify_token)):
+    """Pending items, newest first, each with a live journal match check."""
+    with _inbox_lock:
+        data = _load_inbox_data()
+        items = [dict(i) for i in data["items"]]
+    txns = _journal_txns() if items else []
+    for item in items:
+        item["journal_match"] = (
+            _find_journal_match(txns, item.get("amount", 0), item.get("txn_date", ""))
+            if item.get("parsed", True)
+            else None
+        )
+    items.sort(key=lambda i: i.get("received_at", ""), reverse=True)
+    return {"items": items, "pending": len(items)}
+
+
+@app.get("/inbox/count")
+def get_inbox_count(token: str = Security(verify_token)):
+    with _inbox_lock:
+        data = _load_inbox_data()
+    return {"pending": len(data["items"])}
+
+
+class InboxPostBody(BaseModel):
+    id: str
+    raw_entry: str | None = None
+
+
+@app.post("/inbox/post")
+def inbox_post(body: InboxPostBody, token: str = Security(verify_token)):
+    """
+    Post an inbox item to the journal — the stored suggestion by default,
+    or the user-edited raw_entry. Removes the item; one commit covers both
+    the journal append and the inbox file.
+    """
+    with _inbox_lock:
+        data = _load_inbox_data()
+        item = next((i for i in data["items"] if i["id"] == body.id), None)
+        if not item:
+            raise HTTPException(status_code=404, detail="Inbox item not found")
+
+        if body.raw_entry:
+            entry = "\n" + body.raw_entry.strip() + "\n"
+        else:
+            s = item.get("suggestion") or {}
+            if not s.get("account1"):
+                raise HTTPException(status_code=400, detail="Item has no suggestion — post with raw_entry")
+            cur = item.get("currency", DEFAULT_CURRENCY)
+            entry = (
+                f"\n{item['txn_date']} {s['description']}\n"
+                f"    {s['account1']}    {cur}{s['amount1']:.2f}\n"
+                f"    {s['account2']}    {cur}{s['amount2']:.2f}\n"
+            )
+
+        try:
+            with open(JOURNAL_FILE, "a") as f:
+                f.write(entry)
+        except OSError as e:
+            raise HTTPException(status_code=500, detail=f"Could not write to journal: {e}")
+
+        data["items"] = [i for i in data["items"] if i["id"] != body.id]
+        _save_inbox_data(data)
+
+        run_git("add", JOURNAL_FILE, INBOX_DATA_FILE)
+        run_git(
+            "commit", "-m",
+            f"add: {item['merchant_clean'][:40]} {item['txn_date']} (inbox)\n\nSource: hledger-mobile-api",
+        )
+        run_git("push")
+
+    return {"status": "ok", "entry": entry.strip()}
+
+
+class InboxDismissBody(BaseModel):
+    id: str
+
+
+@app.post("/inbox/dismiss")
+def inbox_dismiss(body: InboxDismissBody, token: str = Security(verify_token)):
+    """Dismiss (delete) an inbox item. Nothing touches the journal."""
+    with _inbox_lock:
+        data = _load_inbox_data()
+        item = next((i for i in data["items"] if i["id"] == body.id), None)
+        if not item:
+            raise HTTPException(status_code=404, detail="Inbox item not found")
+        data["items"] = [i for i in data["items"] if i["id"] != body.id]
+        _save_inbox_data(data)
+        _commit_inbox(f"inbox: dismiss {item['merchant_clean'][:40]}")
     return {"status": "ok"}

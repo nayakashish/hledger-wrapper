@@ -7,7 +7,7 @@ A personal finance PWA that acts as a secure mobile interface to an hledger inst
 - Proxies API requests through Cloudflare to a home Linux machine running FastAPI + hledger
 - Injects auth secrets server-side (secrets never reach the browser)
 - Serves a React SPA as the frontend
-- Supports a demo mode backed by KV-stored mock data
+- Receives bank alert emails via Cloudflare Email Routing and stages them as pending transactions (the Transaction Inbox — see `docs/transaction-inbox.md`)
 
 ## Architecture
 
@@ -15,9 +15,9 @@ A personal finance PWA that acts as a secure mobile interface to an hledger inst
 Browser (React SPA)
        |
 Cloudflare Worker (hledger-worker)
-       |-- /api/*           → proxy to FastAPI on home server via CF Tunnel
-       |-- /api/demo/*      → serve mock data from KV namespace (DEMO_DATA)
-       |-- everything else  → Workers Assets (built React app)
+       |-- fetch: /api/*         → proxy to FastAPI on home server via CF Tunnel
+       |-- fetch: everything else → Workers Assets (built React app)
+       |-- email: txn-alerts@    → parse bank alert, POST /inbox/ingest to FastAPI
 ```
 
 **Cloudflare secrets** (set via `wrangler secret put`, never committed):
@@ -26,9 +26,8 @@ Cloudflare Worker (hledger-worker)
 - `CF_ACCESS_CLIENT_ID` — Cloudflare Access service token ID
 - `CF_ACCESS_CLIENT_SECRET` — Cloudflare Access service token secret
 
-**KV namespace**: `DEMO_DATA` — stores mock data for demo mode (balance, is, monthly, transactions, accounts, descriptions).
-
-**Demo PIN**: hardcoded in `src/index.ts` as `DEMO_PIN`. Anyone with repo access can see it — that is intentional. The pin gate keeps casual users out of real data, not adversarial attackers.
+**Vars** (in `wrangler.jsonc`, not secret):
+- `FORWARD_VERIFICATION_EMAIL` — where the email handler forwards Gmail's forwarding-confirmation emails; also the trusted sender for manually forwarded alerts.
 
 ## Project Layout
 
@@ -37,7 +36,7 @@ hledger-worker/
 ├── CLAUDE.md              ← you are here
 ├── index.html             ← Vite root (mounts React at #root)
 ├── vite.config.ts         ← Vite + Cloudflare Vite plugin
-├── wrangler.jsonc         ← Worker config + KV + Assets binding
+├── wrangler.jsonc         ← Worker config + vars + Assets binding
 ├── tsconfig.json          ← TypeScript config
 ├── package.json
 ├── public/                ← static assets copied as-is to dist/client
@@ -45,35 +44,41 @@ hledger-worker/
 │   ├── sw.js              ← service worker
 │   └── *.png              ← app icons
 └── src/
-    ├── index.ts           ← Worker entry (API proxy + demo handler)
+    ├── index.ts           ← Worker entry (API proxy + email handler)
     └── frontend/          ← React SPA
         ├── main.tsx
         ├── App.tsx
         ├── types.ts
         ├── styles/
         │   └── global.css
+        ├── context/
+        │   └── PrivacyContext.tsx
         ├── utils/
         │   ├── format.ts  ← fmtAmount, amountClass, extractAmount
-        │   └── api.ts     ← fetch helpers (apiGet, envFetch, etc.)
+        │   └── api.ts     ← fetch helpers (apiGet, apiPost, apiDelete, loadRawEndpoint)
         ├── hooks/
         │   └── useSheetSwipe.ts
         └── components/
-            ├── Header.tsx
+            ├── Header.tsx        ← title + inbox icon + privacy toggle
             ├── Nav.tsx
             ├── SummaryCards.tsx
+            ├── SyncRow.tsx
+            ├── VerseCard.tsx
+            ├── MaskedAmount.tsx
             ├── Toast.tsx
             ├── Banners.tsx
             ├── views/
+            │   ├── DashboardView.tsx
+            │   ├── ReportsView.tsx  (wraps BalanceView + MonthlyView)
             │   ├── BalanceView.tsx
             │   ├── MonthlyView.tsx
             │   ├── TransactionsView.tsx
             │   └── EnvelopesView.tsx
-            ├── sheets/
-            │   ├── AddSheet.tsx
-            │   ├── DetailSheet.tsx   ← shared bottom sheet (txn + env detail)
-            │   └── AssignSheet.tsx
-            └── modals/
-                └── PinModal.tsx
+            └── sheets/
+                ├── AddSheet.tsx
+                ├── DetailSheet.tsx   ← shared bottom sheet (txn + env detail)
+                ├── AssignSheet.tsx
+                └── InboxSheet.tsx    ← transaction inbox review (list + review)
 ```
 
 ## Development
@@ -105,9 +110,8 @@ npm run cf-typegen   # regenerates worker-configuration.d.ts
 - **No secrets in code or committed files.** All secrets go through `wrangler secret put`.
 - **React JSX** provides automatic XSS protection (no manual escaping needed, unlike the old `escHtml`).
 - **CORS**: The Worker adds `Access-Control-Allow-Origin: *` on API responses only. Static assets are served by Workers Assets.
-- **Demo mode**: The demo PIN lives only in the Worker (`src/index.ts`). It is never sent to the browser.
 - **Authentication**: The Worker injects `Authorization`, `CF-Access-Client-Id`, and `CF-Access-Client-Secret` headers server-side. The browser only ever sees `/api/*` URLs with no auth headers.
-- Keep `wrangler.jsonc` KV IDs in source (they are not secrets), but keep the `kv_namespaces` remote IDs private enough — they are scoped to this Cloudflare account.
+- **Inbound email**: the email handler only acts on senders it recognizes (bank domains, Google's forwarding verification, the owner's own address for manual forwards); everything else is dropped. Ingested alerts can only create pending inbox items — nothing reaches the journal without a user action in the app.
 
 ## Key API Endpoints (served by FastAPI on home server)
 
@@ -131,6 +135,15 @@ npm run cf-typegen   # regenerates worker-configuration.d.ts
 | `/api/envelopes/dismiss` | POST | Dismiss a pending transaction |
 | `/api/envelopes/create` | POST | Create a new envelope |
 | `/api/envelopes/<id>` | DELETE | Delete an envelope |
+| `/api/monthly-detail` | GET | Monthly breakdown with transaction drilldown |
+| `/api/daily-totals` | GET | `?from_date=YYYY-MM-DD` per-day counts/totals (heatmap) |
+| `/api/inbox` | GET | Pending inbox items + live journal match |
+| `/api/inbox/count` | GET | Pending count (header icon) |
+| `/api/inbox/ingest` | POST | Stage a bank alert (called by the email handler) |
+| `/api/inbox/post` | POST | Post an inbox item to the journal |
+| `/api/inbox/dismiss` | POST | Delete an inbox item without posting |
+
+The Transaction Inbox (email pipeline, suggestion engine, dedup) is documented in depth in `docs/transaction-inbox.md`.
 
 ## Coding Standards
 

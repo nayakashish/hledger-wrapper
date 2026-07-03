@@ -158,3 +158,9 @@ export interface InboxResponse {
 	items: InboxItem[];
 	pending: number;
 }
+
+export interface InboxRule {
+	pattern: string;
+	account: string;
+	description: string;
+}

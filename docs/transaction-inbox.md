@@ -97,9 +97,12 @@ Three tiers, first match wins:
    ]
    ```
 
-   Rules are hand-edited overrides — use them when history keeps suggesting
-   the wrong thing, or to pre-seed a merchant before its first transaction.
-   A rule match always beats history.
+   Rules always beat history. They come from two places: the "Remember
+   merchant" checkbox on the review screen (saves the posted title and
+   category as a rule for that merchant), or hand-editing `inbox.json` —
+   useful for pre-seeding a merchant before its first transaction or for
+   patterns finer than the cleaned descriptor (e.g. a `COSTCO GAS` rule
+   above a general `COSTCO` rule; earlier rules in the list win).
 
 2. **History match.** The merchant descriptor is first cleaned — processor
    prefixes stripped (`TST-`, `SQ *`, `PAYPAL *`, ...), trailing store
@@ -168,12 +171,24 @@ auto-deletes because two same-priced purchases on adjacent days are real.
 - List level: merchant, date, card, amount, and either a confidence chip or
   an "In journal?" chip per item, newest first.
 - Review level: parsed alert details, the journal-match banner when
-  applicable, the suggested entry in an hledger-format preview, and three
-  actions:
-  - **Post to journal** — appends the suggestion as-is, commits, pushes.
-  - **Edit entry** — makes the preview editable (same raw-entry format as
-    the add flow, inline comments with `;` work); Post then sends the
-    edited text verbatim.
+  applicable, then the posting form:
+  - **Title** — the transaction description, prefilled with the suggestion.
+    When the suggestion did not come from a merchant rule, the field is
+    auto-focused with the text selected so typing immediately replaces the
+    bank's version with your own. The raw bank descriptor is not lost: it is
+    automatically appended as an inline `;` comment whenever it differs from
+    the title.
+  - **Note** — optional free text, joined into the same inline comment
+    (e.g. `; on drive home · MCDONALD'S #40123`).
+  - **Remember merchant** — checkbox; posting also saves a merchant rule
+    (pattern = the cleaned bank descriptor, title and category = whatever
+    was posted), so the next alert from this merchant arrives at high
+    confidence with your title. Works from the edited-entry path too.
+  - **Post to journal** — appends the entry built from the fields above,
+    commits, pushes.
+  - **Edit accounts / amounts** — swaps the form for the raw editable entry
+    (same format as the add flow) for changes beyond title and note; Post
+    then sends the edited text verbatim.
   - **Dismiss** — deletes the item. Nothing touches the journal, and there
     is no trail; dismissed means gone.
 
@@ -204,6 +219,7 @@ as `/api/inbox/...`:
 | `/inbox/count` | GET | `{pending: n}` — cheap poll for the header icon |
 | `/inbox/post` | POST | `{id}` posts the suggestion; `{id, raw_entry}` posts the edited text |
 | `/inbox/dismiss` | POST | `{id}` — delete without posting |
+| `/inbox/rule` | POST | `{pattern, account, description}` — save/replace a merchant rule ("Remember merchant") |
 
 Ingest hard limits: 200 pending items max, amount bounds, string length caps.
 A leaked alert address can at worst create junk pending items that are one
@@ -214,9 +230,9 @@ tap to dismiss; it can never write to the journal.
 - **Alert in Gmail, nothing in inbox**: check Email Routing activity logs,
   then `wrangler tail hledger-worker`. If the item was suppressed as
   `reason: journal`, that is dedup, not failure.
-- **Item shows the subject line and low confidence**: the CIBC template
-  changed; update the parser regex in `src/index.ts` (`BANK_PARSERS`).
-  The item is still fully usable via Edit meanwhile.
+- **Item shows the subject line and low confidence**: the bank's email
+  template changed; update the parser regex in `src/index.ts`
+  (`BANK_PARSERS`). The item is still fully usable via Edit meanwhile.
 - **Ingest delivery failures in the Email Routing log**: home server or
   tunnel down. The alert is still in Gmail; re-forward it manually once the
   server is back.
@@ -225,8 +241,6 @@ tap to dismiss; it can never write to the journal.
 
 ## Known Limitations / Future Ideas
 
-- Suggestions do not yet auto-learn from edits — correcting a category on
-  review does not write a `merchant_rules` entry automatically (planned).
 - Only purchase alerts are parsed; refund/credit alert formats have not been
   seen yet and would arrive unparsed.
 - Alert amounts are authorizations: tips and gas settle differently, and the

@@ -796,7 +796,7 @@ INBOX_MAX_PENDING = 200
 INBOX_SEEN_IDS_MAX = 200
 INBOX_MATCH_WINDOW_DAYS = 2
 INBOX_FALLBACK_ACCOUNT = "expenses:uncategorized"
-INBOX_UNKNOWN_CARD_ACCOUNT = "liabilities:cc:unknown"
+INBOX_UNKNOWN_CARD_ACCOUNT = "liabilities:creditcard:CIBC"
 
 _MERCHANT_PREFIXES = (
     "SQ *", "SQ*", "TST-", "TST*", "TST ",
@@ -1132,3 +1132,32 @@ def inbox_dismiss(body: InboxDismissBody, token: str = Security(verify_token)):
         _save_inbox_data(data)
         _commit_inbox(f"inbox: dismiss {item['merchant_clean'][:40]}")
     return {"status": "ok"}
+
+
+class InboxRuleBody(BaseModel):
+    pattern: str
+    account: str
+    description: str
+
+
+@app.post("/inbox/rule")
+def inbox_add_rule(body: InboxRuleBody, token: str = Security(verify_token)):
+    """
+    Save (or replace) a merchant rule from the app's "Remember merchant"
+    action. Future alerts whose merchant contains `pattern` get this
+    account and description at high confidence.
+    """
+    pattern = body.pattern.strip()[:100]
+    account = body.account.strip()[:100]
+    description = body.description.strip()[:100]
+    if not pattern or not account or not description:
+        raise HTTPException(status_code=400, detail="pattern, account, and description required")
+
+    with _inbox_lock:
+        data = _load_inbox_data()
+        rules = [r for r in data.get("merchant_rules", []) if r.get("pattern", "").upper() != pattern.upper()]
+        rules.append({"pattern": pattern, "account": account, "description": description})
+        data["merchant_rules"] = rules
+        _save_inbox_data(data)
+        _commit_inbox(f"inbox: rule {pattern[:40]} -> {account[:40]}")
+    return {"status": "ok", "rules": len(rules)}

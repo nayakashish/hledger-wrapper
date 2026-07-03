@@ -142,6 +142,7 @@ npm run cf-typegen   # regenerates worker-configuration.d.ts
 | `/api/inbox/ingest` | POST | Stage a bank alert (called by the email handler) |
 | `/api/inbox/post` | POST | Post an inbox item to the journal |
 | `/api/inbox/dismiss` | POST | Delete an inbox item without posting |
+| `/api/inbox/rule` | POST | Save/replace a merchant rule ("Remember merchant") |
 
 The Transaction Inbox (email pipeline, suggestion engine, dedup) is documented in depth in `docs/transaction-inbox.md`.
 

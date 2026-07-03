@@ -1906,3 +1906,33 @@ body.is-offline header {
 .inbox-journal-banner strong { color: var(--teal); font-weight: 600; }
 
 .inbox-dismiss { color: var(--negative); border-color: rgba(192, 57, 43, 0.3); }
+
+.inbox-field-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.inbox-remember {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 300;
+  color: var(--text);
+  line-height: 1.4;
+  padding: 2px 0 14px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.inbox-remember input[type='checkbox'] {
+  accent-color: var(--teal);
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+  flex-shrink: 0;
+}

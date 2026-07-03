@@ -24,6 +24,13 @@ emails. Full write-up in `docs/transaction-inbox.md`.
   pending
 - Manual forwards from the owner's address are unwrapped and ingested with
   the original alert date — used for testing and backfilling old alerts
+- Review screen posting form: Title field (auto-focused and pre-selected for
+  non-rule suggestions so your own naming replaces the bank's), optional
+  Note field, and the raw bank descriptor auto-preserved as an inline
+  comment
+- Added "Remember merchant" checkbox + /inbox/rule endpoint — posting can
+  save the title and category as a merchant rule so future alerts from that
+  merchant arrive at high confidence
 - Refreshed CLAUDE.md (removed stale demo-mode references, corrected layout)
 
 ## [1.3] - 2026-07-01

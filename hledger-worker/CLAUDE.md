@@ -69,9 +69,10 @@ hledger-worker/
             ├── Banners.tsx
             ├── views/
             │   ├── DashboardView.tsx
-            │   ├── ReportsView.tsx  (wraps BalanceView + MonthlyView)
+            │   ├── ReportsView.tsx  (wraps BalanceView + MonthlyView + CoAView)
             │   ├── BalanceView.tsx
             │   ├── MonthlyView.tsx
+            │   ├── CoAView.tsx      (chart of accounts tree)
             │   ├── TransactionsView.tsx
             │   └── EnvelopesView.tsx
             └── sheets/
@@ -124,7 +125,7 @@ npm run cf-typegen   # regenerates worker-configuration.d.ts
 | `/api/transactions` | GET | `?month=YYYY-MM` |
 | `/api/search` | GET | `?q=<query>` full-text search |
 | `/api/add` | POST | Append transaction to journal |
-| `/api/accounts` | GET | List of account names |
+| `/api/accounts` | GET | Chart of accounts — declared accounts from the CoA journal when `ACCOUNTS_FILE` is set in the server `.env`, else accounts used in the journal |
 | `/api/descriptions` | GET | List of recent descriptions |
 | `/api/lookup` | GET | `?description=<text>` predicted postings |
 | `/api/envelopes` | GET | Envelope balances + pending txns |

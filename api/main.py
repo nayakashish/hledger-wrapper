@@ -21,6 +21,7 @@ import uuid as _uuid
 
 JOURNAL_DIR = os.getenv("JOURNAL_DIR", "")
 JOURNAL_FILE = os.getenv("JOURNAL_FILE", "")
+ACCOUNTS_FILE = os.getenv("ACCOUNTS_FILE", "")  # chart-of-accounts journal (account directives)
 HLEDGER_BIN = os.getenv("HLEDGER_BIN", "hledger")
 BEARER_TOKEN = os.getenv("BEARER_TOKEN", "")
 DEFAULT_CURRENCY = os.getenv("DEFAULT_CURRENCY", "$")
@@ -59,7 +60,12 @@ def run_hledger(*args: str) -> str:
     """Run an hledger command against the configured journal file and return stdout."""
     if not JOURNAL_FILE:
         raise HTTPException(status_code=500, detail="Server misconfigured: JOURNAL_FILE not set")
-    cmd = [HLEDGER_BIN, "-f", JOURNAL_FILE, *args]
+    return run_hledger_file(JOURNAL_FILE, *args)
+
+
+def run_hledger_file(journal_file: str, *args: str) -> str:
+    """Run an hledger command against a specific journal file and return stdout."""
+    cmd = [HLEDGER_BIN, "-f", journal_file, *args]
     try:
         result = subprocess.run(
             cmd,
@@ -213,8 +219,16 @@ def search_transactions(q: str, token: str = Security(verify_token)):
 
 @app.get("/accounts")
 def get_accounts(token: str = Security(verify_token)):
-    """All account names. Used for autocomplete in the frontend."""
-    output = run_hledger("accounts")
+    """
+    Chart of accounts. When ACCOUNTS_FILE is set (a journal of `account`
+    directives, e.g. 2026accounts.journal), returns the declared accounts —
+    the authoritative CoA. Otherwise falls back to accounts used in the
+    journal. Used for autocomplete and the Reports CoA view.
+    """
+    if ACCOUNTS_FILE:
+        output = run_hledger_file(ACCOUNTS_FILE, "accounts", "--declared")
+    else:
+        output = run_hledger("accounts")
     accounts = [line.strip() for line in output.splitlines() if line.strip()]
     return {"accounts": accounts}
 

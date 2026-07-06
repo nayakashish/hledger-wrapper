@@ -291,6 +291,7 @@ export default function App() {
 				<ReportsView
 					balance={cache.balance ?? null}
 					monthly={cache.monthly ?? null}
+					accounts={accountsList}
 					isActive={activeView === 'reports'}
 					onTxnClick={txn => setDetailContent({ kind: 'transaction', txn })}
 				/>

@@ -180,6 +180,12 @@ auto-deletes because two same-priced purchases on adjacent days are real.
     the title.
   - **Note** — optional free text, joined into the same inline comment
     (e.g. `; on drive home · MCDONALD'S #40123`).
+  - **Category** — shown only when confidence is low or medium (i.e. the
+    category is a guess). Prefilled with the suggested account, with
+    chart-of-accounts autocomplete: each space-separated token matches as a
+    substring (`food din` → `expenses:food:diningout`), `expenses:*` accounts
+    listed first. High-confidence items skip the field — the category came
+    from a rule or an exact history match; use Edit for the rare override.
   - **Remember merchant** — checkbox; posting also saves a merchant rule
     (pattern = the cleaned bank descriptor, title and category = whatever
     was posted), so the next alert from this merchant arrives at high

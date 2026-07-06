@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { fmtAmount } from '../../utils/format';
 import { apiGet, apiPost } from '../../utils/api';
 import type { InboxItem, InboxResponse, InboxRule } from '../../types';
@@ -7,6 +7,7 @@ interface Props {
 	isOpen: boolean;
 	onClose: () => void;
 	onChange: () => Promise<void>;
+	accountsList: string[];
 	showToast: (msg: string, duration?: number) => void;
 }
 
@@ -18,11 +19,12 @@ const CONFIDENCE_LABELS: Record<string, string> = {
 
 // The entry posted from the fast path: user's own title, with the user note
 // and the bank's raw merchant descriptor preserved as an inline comment.
-function buildEntry(item: InboxItem, title: string, note: string): string {
+function buildEntry(item: InboxItem, title: string, note: string, account1: string): string {
 	const s = item.suggestion;
 	const cur = item.currency || '$';
 	const fmt = (n: number) => (n < 0 ? '-' : '') + cur + Math.abs(n).toFixed(2);
 	const desc = title.trim() || s.description;
+	const acct1 = account1.trim() || s.account1;
 	const commentParts = [
 		note.trim(),
 		item.merchant_raw && item.merchant_raw !== desc ? item.merchant_raw : '',
@@ -30,12 +32,12 @@ function buildEntry(item: InboxItem, title: string, note: string): string {
 	const comment = commentParts.length ? `  ; ${commentParts.join(' · ')}` : '';
 	return (
 		`${item.txn_date} ${desc}${comment}\n` +
-		`    ${s.account1}    ${fmt(s.amount1)}\n` +
+		`    ${acct1}    ${fmt(s.amount1)}\n` +
 		`    ${s.account2}    ${fmt(s.amount2)}`
 	);
 }
 
-export default function InboxSheet({ isOpen, onClose, onChange, showToast }: Props) {
+export default function InboxSheet({ isOpen, onClose, onChange, accountsList, showToast }: Props) {
 	const [items, setItems] = useState<InboxItem[] | null>(null);
 	const [loading, setLoading] = useState(false);
 	const [selected, setSelected] = useState<InboxItem | null>(null);
@@ -128,6 +130,7 @@ export default function InboxSheet({ isOpen, onClose, onChange, showToast }: Pro
 						<ReviewItem
 							key={selected.id}
 							item={selected}
+							accountsList={accountsList}
 							submitting={submitting}
 							onPost={handlePost}
 							onDismiss={handleDismiss}
@@ -191,32 +194,38 @@ function ItemList({
 
 function ReviewItem({
 	item,
+	accountsList,
 	submitting,
 	onPost,
 	onDismiss,
 }: {
 	item: InboxItem;
+	accountsList: string[];
 	submitting: boolean;
 	onPost: (item: InboxItem, rawEntry: string, rule: InboxRule | null) => Promise<void>;
 	onDismiss: (item: InboxItem) => Promise<void>;
 }) {
 	const unparsed = item.parsed === false;
 	const fromRule = item.suggestion.matched_on === 'rule';
+	// Low/medium confidence means the category is a guess — surface it as an
+	// editable field instead of burying it in the raw entry.
+	const categoryEditable = item.suggestion.confidence !== 'high';
 
 	const [title, setTitle] = useState(item.suggestion.description);
 	const [note, setNote] = useState('');
+	const [account1, setAccount1] = useState(item.suggestion.account1);
 	const [rawText, setRawText] = useState<string | null>(null);
 	const [remember, setRemember] = useState(false);
 
 	const editing = rawText !== null;
-	const entry = editing ? rawText : buildEntry(item, title, note);
+	const entry = editing ? rawText : buildEntry(item, title, note, account1);
 
 	// The rule saved by "Remember merchant": pattern from the cleaned bank
 	// descriptor, title/account from whatever entry is actually being posted.
 	const deriveRule = (): InboxRule | null => {
 		if (!remember || !item.merchant_clean) return null;
 		let description = title.trim();
-		let account = item.suggestion.account1;
+		let account = account1.trim() || item.suggestion.account1;
 		if (editing && rawText) {
 			const lines = rawText.trim().split('\n');
 			const descMatch = (lines[0] || '').match(/^\S+\s+(.*?)(?:\s*;.*)?$/);
@@ -273,6 +282,16 @@ function ReviewItem({
 						onChange={e => setNote(e.target.value)}
 						style={{ marginBottom: 12 }}
 					/>
+					{categoryEditable && (
+						<>
+							<div className="inbox-field-label">Category</div>
+							<CategoryField
+								value={account1}
+								accountsList={accountsList}
+								onChange={setAccount1}
+							/>
+						</>
+					)}
 				</>
 			)}
 
@@ -295,7 +314,7 @@ function ReviewItem({
 				value={entry}
 				onChange={e => setRawText(e.target.value)}
 				onClick={() => {
-					if (!editing) setRawText(buildEntry(item, title, note));
+					if (!editing) setRawText(buildEntry(item, title, note, account1));
 				}}
 			/>
 
@@ -320,7 +339,7 @@ function ReviewItem({
 			<button
 				className="assign-dismiss"
 				disabled={submitting}
-				onClick={() => (editing ? setRawText(null) : setRawText(buildEntry(item, title, note)))}
+				onClick={() => (editing ? setRawText(null) : setRawText(buildEntry(item, title, note, account1)))}
 				style={{ marginBottom: 10 }}
 			>
 				{editing ? 'Cancel edit' : 'Edit accounts / amounts'}
@@ -333,5 +352,82 @@ function ReviewItem({
 				Dismiss
 			</button>
 		</>
+	);
+}
+
+// ── Category field ────────────────────────────────────────────────────────────
+
+// Chart-of-accounts autocomplete for the expense side of the entry. Matches
+// each space-separated token as a substring ("food din" → expenses:food:diningout),
+// listing expenses:* accounts before everything else.
+function CategoryField({
+	value,
+	accountsList,
+	onChange,
+}: {
+	value: string;
+	accountsList: string[];
+	onChange: (v: string) => void;
+}) {
+	const [suggestions, setSuggestions] = useState<string[]>([]);
+	const inputRef = useRef<HTMLInputElement>(null);
+
+	const filterAccounts = (val: string): string[] => {
+		const tokens = val.trim().toLowerCase().split(/\s+/).filter(Boolean);
+		if (tokens.length === 0 || accountsList.length === 0) return [];
+		return accountsList
+			.filter(a => {
+				const lower = a.toLowerCase();
+				return a !== val && tokens.every(t => lower.includes(t));
+			})
+			.sort((a, b) => Number(b.startsWith('expenses:')) - Number(a.startsWith('expenses:')))
+			.slice(0, 8);
+	};
+
+	const handleInput = (val: string) => {
+		onChange(val);
+		setSuggestions(filterAccounts(val));
+	};
+
+	return (
+		<div className="autocomplete-wrap" style={{ marginBottom: 12 }}>
+			<input
+				ref={inputRef}
+				type="text"
+				className="env-inline-input"
+				placeholder="e.g. expenses:food:groceries"
+				value={value}
+				autoComplete="off"
+				autoCorrect="off"
+				autoCapitalize="off"
+				spellCheck={false}
+				onChange={e => handleInput(e.target.value)}
+				onFocus={e => e.target.select()}
+				onBlur={() => setSuggestions([])}
+				onKeyDown={e => {
+					if (e.key === 'Enter') {
+						setSuggestions([]);
+						inputRef.current?.blur();
+					}
+				}}
+			/>
+			{suggestions.length > 0 && (
+				<div className="autocomplete-list">
+					{suggestions.map(s => (
+						<div
+							key={s}
+							className="autocomplete-item"
+							onPointerDown={e => {
+								e.preventDefault();
+								onChange(s);
+								setSuggestions([]);
+							}}
+						>
+							{s}
+						</div>
+					))}
+				</div>
+			)}
+		</div>
 	);
 }

@@ -341,6 +341,7 @@ export default function App() {
 				isOpen={inboxOpen}
 				onClose={() => setInboxOpen(false)}
 				onChange={handleInboxChange}
+				accountsList={accountsList}
 				showToast={showToast}
 			/>
 		</PrivacyProvider>

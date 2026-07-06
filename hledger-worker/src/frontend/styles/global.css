@@ -963,7 +963,7 @@ body.is-offline header {
 }
 .verse-ref {
   font-size: 11px;
-  color: var(--text-muted);
+  color: var(--teal);
   font-weight: 400;
 }
 

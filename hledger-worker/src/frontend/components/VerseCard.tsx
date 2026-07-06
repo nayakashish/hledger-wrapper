@@ -6,8 +6,12 @@ export default function VerseCard() {
 
 	if (verses.length === 0) return null;
 
-	const monthlyIdx = new Date().getMonth() % verses.length;
-	const verse = verses[sessionIdx ?? monthlyIdx];
+	const now = new Date();
+	const dayOfYear = Math.floor(
+		(now.getTime() - new Date(now.getFullYear(), 0, 0).getTime()) / 86400000
+	);
+	const dailyIdx = dayOfYear % verses.length;
+	const verse = verses[sessionIdx ?? dailyIdx];
 
 	const cycle = () => setSessionIdx(Math.floor(Math.random() * verses.length));
 

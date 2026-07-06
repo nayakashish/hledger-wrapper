@@ -103,7 +103,9 @@ The journal file and all raw financial data live only on the home server. The Wo
 
 ## Changelog
 
-### v2 — React rewrite (current)
+Releases are tagged `v1.x` and documented per-version in [docs/CHANGELOG.md](docs/CHANGELOG.md). The two big eras so far:
+
+### React rewrite — v1.2 and later (current)
 
 The entire frontend was migrated from a monolithic ~2,400-line vanilla JS/HTML file to a typed React 19 + Vite 6 component tree (~20 files). This was a prerequisite for the features below.
 
@@ -119,7 +121,7 @@ The entire frontend was migrated from a monolithic ~2,400-line vanilla JS/HTML f
 | Bundle | Workers Assets (static file serving) replaces bundled HTML import |
 | XSS protection | React JSX auto-escaping replaces manual `escHtml()` calls |
 
-### v1 — Vanilla JS SPA
+### Vanilla JS SPA — v1.0 to v1.1
 
 - Balance, income statement, monthly, and transactions views
 - Add transaction form with account/description autocomplete

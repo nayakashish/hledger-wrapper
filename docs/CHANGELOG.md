@@ -3,6 +3,25 @@
 All notable changes to this project are documented here. Though since this is personal project, I am not super strict with this. Versioning follows
 `major.minor`; the major version stays at `1` for now.
 
+## [1.5] - 2026-07-06
+
+Chart-of-accounts integration — the app now knows the CoA, not just the
+accounts already used in the journal.
+
+- Added `ACCOUNTS_FILE` server env var: when set to the dedicated
+  chart-of-accounts journal, `/accounts` serves the declared accounts
+  (`hledger accounts --declared`) instead of accounts used in the journal
+- Added Accounts tab to Reports: collapsible CoA tree grouped by top-level
+  account, same expand/collapse behavior as the Balance view, plus an
+  expand-all/collapse-all toggle and account count
+- Added editable Category field to the inbox review screen for low/medium
+  confidence items: CoA autocomplete with per-token substring matching
+  (`food din` → `expenses:food:diningout`), expenses accounts listed first,
+  prefilled with the suggestion; the chosen category flows into the posted
+  entry, the remember-merchant rule, and the raw edit view
+- Fixed README changelog section that referred to a v2 (versioning stays on
+  major 1); it now points to this file
+
 ## [1.4] - 2026-07-02
 
 Transaction Inbox — semi-automated transaction capture from bank alert

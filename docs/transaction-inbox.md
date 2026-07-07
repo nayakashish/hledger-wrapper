@@ -243,7 +243,9 @@ tap to dismiss; it can never write to the journal.
   tunnel down. The alert is still in Gmail; re-forward it manually once the
   server is back.
 - **Icon never turns teal**: `/api/inbox/count` returns 503 if
-  `INBOX_DATA_FILE` is missing from the server `.env`.
+  `INBOX_DATA_FILE` is missing from the server `.env`, or if the file it
+  points at does not exist (create it with `{}` — the loader fills in the
+  default keys).
 
 ## Known Limitations / Future Ideas
 

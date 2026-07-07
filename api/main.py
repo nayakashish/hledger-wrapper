@@ -826,7 +826,7 @@ def _load_inbox_data() -> dict:
     if not INBOX_DATA_FILE:
         raise HTTPException(status_code=503, detail="INBOX_DATA_FILE not configured. Set it in .env")
     if not os.path.exists(INBOX_DATA_FILE):
-        return _default_inbox_data()
+        raise HTTPException(status_code=503, detail=f"Inbox data file not found: {INBOX_DATA_FILE}")
     with open(INBOX_DATA_FILE) as f:
         data = _json.load(f)
     for key, default in _default_inbox_data().items():

@@ -1113,11 +1113,10 @@ body.is-offline header {
 
 /* ── Recap card ── */
 .recap-heading {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-  color: var(--text-muted);
+  letter-spacing: 0.2px;
+  color: var(--text);
   margin-bottom: 10px;
 }
 .recap-stat {

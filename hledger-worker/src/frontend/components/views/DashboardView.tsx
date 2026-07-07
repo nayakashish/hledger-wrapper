@@ -299,7 +299,7 @@ function SpendingPaceCard({ chartData }: { chartData: ChartPoint[] }) {
 	return (
 		<div className="dash-chart-card">
 			<div className="dash-chart-header">
-				<span className="dash-chart-title">Spending Pace — {monthName}</span>
+				<span className="dash-chart-title">Spending Pace: {monthName}</span>
 				{isAhead && <span className="pace-fast-badge">RUNNING FAST</span>}
 			</div>
 
@@ -518,6 +518,92 @@ function CategoryComparisonChart({
 	);
 }
 
+// ── Category vs YTD Average chart ─────────────────────────────────────────────
+
+const CAT_CURRENT = TEAL_PALETTE[0];
+const CAT_AVG = TEAL_PALETTE[4];
+
+// Per top-level expense category: this month's total next to the average of
+// the prior YTD months, sorted by that average so the heaviest categories
+// come first.
+function CategoryVsAvgChart({
+	monthly,
+	ytdMonthsList,
+}: {
+	monthly: MonthlyData;
+	ytdMonthsList: string[];
+}) {
+	const data = useMemo(() => {
+		const ymToIdx: Record<string, number> = {};
+		monthly.prDates.forEach((dateRange, idx) => {
+			const ym = dateRange[0]?.contents?.slice(0, 7) ?? '';
+			if (ym) ymToIdx[ym] = idx;
+		});
+		const currentYm = ytdMonthsList[ytdMonthsList.length - 1];
+		const priorMonths = ytdMonthsList.slice(0, -1);
+
+		const totals: Record<string, { current: number; priorSum: number }> = {};
+		monthly.prRows.forEach(row => {
+			if (!row.prrName.startsWith('expenses:')) return;
+			const cat = row.prrName.split(':')[1];
+			if (!cat) return;
+			const t = (totals[cat] ??= { current: 0, priorSum: 0 });
+			const curIdx = ymToIdx[currentYm];
+			if (curIdx !== undefined) {
+				t.current += Math.abs(extractAmount(row.prrAmounts?.[curIdx] ?? []).val);
+			}
+			priorMonths.forEach(ym => {
+				const i = ymToIdx[ym];
+				if (i !== undefined) t.priorSum += Math.abs(extractAmount(row.prrAmounts?.[i] ?? []).val);
+			});
+		});
+
+		return Object.entries(totals)
+			.map(([cat, t]) => ({
+				cat,
+				current: t.current,
+				avg: t.priorSum / Math.max(1, priorMonths.length),
+			}))
+			.filter(d => d.current > 0.005 || d.avg > 0.005)
+			.sort((a, b) => (b.avg - a.avg) || (b.current - a.current));
+	}, [monthly, ytdMonthsList]);
+
+	if (data.length === 0) return null;
+
+	return (
+		<div className="dash-chart-card">
+			<div className="dash-chart-header">
+				<span className="dash-chart-title">Categories: This Month vs YTD Avg</span>
+			</div>
+			<ResponsiveContainer width="100%" height={data.length * 36 + 28}>
+				<BarChart data={data} layout="vertical" margin={{ top: 4, right: 8, left: 0, bottom: 0 }} barGap={2}>
+					<XAxis type="number" tickFormatter={fmtK} tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
+					<YAxis type="category" dataKey="cat" width={92} tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
+					<Tooltip content={(props) => (
+						<CategoryTooltip
+							active={props.active}
+							payload={props.payload as unknown as TooltipEntry[] | undefined}
+							label={String(props.label ?? '')}
+						/>
+					)} />
+					<Bar dataKey="current" name="This month" fill={CAT_CURRENT} barSize={9} radius={[0, 4, 4, 0]} />
+					<Bar dataKey="avg" name="YTD avg" fill={CAT_AVG} barSize={9} radius={[0, 4, 4, 0]} />
+				</BarChart>
+			</ResponsiveContainer>
+			<div className="cat-legend">
+				<div className="cat-legend-item">
+					<span className="cat-legend-dot" style={{ background: CAT_CURRENT }} />
+					<span>This month</span>
+				</div>
+				<div className="cat-legend-item">
+					<span className="cat-legend-dot" style={{ background: CAT_AVG }} />
+					<span>YTD avg</span>
+				</div>
+			</div>
+		</div>
+	);
+}
+
 // ── End of Month Recap card ───────────────────────────────────────────────────
 
 function EndOfMonthRecap({
@@ -543,7 +629,7 @@ function EndOfMonthRecap({
 
 	const isCurrentMonth = reportYm === currentYm;
 	const monthName = new Date(reportYm + '-01T00:00:00').toLocaleDateString('en-CA', { month: 'long' });
-	const heading = isCurrentMonth ? `${monthName} so far` : `${monthName} recap`;
+	const heading = isCurrentMonth ? `${monthName} so far` : `${monthName} Recap`;
 
 	const txnCount = dailyTotals
 		? dailyTotals.filter(d => d.date.startsWith(reportYm)).reduce((s, d) => s + d.count, 0)
@@ -730,10 +816,11 @@ export default function DashboardView({ isActive, monthly, syncKey }: Props) {
 				<>
 					<SpendingChart chartData={chartData} />
 					<SpendingPaceCard chartData={chartData} />
+					<EndOfMonthRecap chartData={chartData} monthly={monthly} dailyTotals={dailyTotals} />
 					{monthlyDetail && (
 						<CategoryComparisonChart monthlyDetail={monthlyDetail} ytdMonthsList={ytdMonthsList} />
 					)}
-					<EndOfMonthRecap chartData={chartData} monthly={monthly} dailyTotals={dailyTotals} />
+					<CategoryVsAvgChart monthly={monthly} ytdMonthsList={ytdMonthsList} />
 				</>
 			)}
 		</div>

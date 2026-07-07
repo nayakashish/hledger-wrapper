@@ -37,6 +37,16 @@ function buildEntry(item: InboxItem, title: string, note: string, account1: stri
 	);
 }
 
+// The raw-edit textarea holds the entry without the note, so the note stays
+// editable in its own field; it is merged into the first line at post time.
+function appendNote(entry: string, note: string): string {
+	const n = note.trim();
+	if (!n) return entry;
+	const lines = entry.split('\n');
+	lines[0] = lines[0].includes(';') ? `${lines[0]} · ${n}` : `${lines[0]}  ; ${n}`;
+	return lines.join('\n');
+}
+
 export default function InboxSheet({ isOpen, onClose, onChange, accountsList, showToast }: Props) {
 	const [items, setItems] = useState<InboxItem[] | null>(null);
 	const [loading, setLoading] = useState(false);
@@ -207,9 +217,6 @@ function ReviewItem({
 }) {
 	const unparsed = item.parsed === false;
 	const fromRule = item.suggestion.matched_on === 'rule';
-	// Low/medium confidence means the category is a guess — surface it as an
-	// editable field instead of burying it in the raw entry.
-	const categoryEditable = item.suggestion.confidence !== 'high';
 
 	const [title, setTitle] = useState(item.suggestion.description);
 	const [note, setNote] = useState('');
@@ -273,25 +280,25 @@ function ReviewItem({
 						onFocus={e => e.target.select()}
 						style={{ marginBottom: 12 }}
 					/>
-					<div className="inbox-field-label">Note</div>
-					<input
-						type="text"
-						className="env-inline-input"
-						placeholder="Optional — becomes an inline ; comment"
-						value={note}
-						onChange={e => setNote(e.target.value)}
-						style={{ marginBottom: 12 }}
+				</>
+			)}
+			<div className="inbox-field-label">Note</div>
+			<input
+				type="text"
+				className="env-inline-input"
+				placeholder="Optional — becomes an inline ; comment"
+				value={note}
+				onChange={e => setNote(e.target.value)}
+				style={{ marginBottom: 12 }}
+			/>
+			{!editing && (
+				<>
+					<div className="inbox-field-label">Category</div>
+					<CategoryField
+						value={account1}
+						accountsList={accountsList}
+						onChange={setAccount1}
 					/>
-					{categoryEditable && (
-						<>
-							<div className="inbox-field-label">Category</div>
-							<CategoryField
-								value={account1}
-								accountsList={accountsList}
-								onChange={setAccount1}
-							/>
-						</>
-					)}
 				</>
 			)}
 
@@ -314,7 +321,7 @@ function ReviewItem({
 				value={entry}
 				onChange={e => setRawText(e.target.value)}
 				onClick={() => {
-					if (!editing) setRawText(buildEntry(item, title, note, account1));
+					if (!editing) setRawText(buildEntry(item, title, '', account1));
 				}}
 			/>
 
@@ -330,16 +337,16 @@ function ReviewItem({
 			</label>
 
 			<button
-				className="assign-confirm"
+				className="assign-confirm inbox-post"
 				disabled={submitting}
-				onClick={() => void onPost(item, entry, deriveRule())}
+				onClick={() => void onPost(item, editing ? appendNote(entry, note) : entry, deriveRule())}
 			>
 				{submitting ? 'Saving...' : editing ? 'Post edited entry' : 'Post to journal'}
 			</button>
 			<button
 				className="assign-dismiss"
 				disabled={submitting}
-				onClick={() => (editing ? setRawText(null) : setRawText(buildEntry(item, title, note, account1)))}
+				onClick={() => (editing ? setRawText(null) : setRawText(buildEntry(item, title, '', account1)))}
 				style={{ marginBottom: 10 }}
 			>
 				{editing ? 'Cancel edit' : 'Edit accounts / amounts'}

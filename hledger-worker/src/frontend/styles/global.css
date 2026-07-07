@@ -1779,6 +1779,8 @@ body.is-offline header {
 .assign-confirm:hover { opacity: 0.85; }
 .assign-confirm:disabled { opacity: 0.35; cursor: default; }
 
+.assign-confirm.inbox-post { background: var(--teal); }
+
 .assign-dismiss {
   font-family: 'Montserrat', sans-serif;
   font-size: 13px;

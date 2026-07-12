@@ -27,7 +27,7 @@ accounts already used in the journal.
 Transaction Inbox — semi-automated transaction capture from bank alert
 emails. Full write-up in `docs/transaction-inbox.md`.
 
-- Added email handler to the Worker: Cloudflare Email Routing delivers CIBC
+- Added email handler to the Worker: Cloudflare Email Routing delivers bank
   alerts (Gmail filter auto-forward), postal-mime parses them, and the alert
   is staged via the new FastAPI ingest endpoint using the existing injected
   auth (no bypass rules, no new secrets)

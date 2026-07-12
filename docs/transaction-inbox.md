@@ -18,7 +18,7 @@ sequenceDiagram
     participant App as PWA
 
     Bank->>Gmail: purchase alert email
-    Gmail->>CF: filter auto-forward to alert-hledger@mydomain.ca
+    Gmail->>CF: filter auto-forward to alerts@example.com
     CF->>W: invoke email handler
     W->>W: parse amount / merchant / last4
     W->>API: POST /inbox/ingest (via tunnel, auth injected)
@@ -74,7 +74,7 @@ from the alert:
 
 ```json
 "card_map": {
-  "1234": "liabilities:cc:mastercard"
+  "1234": "liabilities:cc:card"
 }
 ```
 
@@ -93,7 +93,7 @@ Three tiers, first match wins:
 
    ```json
    "merchant_rules": [
-     { "pattern": "SAMOSA", "account": "expenses:food:diningout", "description": "The Samosa Factory" }
+     { "pattern": "COFFEE", "account": "expenses:food:diningout", "description": "Corner Coffee" }
    ]
    ```
 
@@ -101,20 +101,20 @@ Three tiers, first match wins:
    merchant" checkbox on the review screen (saves the posted title and
    category as a rule for that merchant), or hand-editing `inbox.json` —
    useful for pre-seeding a merchant before its first transaction or for
-   patterns finer than the cleaned descriptor (e.g. a `COSTCO GAS` rule
-   above a general `COSTCO` rule; earlier rules in the list win).
+   patterns finer than the cleaned descriptor (e.g. a `MEGAMART GAS` rule
+   above a general `MEGAMART` rule; earlier rules in the list win).
 
 2. **History match.** The merchant descriptor is first cleaned — processor
    prefixes stripped (`TST-`, `SQ *`, `PAYPAL *`, ...), trailing store
-   numbers dropped (`STARBUCKS #1234` → `STARBUCKS`) — then compared against
+   numbers dropped (`CAFE #1234` → `CAFE`) — then compared against
    every past transaction description in the journal:
    - **Exact match** (case-insensitive): cleaned merchant equals a past
      description. Takes the most recent such transaction.
    - **Token match**: both strings are broken into alphanumeric tokens of 3+
      characters, and past descriptions sharing at least half of the
      merchant's tokens qualify; the best-overlapping one wins. Example:
-     cleaned merchant `The Samosa Factory` (tokens: the, samosa, factory)
-     token-matches a past entry `Samosa Factory Lunch`.
+     cleaned merchant `Corner Coffee` (tokens: corner, coffee)
+     token-matches a past entry `Corner Coffee Downtown`.
 
    Either way, the suggested category is the matched transaction's first
    `expenses:*` posting account, and the suggested description is the
@@ -179,7 +179,7 @@ auto-deletes because two same-priced purchases on adjacent days are real.
     automatically appended as an inline `;` comment whenever it differs from
     the title.
   - **Note** — optional free text, joined into the same inline comment
-    (e.g. `; on drive home · MCDONALD'S #40123`).
+    (e.g. `; on drive home · CAFE #40123`).
   - **Category** — shown only when confidence is low or medium (i.e. the
     category is a guess). Prefilled with the suggested account, with
     chart-of-accounts autocomplete: each space-separated token matches as a

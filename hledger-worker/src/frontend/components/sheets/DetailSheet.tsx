@@ -1,6 +1,7 @@
 import { useRef, useEffect, useState } from 'react';
 import { extractAmount, fmtAmount, amountClass } from '../../utils/format';
 import { useSheetSwipe } from '../../hooks/useSheetSwipe';
+import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { apiPost, apiDelete } from '../../utils/api';
 import type { DetailContent, EnvelopeData, Transaction, Envelope } from '../../types';
 
@@ -19,14 +20,10 @@ export default function DetailSheet({ content, envData, onClose, onEnvAction, sh
 	const bodyRef = useRef<HTMLDivElement>(null);
 
 	useSheetSwipe(sheetRef, bodyRef, onClose, isOpen);
+	useBodyScrollLock(isOpen);
 
 	useEffect(() => {
-		if (isOpen) {
-			document.body.style.overflow = 'hidden';
-		} else {
-			document.body.style.overflow = '';
-			if (sheetRef.current) sheetRef.current.style.transform = '';
-		}
+		if (!isOpen && sheetRef.current) sheetRef.current.style.transform = '';
 	}, [isOpen]);
 
 	const handleOverlayClick = (e: React.MouseEvent) => {

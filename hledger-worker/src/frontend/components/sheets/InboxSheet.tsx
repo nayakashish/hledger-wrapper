@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { fmtAmount } from '../../utils/format';
 import { apiGet, apiPost } from '../../utils/api';
 import type { InboxItem, InboxResponse, InboxRule } from '../../types';
@@ -53,9 +54,7 @@ export default function InboxSheet({ isOpen, onClose, onChange, accountsList, sh
 	const [selected, setSelected] = useState<InboxItem | null>(null);
 	const [submitting, setSubmitting] = useState(false);
 
-	useEffect(() => {
-		document.body.style.overflow = isOpen ? 'hidden' : '';
-	}, [isOpen]);
+	useBodyScrollLock(isOpen);
 
 	const loadItems = useCallback(async () => {
 		setLoading(true);

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import type { AddFormState, PredictedPosting } from '../../types';
 
 const STEPS = ['date', 'description', 'account1', 'amount1', 'account2', 'amount2', 'preview'] as const;
@@ -36,15 +37,14 @@ export default function AddSheet({
 	const [submitting, setSubmitting] = useState(false);
 	const [submitError, setSubmitError] = useState('');
 
+	useBodyScrollLock(isOpen);
+
 	useEffect(() => {
 		if (isOpen) {
 			setStepIdx(0);
 			setForm({});
 			setSubmitting(false);
 			setSubmitError('');
-			document.body.style.overflow = 'hidden';
-		} else {
-			document.body.style.overflow = '';
 		}
 	}, [isOpen]);
 

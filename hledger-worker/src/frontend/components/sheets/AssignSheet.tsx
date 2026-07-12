@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { fmtAmount, amountClass } from '../../utils/format';
 import { apiPost } from '../../utils/api';
 import type { PendingTxn, EnvelopeData } from '../../types';
@@ -14,9 +15,7 @@ interface Props {
 export default function AssignSheet({ txn, envData, onClose, onSuccess, showToast }: Props) {
 	const isOpen = txn !== null && envData !== null;
 
-	useEffect(() => {
-		document.body.style.overflow = isOpen ? 'hidden' : '';
-	}, [isOpen]);
+	useBodyScrollLock(isOpen);
 
 	if (!isOpen || !txn || !envData) return null;
 

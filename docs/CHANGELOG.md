@@ -3,6 +3,24 @@
 All notable changes to this project are documented here. Though since this is personal project, I am not super strict with this. Versioning follows
 `major.minor`; the major version stays at `1` for now.
 
+## [1.6] - 2026-07-12
+
+Bottom-sheet scroll and dismiss fixes — the pop-up sheets now behave correctly
+on mobile.
+
+- Fixed sheet content not scrolling: the detail sheet body is now a proper flex
+  scroll container (`flex: 1; min-height: 0`), so content taller than the sheet
+  scrolls instead of being clipped and unreachable
+- Fixed the background scrolling behind an open sheet on iOS: replaced the
+  unreliable `body { overflow: hidden }` lock with a shared `useBodyScrollLock`
+  hook that pins the body (`position: fixed` with scroll-position restore) and
+  is ref-counted across sheets; applied to the add, detail, assign, and inbox
+  sheets
+- Added scroll-momentum and `overscroll-behavior: contain` to the sheet scroll
+  areas so touch scrolling stays inside the sheet
+- Swipe-down-to-dismiss on the detail sheet now works reliably as a result of
+  the scroll container fix
+
 ## [1.5] - 2026-07-06
 
 Chart-of-accounts integration — the app now knows the CoA, not just the

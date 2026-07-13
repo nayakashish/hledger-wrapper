@@ -116,6 +116,12 @@ npm run cf-typegen   # regenerates worker-configuration.d.ts
 
 ## Key API Endpoints (served by FastAPI on home server)
 
+The backend lives in `../api/` (a package under `api/app/`, split by domain
+into config/auth/hledger/git_ops/storage/models plus one router per area, with
+an atomic git-write wrapper for every mutating endpoint). See `api/README.md`
+for the package layout and how to run its pytest suite; the routes below are
+unchanged by that structure.
+
 | Path | Method | Description |
 |------|--------|-------------|
 | `/api/sync` | POST | Git pull + rebuild hledger data |

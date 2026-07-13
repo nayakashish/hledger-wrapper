@@ -56,3 +56,6 @@ The suite mocks `hledger` and `git` at the subprocess boundary (see
 JSON stores at `tmp_path`, so it's deterministic, offline, and runs in well
 under a second — no real `hledger` binary or git remote needed. It runs in CI
 on every push/PR that touches `api/**` (`.github/workflows/api-tests.yml`).
+
+See `docs/api-testing.md` for how the mocking works, what's covered, and why
+the numbers can be trusted.

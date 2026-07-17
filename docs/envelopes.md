@@ -106,13 +106,13 @@ sequenceDiagram
     App->>API: POST /envelopes/scan
     API->>H: hledger print --output-format json
     H-->>API: all journal transactions
-    API->>API: skip already-matched / already-pending;<br/>classify income vs expense; suggest an envelope
+    Note over API: skip already-matched and already-pending;<br>classify income vs expense; suggest an envelope
     API->>Git: commit envelopes.json
     API-->>App: pending list
 
     Note over App: user taps a pending item
-    App->>API: POST /envelopes/assign {txn_id, envelope_id | splits}
-    API->>API: move balances, append history,<br/>remove from pending, mark matched
+    App->>API: POST /envelopes/assign (txn_id, envelope_id or splits)
+    Note over API: move balances, append history;<br>remove from pending, mark matched
     API->>Git: commit envelopes.json
     API-->>App: updated state
 ```

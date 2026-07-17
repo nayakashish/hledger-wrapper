@@ -14,10 +14,3 @@ the documents below go deeper.
 | [envelopes.md](envelopes.md) | The virtual envelope budgeting system — model, reconciliation, the scan/assign lifecycle, splitting, and the full API. |
 | [transaction-inbox.md](transaction-inbox.md) | Semi-automated transaction capture from bank-alert emails — the email pipeline, suggestion engine, and dedup. |
 | [CHANGELOG.md](CHANGELOG.md) | Per-version changelog. |
-
-## Diagrams
-
-All diagrams are authored inline as [Mermaid](https://mermaid.js.org/) fenced
-code blocks within the documents above, so they render directly on GitHub and
-in any Markdown viewer. There are no separate diagram source files to keep in
-sync.

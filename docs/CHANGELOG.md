@@ -1,7 +1,6 @@
 # Changelog
 
-All notable changes to this project are documented here. Though since this is personal project, I am not super strict with this. Versioning follows
-`major.minor`; the major version stays at `1` for now.
+Notable changes to the project are documented here. I track versions to have a good return point if I dislike a feature I've added or want to revert to another state. So versioning is not very strict. Follows major.minor, incrementing minor for new features/changes. 
 
 ## [1.6] - 2026-07-12
 

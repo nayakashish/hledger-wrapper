@@ -34,10 +34,33 @@ cp env.example .env
 Edit `.env`:
 
 ```ini
-JOURNAL_DIR=/path/to/your/journal-repo   # directory containing .hledger file
-API_TOKEN=<strong-random-string>          # openssl rand -hex 32
+# Journal location (both point inside your journal git repo)
+JOURNAL_DIR=/path/to/journal-repo                 # directory containing the journal
+JOURNAL_FILE=/path/to/journal-repo/main.journal   # the journal file itself
+
+# Optional: a chart-of-accounts journal of `account` directives. When set,
+# /accounts serves declared accounts instead of accounts used in the journal.
+ACCOUNTS_FILE=/path/to/journal-repo/accounts.journal
+
+# API auth — a strong random secret; generate with: openssl rand -hex 32
+BEARER_TOKEN=<strong-random-string>
+
+# Currency symbol used in your journal
 DEFAULT_CURRENCY=$
+
+# hledger binary (only needed if it is not on PATH)
+HLEDGER_BIN=/usr/local/bin/hledger
+
+# Feature data files — plain JSON, committed to the journal repo like the
+# journal itself. Point each at a path inside the repo; the loaders create
+# the default keys on first write.
+ENVELOPE_DATA_FILE=/path/to/journal-repo/envelopes.json   # see docs/envelopes.md
+INBOX_DATA_FILE=/path/to/journal-repo/inbox.json          # see docs/transaction-inbox.md
 ```
+
+`ENVELOPE_DATA_FILE` and `INBOX_DATA_FILE` are optional — leave them unset to
+run without the Envelopes or Transaction Inbox features. When unset, those
+endpoints return `503` and the rest of the app is unaffected.
 
 ### Verify locally
 
@@ -150,7 +173,7 @@ wrangler secret put API_BASE_URL
 # → https://api.yourdomain.com
 
 wrangler secret put BEARER_TOKEN
-# → same value as API_TOKEN in your .env
+# → same value as BEARER_TOKEN in your .env
 
 wrangler secret put CF_ACCESS_CLIENT_ID
 # → Client ID from step 3
@@ -233,3 +256,10 @@ npm run cf-typegen   # regenerates worker-configuration.d.ts
 | `POST` | `/envelopes/dismiss` | Dismiss pending transaction |
 | `POST` | `/envelopes/create` | Create envelope |
 | `DELETE` | `/envelopes/<id>` | Delete envelope |
+
+The Transaction Inbox endpoints (`/inbox/...`) are documented in
+[transaction-inbox.md](transaction-inbox.md); the envelope endpoints are
+covered in depth in [envelopes.md](envelopes.md).
+
+See the [documentation index](README.md) for the full set of reference
+documents.

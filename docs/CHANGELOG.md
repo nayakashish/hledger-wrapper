@@ -1,7 +1,8 @@
 # Changelog
 
-All notable changes to this project are documented here. Though since this is personal project, I am not super strict with this. Versioning follows
-`major.minor`; the major version stays at `1` for now.
+Notable changes to this project, per version. As a personal project, this log is
+kept loosely rather than exhaustively. Versioning follows `major.minor`; the
+major version stays at `1` for now.
 
 ## [1.6] - 2026-07-12
 

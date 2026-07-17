@@ -51,8 +51,11 @@ See [`docs/architecture.md`](docs/architecture.md) for detailed sequence diagram
 
 **Envelopes**
 - Virtual envelope budgeting layered over hledger (no journal changes required)
-- Scan for new unassigned transactions, assign income splits, assign expenses
-- Transfer between envelopes, manual adjustments, full history
+- Scan the journal for unassigned transactions, each with a suggested envelope
+- Allocate income and split expenses across envelopes by dollar amount or percent, with auto-balancing
+- Transfer between envelopes, manual adjustments, split corrections, full history
+- Live reconciliation against hledger's real net worth ("in sync" indicator)
+- See [`docs/envelopes.md`](docs/envelopes.md) for the full write-up
 
 **Transactions**
 - Month picker and full-text search across all transactions
@@ -135,5 +138,10 @@ The entire frontend was migrated from a monolithic ~2,400-line vanilla JS/HTML f
 
 ## Docs
 
+Full documentation lives in [`docs/`](docs/README.md):
+
 - [`docs/architecture.md`](docs/architecture.md) — request flow, auth layers, caching strategy, sequence diagrams
 - [`docs/deploy.md`](docs/deploy.md) — setup guide: home server, Cloudflare Tunnel, Access, Worker, local dev
+- [`docs/envelopes.md`](docs/envelopes.md) — virtual envelope budgeting: model, reconciliation, scan/assign lifecycle, API
+- [`docs/transaction-inbox.md`](docs/transaction-inbox.md) — semi-automated capture from bank-alert emails
+- [`docs/CHANGELOG.md`](docs/CHANGELOG.md) — per-version changelog

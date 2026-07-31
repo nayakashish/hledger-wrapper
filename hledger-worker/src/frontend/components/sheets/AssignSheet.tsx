@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { fmtAmount, amountClass } from '../../utils/format';
 import { apiPost } from '../../utils/api';
+import { allocateByPercent, percentOfTotal } from '../../utils/splitAllocation';
 import type { PendingTxn, EnvelopeData } from '../../types';
 
 interface Props {
@@ -50,6 +51,314 @@ export default function AssignSheet({ txn, envData, onClose, onSuccess, showToas
 	);
 }
 
+// ── Shared toggle button group (Single/Split, Amount/Percent) ────────────────
+
+function ToggleGroup<T extends string>({
+	options,
+	value,
+	onChange,
+}: {
+	options: { value: T; label: string }[];
+	value: T;
+	onChange: (v: T) => void;
+}) {
+	return (
+		<div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
+			{options.map(opt => (
+				<button
+					key={opt.value}
+					onClick={() => onChange(opt.value)}
+					style={{
+						fontFamily: "'Montserrat', sans-serif",
+						fontSize: 11, fontWeight: 600, letterSpacing: '0.3px', textTransform: 'uppercase',
+						background: value === opt.value ? 'var(--accent)' : 'var(--bg)',
+						color: value === opt.value ? '#fff' : 'var(--text)',
+						border: '1px solid var(--border)', borderRadius: 4,
+						padding: '6px 12px', cursor: 'pointer', touchAction: 'manipulation', flex: 1,
+					}}
+				>
+					{opt.label}
+				</button>
+			))}
+		</div>
+	);
+}
+
+// ── Shared split editor (amount or percent entry, per envelope) ──────────────
+
+type SplitMode = 'amount' | 'percent';
+
+function SplitEditor({
+	txn,
+	envData,
+	initAmounts,
+	showDefaultsButton,
+	onResetDefaults,
+	helperText,
+	submitLabel,
+	onSubmit,
+	onDismiss,
+	showToast,
+}: {
+	txn: PendingTxn;
+	envData: EnvelopeData;
+	initAmounts: () => Record<string, string>;
+	showDefaultsButton?: boolean;
+	onResetDefaults?: () => Record<string, string>;
+	helperText: string;
+	submitLabel: string;
+	onSubmit: (splits: { envelope_id: string; amount: number }[]) => Promise<void>;
+	onDismiss: () => Promise<void>;
+	showToast: (msg: string, duration?: number) => void;
+}) {
+	const defaultRemainderId = () =>
+		(envData.envelopes.find(e => e.id === txn.suggested_envelope) ||
+			envData.envelopes.find(e => e.id === 'chequing') ||
+			envData.envelopes[0])?.id ?? null;
+
+	const [mode, setMode] = useState<SplitMode>('amount');
+	const [amountValues, setAmountValues] = useState<Record<string, string>>(initAmounts);
+	const [percentValues, setPercentValues] = useState<Record<string, string>>({});
+	// The envelope that absorbs whatever the other rows don't claim — its
+	// row is never read from its own typed input, so it can't drift out of
+	// sync (i.e. stay "full") as the user fills in the other rows.
+	const [remainderEnvId, setRemainderEnvId] = useState<string | null>(defaultRemainderId);
+	const [submitting, setSubmitting] = useState(false);
+
+	const percentInputs = Object.fromEntries(
+		envData.envelopes.map(e => [e.id, parseFloat(percentValues[e.id] || '') || 0])
+	);
+
+	const otherEnvelopes = envData.envelopes.filter(e => e.id !== remainderEnvId);
+	const remainderPercent = remainderEnvId
+		? Math.round((100 - otherEnvelopes.reduce((s, e) => s + (percentInputs[e.id] || 0), 0)) * 100) / 100
+		: 0;
+
+	// The dollar amounts actually assigned, regardless of which mode the
+	// user is typing in — percent mode never leaves this component.
+	const derivedAmounts: Record<string, number> = (() => {
+		if (mode === 'amount') {
+			const otherSum = otherEnvelopes.reduce((s, e) => s + (parseFloat(amountValues[e.id] || '') || 0), 0);
+			const result = Object.fromEntries(
+				envData.envelopes.map(e => [e.id, e.id === remainderEnvId ? 0 : parseFloat(amountValues[e.id] || '') || 0])
+			);
+			if (remainderEnvId) result[remainderEnvId] = Math.round((txn.amount - otherSum) * 100) / 100;
+			return result;
+		}
+		const inputs = remainderEnvId ? { ...percentInputs, [remainderEnvId]: remainderPercent } : percentInputs;
+		return allocateByPercent(txn.amount, inputs);
+	})();
+
+	const assigned = Object.values(derivedAmounts).reduce((s, v) => s + v, 0);
+	const remainder = Math.round((txn.amount - assigned) * 100) / 100;
+	const remainderRowNegative = remainderEnvId !== null && (derivedAmounts[remainderEnvId] ?? 0) < -0.005;
+	const balanced = remainderEnvId !== null ? !remainderRowNegative : Math.abs(remainder) < 0.01;
+
+	const setValue = (envId: string, val: string) => {
+		if (mode === 'amount') setAmountValues(prev => ({ ...prev, [envId]: val }));
+		else setPercentValues(prev => ({ ...prev, [envId]: val }));
+	};
+
+	// Designate `envId` as the auto-computed row. Whatever the previous
+	// auto row was becomes a normal typed field, seeded with its current
+	// (computed) value so nothing is lost in the handoff.
+	const makeRemainder = (envId: string) => {
+		if (remainderEnvId && remainderEnvId !== envId) {
+			const prevVal = derivedAmounts[remainderEnvId] || 0;
+			setValue(remainderEnvId, prevVal ? prevVal.toFixed(2) : '');
+		}
+		setRemainderEnvId(envId);
+	};
+
+	// Turn the auto row back into a normal typed field, preserving its
+	// current computed value, and go back to fully-manual entry.
+	const unlockRemainder = () => {
+		if (!remainderEnvId) return;
+		const val = derivedAmounts[remainderEnvId] || 0;
+		setValue(remainderEnvId, val ? val.toFixed(2) : '');
+		setRemainderEnvId(null);
+	};
+
+	const switchMode = (next: SplitMode) => {
+		if (next === mode) return;
+		// Always reconvert from the current derived (live) values rather
+		// than any stale draft in the other mode's bucket — otherwise the
+		// auto row's last-known typed value (from before it became auto)
+		// could leak back in.
+		const seeded: Record<string, string> = {};
+		envData.envelopes.forEach(e => {
+			if (e.id === remainderEnvId) return; // computed row needs no stored value
+			const amt = derivedAmounts[e.id] || 0;
+			seeded[e.id] = amt ? (next === 'percent' ? percentOfTotal(amt, txn.amount) : amt).toFixed(2) : '';
+		});
+		if (next === 'percent') setPercentValues(seeded);
+		else setAmountValues(seeded);
+		setMode(next);
+	};
+
+	const clearAll = () => {
+		setAmountValues(Object.fromEntries(envData.envelopes.map(e => [e.id, ''])));
+		setPercentValues(Object.fromEntries(envData.envelopes.map(e => [e.id, ''])));
+	};
+
+	const resetDefaults = () => {
+		if (!onResetDefaults) return;
+		setAmountValues(onResetDefaults());
+		setPercentValues({});
+		setMode('amount');
+		setRemainderEnvId(defaultRemainderId());
+	};
+
+	const autoBalance = () => {
+		if (balanced) { showToast('Already balanced'); return; }
+		const target =
+			envData.envelopes.find(e => e.id === txn.suggested_envelope) ||
+			envData.envelopes.find(e => e.id === 'chequing') ||
+			envData.envelopes[0];
+		if (!target) return;
+		if (mode === 'amount') {
+			const cur = parseFloat(amountValues[target.id] || '') || 0;
+			const newVal = Math.round((cur + remainder) * 100) / 100;
+			setAmountValues(prev => ({ ...prev, [target.id]: newVal > 0 ? newVal.toFixed(2) : '0.00' }));
+		} else {
+			const curAmt = derivedAmounts[target.id] || 0;
+			const newAmt = Math.max(0, Math.round((curAmt + remainder) * 100) / 100);
+			setPercentValues(prev => ({ ...prev, [target.id]: percentOfTotal(newAmt, txn.amount).toFixed(2) }));
+		}
+		showToast(
+			remainder > 0
+				? `+${fmtAmount(remainder, '$')} added to ${target.name}`
+				: `${fmtAmount(Math.abs(remainder), '$')} removed from ${target.name}`
+		);
+	};
+
+	const handleSubmit = async () => {
+		const entries = envData.envelopes
+			.map(e => ({ envelope_id: e.id, amount: Math.round((derivedAmounts[e.id] || 0) * 100) / 100 }))
+			.filter(x => x.amount !== 0);
+		if (entries.length === 0) return;
+		setSubmitting(true);
+		try {
+			await onSubmit(entries);
+		} catch {
+			setSubmitting(false);
+		}
+	};
+
+	return (
+		<>
+			<div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 300, marginBottom: 12 }}>
+				{helperText}
+			</div>
+
+			<ToggleGroup
+				options={[{ value: 'amount', label: '$ Amount' }, { value: 'percent', label: '% Percent' }]}
+				value={mode}
+				onChange={switchMode}
+			/>
+
+			<div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14, paddingBottom: 14, borderBottom: '1px solid var(--border)' }}>
+				{[
+					...(showDefaultsButton ? [{ label: 'Reset defaults', action: resetDefaults, accent: false }] : []),
+					{ label: 'Clear all', action: clearAll, accent: false },
+					// Redundant once a row is auto-computed (it's always balanced
+					// by construction) — only useful once the user unlocks it.
+					...(!remainderEnvId ? [{ label: 'Auto-balance', action: autoBalance, accent: true }] : []),
+				].map(btn => (
+					<button
+						key={btn.label}
+						onClick={btn.action}
+						style={{
+							fontFamily: "'Montserrat', sans-serif",
+							fontSize: 11, fontWeight: 600, letterSpacing: '0.3px', textTransform: 'uppercase',
+							background: btn.accent ? 'var(--accent)' : 'var(--bg)',
+							color: btn.accent ? '#fff' : 'var(--text)',
+							border: '1px solid var(--border)', borderRadius: 4,
+							padding: '6px 10px', cursor: 'pointer', touchAction: 'manipulation', flexShrink: 0,
+						}}
+					>
+						{btn.label}
+					</button>
+				))}
+			</div>
+
+			{envData.envelopes.map(env => {
+				const isRemainder = env.id === remainderEnvId;
+				const displayValue = isRemainder
+					? (mode === 'amount' ? derivedAmounts[env.id] || 0 : remainderPercent).toFixed(2)
+					: (mode === 'amount' ? amountValues[env.id] : percentValues[env.id]) || '';
+				return (
+					<div key={env.id} className="assign-split-row">
+						<span className="assign-split-name">{env.name}</span>
+						{mode === 'percent' && (
+							<span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 300, flexShrink: 0 }}>
+								{fmtAmount(derivedAmounts[env.id] || 0, '$')}
+							</span>
+						)}
+						<input
+							type="number"
+							className="assign-split-input"
+							step="0.01"
+							placeholder={mode === 'percent' ? '0' : '0.00'}
+							value={displayValue}
+							disabled={isRemainder}
+							onChange={e => setValue(env.id, e.target.value)}
+							style={isRemainder ? {
+								color: remainderRowNegative ? 'var(--negative)' : 'var(--accent)',
+								borderColor: remainderRowNegative ? 'var(--negative)' : 'var(--accent)',
+								background: 'var(--bg)',
+							} : undefined}
+						/>
+						{mode === 'percent' && <span style={{ fontSize: 12, color: 'var(--text-muted)', flexShrink: 0 }}>%</span>}
+						<button
+							onClick={() => (isRemainder ? unlockRemainder() : makeRemainder(env.id))}
+							title={
+								isRemainder
+									? 'Auto-filling from the rest — tap to enter a fixed value instead'
+									: 'Auto-fill this envelope with whatever is left over'
+							}
+							style={{
+								fontFamily: "'Montserrat', sans-serif",
+								fontSize: 9, fontWeight: 700, letterSpacing: '0.3px', textTransform: 'uppercase',
+								background: isRemainder ? 'var(--accent)' : 'var(--bg)',
+								color: isRemainder ? '#fff' : 'var(--text-muted)',
+								border: '1px solid ' + (isRemainder ? 'var(--accent)' : 'var(--border)'),
+								borderRadius: 4, padding: '4px 6px', cursor: 'pointer',
+								touchAction: 'manipulation', flexShrink: 0,
+							}}
+						>
+							{isRemainder ? 'Auto' : 'Set'}
+						</button>
+					</div>
+				);
+			})}
+
+			<div className={`assign-remainder${remainderRowNegative || remainder < -0.01 ? ' warn' : ''}`}>
+				{remainderEnvId
+					? remainderRowNegative
+						? `${fmtAmount(Math.abs(derivedAmounts[remainderEnvId] || 0), '$')} over-allocated — reduce another envelope`
+						: 'Fully allocated'
+					: balanced
+					? 'Fully allocated'
+					: remainder > 0
+					? `${fmtAmount(remainder, '$')} unassigned`
+					: `${fmtAmount(Math.abs(remainder), '$')} over-allocated`}
+			</div>
+
+			<button
+				className="assign-confirm"
+				disabled={!balanced || submitting}
+				onClick={() => void handleSubmit()}
+			>
+				{submitting ? 'Saving...' : submitLabel}
+			</button>
+			<button className="assign-dismiss" onClick={() => void onDismiss()}>
+				Dismiss without assigning
+			</button>
+		</>
+	);
+}
+
 // ── Income split ─────────────────────────────────────────────────────────────
 
 function IncomeSplit({
@@ -69,7 +378,7 @@ function IncomeSplit({
 	const tithePct = defaults.tithe_pct ?? 0.10;
 	const savingsPct = defaults.savings ?? 0.40;
 
-	const initSplits = () => {
+	const initAmounts = () => {
 		const tithe = Math.round(txn.amount * tithePct * 100) / 100;
 		const savings = Math.round(txn.amount * savingsPct * 100) / 100;
 		const chequing = Math.round((txn.amount - tithe - savings) * 100) / 100;
@@ -82,46 +391,15 @@ function IncomeSplit({
 		return init;
 	};
 
-	const [splits, setSplits] = useState<Record<string, string>>(initSplits);
-	const [submitting, setSubmitting] = useState(false);
-
-	const assigned = Object.values(splits).reduce((s, v) => s + (parseFloat(v) || 0), 0);
-	const remainder = Math.round((txn.amount - assigned) * 100) / 100;
-	const balanced = Math.abs(remainder) < 0.01;
-
-	const setSplit = (envId: string, val: string) =>
-		setSplits(prev => ({ ...prev, [envId]: val }));
-
-	const resetDefaults = () => setSplits(initSplits());
-	const clearAll = () => setSplits(Object.fromEntries(envData.envelopes.map(e => [e.id, ''])));
-
-	const autoBalance = () => {
-		if (balanced) { showToast('Already balanced'); return; }
-		const target = envData.envelopes.find(e => e.id === 'chequing') || envData.envelopes[0];
-		if (!target) return;
-		const cur = parseFloat(splits[target.id] || '') || 0;
-		const newVal = Math.round((cur + remainder) * 100) / 100;
-		setSplits(prev => ({ ...prev, [target.id]: newVal > 0 ? newVal.toFixed(2) : '0.00' }));
-		showToast(
-			remainder > 0
-				? `+${fmtAmount(remainder, '$')} added to ${target.name}`
-				: `${fmtAmount(Math.abs(remainder), '$')} removed from ${target.name}`
-		);
-	};
-
-	const handleSubmit = async () => {
-		const entries = envData.envelopes
-			.map(e => ({ envelope_id: e.id, amount: parseFloat(splits[e.id] || '') || 0 }))
-			.filter(x => x.amount !== 0);
-		setSubmitting(true);
+	const handleSubmit = async (splits: { envelope_id: string; amount: number }[]) => {
 		try {
-			await apiPost('/api/envelopes/assign', { txn_id: txn.txn_id, splits: entries });
+			await apiPost('/api/envelopes/assign', { txn_id: txn.txn_id, splits });
 			showToast('Income allocated');
 			onClose();
 			await onSuccess();
 		} catch (e) {
 			showToast('Error: ' + (e instanceof Error ? e.message : String(e)), 4000);
-			setSubmitting(false);
+			throw e;
 		}
 	};
 
@@ -137,66 +415,18 @@ function IncomeSplit({
 	};
 
 	return (
-		<>
-			<div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 300, marginBottom: 12 }}>
-				Split this income across envelopes.
-			</div>
-			<div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14, paddingBottom: 14, borderBottom: '1px solid var(--border)' }}>
-				{[
-					{ label: 'Reset defaults', action: resetDefaults, accent: false },
-					{ label: 'Clear all', action: clearAll, accent: false },
-					{ label: 'Auto-balance', action: autoBalance, accent: true },
-				].map(btn => (
-					<button
-						key={btn.label}
-						onClick={btn.action}
-						style={{
-							fontFamily: "'Montserrat', sans-serif",
-							fontSize: 11, fontWeight: 600, letterSpacing: '0.3px', textTransform: 'uppercase',
-							background: btn.accent ? 'var(--accent)' : 'var(--bg)',
-							color: btn.accent ? '#fff' : 'var(--text)',
-							border: '1px solid var(--border)', borderRadius: 4,
-							padding: '6px 10px', cursor: 'pointer', touchAction: 'manipulation', flexShrink: 0,
-						}}
-					>
-						{btn.label}
-					</button>
-				))}
-			</div>
-
-			{envData.envelopes.map(env => (
-				<div key={env.id} className="assign-split-row">
-					<span className="assign-split-name">{env.name}</span>
-					<input
-						type="number"
-						className="assign-split-input"
-						step="0.01"
-						placeholder="0.00"
-						value={splits[env.id] || ''}
-						onChange={e => setSplit(env.id, e.target.value)}
-					/>
-				</div>
-			))}
-
-			<div className={`assign-remainder${remainder < -0.01 ? ' warn' : ''}`}>
-				{balanced
-					? 'Fully allocated'
-					: remainder > 0
-					? `${fmtAmount(remainder, '$')} unassigned`
-					: `${fmtAmount(Math.abs(remainder), '$')} over-allocated`}
-			</div>
-
-			<button
-				className="assign-confirm"
-				disabled={!balanced || submitting}
-				onClick={() => void handleSubmit()}
-			>
-				{submitting ? 'Saving...' : 'Allocate income'}
-			</button>
-			<button className="assign-dismiss" onClick={() => void handleDismiss()}>
-				Dismiss without assigning
-			</button>
-		</>
+		<SplitEditor
+			txn={txn}
+			envData={envData}
+			initAmounts={initAmounts}
+			showDefaultsButton
+			onResetDefaults={initAmounts}
+			helperText="Split this income across envelopes."
+			submitLabel="Allocate income"
+			onSubmit={handleSubmit}
+			onDismiss={handleDismiss}
+			showToast={showToast}
+		/>
 	);
 }
 
@@ -215,9 +445,62 @@ function ExpenseAssign({
 	onSuccess: () => Promise<void>;
 	showToast: (msg: string, duration?: number) => void;
 }) {
+	const [splitMode, setSplitMode] = useState<'single' | 'split'>('single');
 	const [envId, setEnvId] = useState(txn.suggested_envelope || '');
 	const [note, setNote] = useState('');
 	const [submitting, setSubmitting] = useState(false);
+
+	const handleDismiss = async () => {
+		try {
+			await apiPost('/api/envelopes/dismiss', { txn_id: txn.txn_id });
+			showToast('Dismissed');
+			onClose();
+			await onSuccess();
+		} catch (e) {
+			showToast('Error: ' + (e instanceof Error ? e.message : String(e)), 4000);
+		}
+	};
+
+	if (splitMode === 'split') {
+		const initAmounts = () => {
+			const init: Record<string, string> = {};
+			envData.envelopes.forEach(e => { init[e.id] = ''; });
+			if (txn.suggested_envelope) init[txn.suggested_envelope] = txn.amount.toFixed(2);
+			return init;
+		};
+
+		const handleSplitSubmit = async (splits: { envelope_id: string; amount: number }[]) => {
+			try {
+				await apiPost('/api/envelopes/assign', { txn_id: txn.txn_id, splits });
+				showToast('Assigned');
+				onClose();
+				await onSuccess();
+			} catch (e) {
+				showToast('Error: ' + (e instanceof Error ? e.message : String(e)), 4000);
+				throw e;
+			}
+		};
+
+		return (
+			<>
+				<ToggleGroup
+					options={[{ value: 'single', label: 'Single envelope' }, { value: 'split', label: 'Split' }]}
+					value={splitMode}
+					onChange={setSplitMode}
+				/>
+				<SplitEditor
+					txn={txn}
+					envData={envData}
+					initAmounts={initAmounts}
+					helperText="Split this expense across envelopes."
+					submitLabel="Assign split"
+					onSubmit={handleSplitSubmit}
+					onDismiss={handleDismiss}
+					showToast={showToast}
+				/>
+			</>
+		);
+	}
 
 	const handleSubmit = async () => {
 		if (!envId) return;
@@ -233,19 +516,13 @@ function ExpenseAssign({
 		}
 	};
 
-	const handleDismiss = async () => {
-		try {
-			await apiPost('/api/envelopes/dismiss', { txn_id: txn.txn_id });
-			showToast('Dismissed');
-			onClose();
-			await onSuccess();
-		} catch (e) {
-			showToast('Error: ' + (e instanceof Error ? e.message : String(e)), 4000);
-		}
-	};
-
 	return (
 		<>
+			<ToggleGroup
+				options={[{ value: 'single', label: 'Single envelope' }, { value: 'split', label: 'Split' }]}
+				value={splitMode}
+				onChange={setSplitMode}
+			/>
 			<div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 300, marginBottom: 12 }}>
 				Choose which envelope absorbs this expense.
 			</div>

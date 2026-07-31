@@ -175,6 +175,14 @@ function EnvDetailBody({
 		.reverse()
 		.slice(0, 30);
 
+	// How many envelopes a given transaction was split across, counted from
+	// the full (unfiltered) history — used to decide whether a row is part
+	// of a multi-envelope split and can be reopened for correction.
+	const splitCounts: Record<string, number> = {};
+	(envData.history || []).forEach(h => {
+		if (h.txn_id) splitCounts[h.txn_id] = (splitCounts[h.txn_id] || 0) + 1;
+	});
+
 	const envName = (id: string) => envData.envelopes.find(e => e.id === id)?.name ?? id;
 
 	const handleDelete = async () => {
@@ -256,13 +264,19 @@ function EnvDetailBody({
 				history.map((h, i) => {
 					const pos = h.amount > 0;
 					const isIncome = h.type === 'income_allocation';
+					// Editable if it's an income allocation (always split-assigned,
+					// even a 1-envelope one) or any entry that shares its txn_id
+					// with another envelope's row (a multi-envelope expense split).
+					const isSplit = isIncome || (h.txn_id != null && splitCounts[h.txn_id] > 1);
 					return (
 						<div key={i} className="env-history-row">
 							<div style={{ minWidth: 0, flex: 1 }}>
 								<div className="env-history-note">
 									{h.note || h.type}
-									{isIncome && (
-										<span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 300 }}> (income)</span>
+									{isSplit && (
+										<span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 300 }}>
+											{' '}({isIncome ? 'income' : 'split'})
+										</span>
 									)}
 								</div>
 								<div className="env-history-date">{h.date || ''}</div>
@@ -271,7 +285,7 @@ function EnvDetailBody({
 								<div className={`env-history-amt ${pos ? 'amount-positive' : 'amount-negative'}`}>
 									{pos ? '+' : ''}{fmtAmount(h.amount, '$')}
 								</div>
-								{isIncome && h.txn_id && (
+								{isSplit && h.txn_id && (
 									<button
 										onClick={() => { setCorrectionTxnId(h.txn_id!); setActiveForm('correction'); }}
 										style={{
@@ -414,11 +428,12 @@ function CorrectionForm({
 	showToast: (msg: string, duration?: number) => void;
 }) {
 	const allHistory = envData.history || [];
-	const txnEntries = allHistory.filter(h => h.txn_id === txnId && h.type === 'income_allocation');
+	const txnEntries = allHistory.filter(h => h.txn_id === txnId);
+	const isIncome = txnEntries[0]?.type === 'income_allocation';
 	const currentSplits: Record<string, number> = {};
 	txnEntries.forEach(h => { currentSplits[h.envelope] = h.amount; });
 	const totalAllocated = txnEntries.reduce((s, h) => s + h.amount, 0);
-	const desc = txnEntries[0]?.note || 'Income';
+	const desc = txnEntries[0]?.note || (isIncome ? 'Income' : 'Expense');
 	const date = txnEntries[0]?.date || '';
 
 	const [values, setValues] = useState<Record<string, string>>(() => {
@@ -446,7 +461,7 @@ function CorrectionForm({
 				await apiPost('/api/envelopes/adjust', {
 					envelope: c.envelope_id,
 					amount: c.diff,
-					note: 'Income correction (' + txnId.slice(0, 20) + ')',
+					note: (isIncome ? 'Income' : 'Split') + ' correction (' + txnId.slice(0, 20) + ')',
 				});
 			}
 			showToast('Corrections applied');
@@ -463,7 +478,7 @@ function CorrectionForm({
 
 	return (
 		<div className="env-inline-form" style={{ marginTop: 12 }}>
-			<div className="env-inline-label">Correct income allocation</div>
+			<div className="env-inline-label">{isIncome ? 'Correct income allocation' : 'Correct split assignment'}</div>
 			<div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 300, marginBottom: 10 }}>
 				{desc} on {date} — total {fmtAmount(totalAllocated, '$')}<br />
 				Adjust any amounts. Changes are additive adjustments.

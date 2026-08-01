@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useMemo } from 'react';
 import { extractAmount, fmtAmount, amountClass, currentMonth } from '../../utils/format';
 import type { Transaction } from '../../types';
 import MaskedAmount from '../MaskedAmount';
@@ -92,6 +92,18 @@ export default function TransactionsView({ data, isActive, onTxnClick }: Props) 
 		? searchResults
 		: (monthlyTxns ?? (data ? data.filter(t => (t.tdate || '').startsWith(selectedMonth)) : null));
 
+	const searchTotal = useMemo(() => {
+		if (!searchResults || searchResults.length === 0) return null;
+		let sum = 0;
+		let commodity = '$';
+		for (const txn of searchResults) {
+			const { val, commodity: com } = extractAmount(txn.tpostings?.[0]?.pamount);
+			sum += val;
+			commodity = com || commodity;
+		}
+		return { sum, commodity };
+	}, [searchResults]);
+
 	return (
 		<div className={`view${isActive ? ' active' : ''}`} id="view-transactions">
 			{!data ? (
@@ -129,6 +141,16 @@ export default function TransactionsView({ data, isActive, onTxnClick }: Props) 
 								: searchResults.length === 0
 								? 'No results'
 								: `${searchResults.length} result${searchResults.length === 1 ? '' : 's'}`}
+							{!isSearching && searchTotal && (
+								<>
+									{' · Total: '}
+									<MaskedAmount
+										value={searchTotal.sum}
+										commodity={searchTotal.commodity}
+										className={amountClass(searchTotal.sum)}
+									/>
+								</>
+							)}
 						</div>
 					)}
 

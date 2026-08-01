@@ -193,6 +193,16 @@ sequenceDiagram
     Remote-->>Dev: available on next pull
 ```
 
+**Atomic writes.** Every write endpoint (`/add`, envelope writes, inbox writes)
+goes through `git_transaction()` (`api/app/git_ops.py`): the file mutation and
+its `git add` / `commit` / `push` are one all-or-nothing unit, guarded by a
+process-wide lock. If the push fails (offline, non-fast-forward) or the
+process crashes mid-write, the working tree is `git reset --hard`'d back to
+the pre-write `HEAD`, so a failed write can never leave a half-committed file
+or an unpushed local commit. This assumes single-writer — the journal repo has
+no other committer than this API — so the hard reset can't discard anyone
+else's work.
+
 ---
 
 ## systemd Services (Home Server)

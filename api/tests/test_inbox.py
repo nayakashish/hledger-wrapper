@@ -7,6 +7,20 @@ def base_inbox_data(**overrides):
     return data
 
 
+def test_get_inbox_missing_data_file_503(client, auth, env):
+    # env never creates inbox_file — it's written lazily by write endpoints.
+    assert not env["inbox_file"].exists()
+    resp = client.get("/inbox", headers=auth)
+    assert resp.status_code == 503
+
+
+def test_get_inbox_unconfigured_503(client, auth, monkeypatch):
+    monkeypatch.setenv("INBOX_DATA_FILE", "")
+    resp = client.get("/inbox", headers=auth)
+    assert resp.status_code == 503
+    assert "not configured" in resp.json()["detail"].lower()
+
+
 def test_ingest_happy_path_stores_item_with_suggestion(client, auth, fake_hledger, fake_git, seed_inbox):
     seed_inbox(base_inbox_data())
     fake_hledger.set_txns([])

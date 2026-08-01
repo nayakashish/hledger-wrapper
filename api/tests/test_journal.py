@@ -91,6 +91,20 @@ def test_lookup_no_match_returns_null(client, auth, fake_hledger):
     assert resp.json() == {"match": None}
 
 
+def test_descriptions_malformed_hledger_output_returns_empty(client, auth, fake_hledger):
+    fake_hledger.output = "not valid json"
+    resp = client.get("/descriptions", headers=auth)
+    assert resp.status_code == 200
+    assert resp.json() == {"descriptions": []}
+
+
+def test_lookup_malformed_hledger_output_returns_null(client, auth, fake_hledger):
+    fake_hledger.output = "not valid json"
+    resp = client.get("/lookup", params={"description": "coffee"}, headers=auth)
+    assert resp.status_code == 200
+    assert resp.json() == {"match": None}
+
+
 def test_sync_returns_git_pull_output(client, auth, fake_git):
     resp = client.post("/sync", headers=auth)
     assert resp.status_code == 200

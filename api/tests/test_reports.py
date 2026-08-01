@@ -54,6 +54,13 @@ def test_transactions_malformed_month_400(client, auth, fake_hledger):
     assert resp.status_code == 400
 
 
+def test_transactions_malformed_hledger_output_passthrough(client, auth, fake_hledger):
+    fake_hledger.output = "not valid json"
+    resp = client.get("/transactions", headers=auth)
+    assert resp.status_code == 200
+    assert resp.json() == {"raw": "not valid json"}
+
+
 def test_transactions_ordered_most_recent_first(client, auth, fake_hledger):
     fake_hledger.set_txns([
         make_txn("2026-03-01", "First", [("expenses:misc", 1), ("assets:chequing", -1)]),
@@ -66,6 +73,13 @@ def test_transactions_ordered_most_recent_first(client, auth, fake_hledger):
 
 def test_search_empty_query_returns_empty(client, auth, fake_hledger):
     resp = client.get("/search", params={"q": "  "}, headers=auth)
+    assert json.loads(resp.json()["raw"]) == []
+
+
+def test_search_malformed_hledger_output_returns_empty(client, auth, fake_hledger):
+    fake_hledger.output = "not valid json"
+    resp = client.get("/search", params={"q": "coffee"}, headers=auth)
+    assert resp.status_code == 200
     assert json.loads(resp.json()["raw"]) == []
 
 
@@ -123,3 +137,10 @@ def test_daily_totals_default_from_date_is_jan_1(client, auth, fake_hledger):
     assert resp.status_code == 200
     date_filter = fake_hledger.calls[0][fake_hledger.calls[0].index("-p") + 1]
     assert date_filter.startswith(f"{date_filter[:4]}-01-01..")
+
+
+def test_daily_totals_malformed_hledger_output_returns_empty_list(client, auth, fake_hledger):
+    fake_hledger.output = "not valid json"
+    resp = client.get("/daily-totals", headers=auth)
+    assert resp.status_code == 200
+    assert resp.json() == []

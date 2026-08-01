@@ -60,6 +60,13 @@ def test_scan_zero_amount_skipped(client, auth, fake_hledger, seed_envelopes):
     assert resp.json()["added"] == 0
 
 
+def test_scan_malformed_hledger_output_500(client, auth, fake_hledger, seed_envelopes):
+    seed_envelopes(base_env_data())
+    fake_hledger.output = "not valid json"
+    resp = client.post("/envelopes/scan", headers=auth)
+    assert resp.status_code == 500
+
+
 def test_assign_expense_drains_balance(client, auth, fake_git, seed_envelopes):
     seed_envelopes(base_env_data(pending=[{
         "txn_id": "t1", "date": "2026-01-05", "description": "Coffee", "amount": 5.0,

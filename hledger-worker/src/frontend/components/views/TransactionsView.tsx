@@ -290,23 +290,22 @@ export default function TransactionsView({ data, accounts, isActive, onTxnClick 
 					)}
 
 					{hasActiveFilters && searchResults !== null && (
-						<div className="search-count">
-							{isSearching
-								? 'Searching…'
-								: searchResults.length === 0
-								? 'No results'
-								: `${searchResults.length} result${searchResults.length === 1 ? '' : 's'}`}
-							{!isSearching && searchTotal && (
-								<>
-									{' · Total: '}
+						isSearching ? (
+							<div className="search-count">Searching…</div>
+						) : searchResults.length === 0 ? (
+							<div className="search-count">No results</div>
+						) : (
+							<div className="search-count search-count-row">
+								{searchTotal && (
 									<MaskedAmount
 										value={searchTotal.sum}
 										commodity={searchTotal.commodity}
-										className={amountClass(searchTotal.sum)}
+										className={`search-total ${amountClass(searchTotal.sum)}`}
 									/>
-								</>
-							)}
-						</div>
+								)}
+								<span>{searchResults.length} result{searchResults.length === 1 ? '' : 's'}</span>
+							</div>
+						)
 					)}
 
 					{!hasActiveFilters && (

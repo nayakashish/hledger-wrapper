@@ -413,6 +413,15 @@ nav button:hover:not(.active) { color: var(--text); }
 
 .search-count { font-size: 11px; color: var(--text-muted); font-weight: 300; margin-bottom: 12px; }
 
+.search-count-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.search-total { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
+
 /* ── Transaction search + filters ── */
 .search-row {
   display: flex;

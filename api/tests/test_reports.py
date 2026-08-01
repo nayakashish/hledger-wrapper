@@ -76,6 +76,71 @@ def test_search_empty_query_returns_empty(client, auth, fake_hledger):
     assert json.loads(resp.json()["raw"]) == []
 
 
+def test_search_no_filters_returns_empty_without_hledger_call(client, auth, fake_hledger):
+    resp = client.get("/search", headers=auth)
+    assert json.loads(resp.json()["raw"]) == []
+    assert fake_hledger.calls == []
+
+
+def test_search_account_filter_pushed_to_hledger_as_acct_query(client, auth, fake_hledger):
+    fake_hledger.set_txns([make_txn("2026-01-05", "Vacation Flight", [("expenses:vacation:a", 500), ("assets:chequing", -500)])])
+    resp = client.get("/search", params={"account": ["vacation"]}, headers=auth)
+    assert json.loads(resp.json()["raw"])[0]["tdescription"] == "Vacation Flight"
+    assert "acct:vacation" in fake_hledger.calls[0]
+
+
+def test_search_multiple_accounts_ored(client, auth, fake_hledger):
+    fake_hledger.set_txns([])
+    client.get("/search", params={"account": ["vacation", "food"]}, headers=auth)
+    assert "acct:vacation" in fake_hledger.calls[0]
+    assert "acct:food" in fake_hledger.calls[0]
+
+
+def test_search_account_regex_special_chars_escaped(client, auth, fake_hledger):
+    fake_hledger.set_txns([])
+    client.get("/search", params={"account": ["vacation (a)"]}, headers=auth)
+    assert "acct:vacation\\ \\(a\\)" in fake_hledger.calls[0]
+
+
+def test_search_date_range_uses_hledger_p_flag(client, auth, fake_hledger):
+    fake_hledger.set_txns([])
+    client.get("/search", params={"from_date": "2026-02-01", "to_date": "2026-03-01"}, headers=auth)
+    call = fake_hledger.calls[0]
+    assert "-p" in call
+    assert call[call.index("-p") + 1] == "2026-02-01..2026-03-01"
+
+
+def test_search_period_shortcut_overrides_date_range(client, auth, fake_hledger):
+    fake_hledger.set_txns([])
+    client.get("/search", params={"period": "thismonth", "from_date": "2026-02-01"}, headers=auth)
+    call = fake_hledger.calls[0]
+    assert "-p" in call
+    assert call[call.index("-p") + 1] == "thismonth"
+
+
+def test_search_account_and_date_combine_with_text_query(client, auth, fake_hledger):
+    fake_hledger.set_txns([make_txn("2026-02-03", "Vacation Hotel", [("expenses:vacation:a", 300), ("assets:chequing", -300)])])
+    resp = client.get(
+        "/search",
+        params={"q": "hotel", "account": ["vacation"], "from_date": "2026-02-01", "to_date": "2026-03-01"},
+        headers=auth,
+    )
+    matches = json.loads(resp.json()["raw"])
+    assert [t["tdescription"] for t in matches] == ["Vacation Hotel"]
+    call = fake_hledger.calls[0]
+    assert "acct:vacation" in call
+    assert "-p" in call
+
+
+def test_search_matches_comment_text(client, auth, fake_hledger):
+    txn = make_txn("2026-01-05", "Vacation Flight", [("expenses:vacation:a", 500), ("assets:chequing", -500)])
+    txn["tcomment"] = "had a great time"
+    fake_hledger.set_txns([txn])
+    resp = client.get("/search", params={"q": "great time"}, headers=auth)
+    matches = json.loads(resp.json()["raw"])
+    assert [t["tdescription"] for t in matches] == ["Vacation Flight"]
+
+
 def test_search_malformed_hledger_output_returns_empty(client, auth, fake_hledger):
     fake_hledger.output = "not valid json"
     resp = client.get("/search", params={"q": "coffee"}, headers=auth)

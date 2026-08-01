@@ -413,55 +413,90 @@ nav button:hover:not(.active) { color: var(--text); }
 
 .search-count { font-size: 11px; color: var(--text-muted); font-weight: 300; margin-bottom: 12px; }
 
-/* ── Transaction filters ── */
-.filter-row {
+/* ── Transaction search + filters ── */
+.search-row {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.search-row .search-wrap { flex: 1; margin-bottom: 0; }
+
+.filter-toggle {
+  position: relative;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-bottom: 10px;
-}
-
-.filter-btn {
-  font-family: 'Montserrat', sans-serif;
-  font-size: 11px;
-  font-weight: 600;
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  padding: 6px 12px;
-  background: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  white-space: nowrap;
-  touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
-  transition: background 0.12s, color 0.12s, border-color 0.12s;
-}
-
-.filter-btn.active {
-  background: var(--accent);
-  color: #fff;
-  border-color: var(--accent);
-}
-
-.filter-date-input,
-.filter-account-select {
-  font-family: 'Montserrat', sans-serif;
-  font-size: 12px;
-  font-weight: 400;
+  justify-content: center;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 6px 8px;
+  color: var(--text-muted);
+  padding: 0 12px;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.filter-toggle svg { width: 18px; height: 18px; }
+.filter-toggle:hover { color: var(--accent); border-color: var(--accent); }
+.filter-toggle.open { color: var(--accent); border-color: var(--accent); background: var(--border); }
+
+.filter-dot {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 1.5px solid var(--surface);
+}
+
+.adv-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+  margin-bottom: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.adv-field { display: flex; flex-direction: column; gap: 7px; }
+
+.adv-label {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.adv-date-row { display: flex; gap: 10px; }
+.adv-date-group { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.adv-date-caption { font-size: 11px; font-weight: 400; color: var(--text-muted); }
+
+.adv-date-input,
+.adv-select {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 13px;
+  font-weight: 400;
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 9px 10px;
   color: var(--text);
   outline: none;
   touch-action: manipulation;
+  transition: border-color 0.15s;
 }
-
-.filter-date-input:focus,
-.filter-account-select:focus { border-color: var(--accent); }
-
-.filter-account-select { flex: 1; min-width: 0; cursor: pointer; }
+.adv-date-input:focus,
+.adv-select:focus { border-color: var(--accent); }
+.adv-select { cursor: pointer; }
 
 .filter-chips {
   display: flex;

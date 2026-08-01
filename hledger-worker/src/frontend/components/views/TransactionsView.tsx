@@ -12,19 +12,15 @@ interface Props {
 
 const START_YEAR = 2026;
 
-type DateFilter =
-	| { mode: 'none' }
-	| { mode: 'thismonth' }
-	| { mode: 'range'; from: string; to: string };
-
 interface SearchFilters {
 	q: string;
 	accounts: string[];
-	dateFilter: DateFilter;
+	from: string;
+	to: string;
 }
 
 function filtersEmpty(f: SearchFilters): boolean {
-	return !f.q.trim() && f.accounts.length === 0 && f.dateFilter.mode === 'none';
+	return !f.q.trim() && f.accounts.length === 0 && !f.from && !f.to;
 }
 
 function buildMonthKeys(): string[] {
@@ -48,13 +44,16 @@ export default function TransactionsView({ data, accounts, isActive, onTxnClick 
 	const [selectedMonth, setSelectedMonth] = useState(latestMonth);
 	const [searchQuery, setSearchQuery] = useState('');
 	const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
-	const [dateFilter, setDateFilter] = useState<DateFilter>({ mode: 'none' });
+	const [dateFrom, setDateFrom] = useState('');
+	const [dateTo, setDateTo] = useState('');
 	const [accountPick, setAccountPick] = useState('');
+	const [advancedOpen, setAdvancedOpen] = useState(false);
 	const [searchResults, setSearchResults] = useState<Transaction[] | null>(null);
 	const [isSearching, setIsSearching] = useState(false);
 	const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-	const hasActiveFilters = searchQuery.trim() !== '' || selectedAccounts.length > 0 || dateFilter.mode !== 'none';
+	const hasAdvancedFilters = selectedAccounts.length > 0 || dateFrom !== '' || dateTo !== '';
+	const hasActiveFilters = searchQuery.trim() !== '' || hasAdvancedFilters;
 
 	const monthLabel = (key: string) => {
 		const dt = new Date(key + '-01T00:00:00');
@@ -67,12 +66,8 @@ export default function TransactionsView({ data, accounts, isActive, onTxnClick 
 			const params = new URLSearchParams();
 			if (f.q.trim()) params.set('q', f.q.trim());
 			f.accounts.forEach(a => params.append('account', a));
-			if (f.dateFilter.mode === 'thismonth') {
-				params.set('period', 'thismonth');
-			} else if (f.dateFilter.mode === 'range') {
-				if (f.dateFilter.from) params.set('from_date', f.dateFilter.from);
-				if (f.dateFilter.to) params.set('to_date', f.dateFilter.to);
-			}
+			if (f.from) params.set('from_date', f.from);
+			if (f.to) params.set('to_date', f.to);
 			const r = await fetch('/api/search?' + params.toString());
 			if (!r.ok) throw new Error(String(r.status));
 			const json = await r.json() as { raw: string };
@@ -97,9 +92,17 @@ export default function TransactionsView({ data, accounts, isActive, onTxnClick 
 		}
 	}, [runSearch]);
 
+	const currentFilters = (overrides: Partial<SearchFilters> = {}): SearchFilters => ({
+		q: searchQuery,
+		accounts: selectedAccounts,
+		from: dateFrom,
+		to: dateTo,
+		...overrides,
+	});
+
 	const handleSearchChange = (q: string) => {
 		setSearchQuery(q);
-		triggerSearch({ q, accounts: selectedAccounts, dateFilter }, true);
+		triggerSearch(currentFilters({ q }), true);
 	};
 
 	const addAccountFilter = (acct: string) => {
@@ -107,41 +110,35 @@ export default function TransactionsView({ data, accounts, isActive, onTxnClick 
 		if (!acct || selectedAccounts.includes(acct)) return;
 		const next = [...selectedAccounts, acct];
 		setSelectedAccounts(next);
-		triggerSearch({ q: searchQuery, accounts: next, dateFilter }, false);
+		triggerSearch(currentFilters({ accounts: next }), false);
 	};
 
 	const removeAccountFilter = (acct: string) => {
 		const next = selectedAccounts.filter(a => a !== acct);
 		setSelectedAccounts(next);
-		triggerSearch({ q: searchQuery, accounts: next, dateFilter }, false);
+		triggerSearch(currentFilters({ accounts: next }), false);
 	};
 
-	const toggleThisMonth = () => {
-		const next: DateFilter = dateFilter.mode === 'thismonth' ? { mode: 'none' } : { mode: 'thismonth' };
-		setDateFilter(next);
-		triggerSearch({ q: searchQuery, accounts: selectedAccounts, dateFilter: next }, false);
-	};
-
-	const handleDateInputChange = (which: 'from' | 'to', value: string) => {
-		const cur = dateFilter.mode === 'range' ? dateFilter : { from: '', to: '' };
-		const from = which === 'from' ? value : cur.from;
-		const to = which === 'to' ? value : cur.to;
-		const next: DateFilter = (!from && !to) ? { mode: 'none' } : { mode: 'range', from, to };
-		setDateFilter(next);
-		triggerSearch({ q: searchQuery, accounts: selectedAccounts, dateFilter: next }, true);
+	const handleDateChange = (which: 'from' | 'to', value: string) => {
+		const from = which === 'from' ? value : dateFrom;
+		const to = which === 'to' ? value : dateTo;
+		setDateFrom(from);
+		setDateTo(to);
+		triggerSearch(currentFilters({ from, to }), true);
 	};
 
 	const clearDateFilter = () => {
-		const next: DateFilter = { mode: 'none' };
-		setDateFilter(next);
-		triggerSearch({ q: searchQuery, accounts: selectedAccounts, dateFilter: next }, false);
+		setDateFrom('');
+		setDateTo('');
+		triggerSearch(currentFilters({ from: '', to: '' }), false);
 	};
 
 	const clearAllFilters = () => {
 		if (searchTimer.current) clearTimeout(searchTimer.current);
 		setSearchQuery('');
 		setSelectedAccounts([]);
-		setDateFilter({ mode: 'none' });
+		setDateFrom('');
+		setDateTo('');
 		setSearchResults(null);
 	};
 
@@ -180,13 +177,14 @@ export default function TransactionsView({ data, accounts, isActive, onTxnClick 
 		return { sum, commodity };
 	}, [searchResults]);
 
-	const dateChipLabel = dateFilter.mode === 'thismonth'
-		? 'This month'
-		: dateFilter.mode === 'range'
-		? `${dateFilter.from || 'Start'} → ${dateFilter.to || 'Now'}`
+	const dateChipLabel = dateFrom && dateTo
+		? `${dateFrom} → ${dateTo}`
+		: dateFrom
+		? `From ${dateFrom}`
+		: dateTo
+		? `Until ${dateTo}`
 		: null;
 
-	const dateRangeValue = dateFilter.mode === 'range' ? dateFilter : { from: '', to: '' };
 	const availableAccounts = accounts.filter(a => !selectedAccounts.includes(a));
 
 	return (
@@ -195,70 +193,96 @@ export default function TransactionsView({ data, accounts, isActive, onTxnClick 
 				<div className="state-msg">Tap sync to load data.</div>
 			) : (
 				<>
-					<div className="search-wrap">
-						<input
-							type="search"
-							className="search-input"
-							placeholder="Search all transactions…"
-							autoComplete="off"
-							autoCorrect="off"
-							spellCheck={false}
-							value={searchQuery}
-							onChange={e => handleSearchChange(e.target.value)}
-						/>
-						{searchQuery && (
-							<button
-								className="search-clear visible"
-								onClick={() => handleSearchChange('')}
-							>
-								✕
-							</button>
-						)}
-					</div>
-
-					<div className="filter-row">
+					<div className="search-row">
+						<div className="search-wrap">
+							<input
+								type="search"
+								className="search-input"
+								placeholder="Search transactions…"
+								autoComplete="off"
+								autoCorrect="off"
+								spellCheck={false}
+								value={searchQuery}
+								onChange={e => handleSearchChange(e.target.value)}
+							/>
+							{searchQuery && (
+								<button
+									className="search-clear visible"
+									onClick={() => handleSearchChange('')}
+									aria-label="Clear search"
+								>
+									✕
+								</button>
+							)}
+						</div>
 						<button
-							className={`filter-btn${dateFilter.mode === 'thismonth' ? ' active' : ''}`}
-							onClick={toggleThisMonth}
+							className={`filter-toggle${advancedOpen ? ' open' : ''}`}
+							onClick={() => setAdvancedOpen(o => !o)}
+							aria-label="Filters"
+							aria-expanded={advancedOpen}
 						>
-							This month
+							<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+								<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+							</svg>
+							{hasAdvancedFilters && <span className="filter-dot" />}
 						</button>
-						<input
-							type="date"
-							className="filter-date-input"
-							value={dateRangeValue.from}
-							onChange={e => handleDateInputChange('from', e.target.value)}
-						/>
-						<input
-							type="date"
-							className="filter-date-input"
-							value={dateRangeValue.to}
-							onChange={e => handleDateInputChange('to', e.target.value)}
-						/>
-						<select
-							className="filter-account-select"
-							value={accountPick}
-							onChange={e => addAccountFilter(e.target.value)}
-						>
-							<option value="">+ Category…</option>
-							{availableAccounts.map(a => (
-								<option key={a} value={a}>{a}</option>
-							))}
-						</select>
 					</div>
 
-					{(selectedAccounts.length > 0 || dateChipLabel) && (
+					{advancedOpen && (
+						<div className="adv-panel">
+							<div className="adv-field">
+								<span className="adv-label">Date range</span>
+								<div className="adv-date-row">
+									<label className="adv-date-group">
+										<span className="adv-date-caption">From</span>
+										<input
+											type="date"
+											className="adv-date-input"
+											value={dateFrom}
+											max={dateTo || undefined}
+											onChange={e => handleDateChange('from', e.target.value)}
+										/>
+									</label>
+									<label className="adv-date-group">
+										<span className="adv-date-caption">To</span>
+										<input
+											type="date"
+											className="adv-date-input"
+											value={dateTo}
+											min={dateFrom || undefined}
+											onChange={e => handleDateChange('to', e.target.value)}
+										/>
+									</label>
+								</div>
+							</div>
+							<div className="adv-field">
+								<span className="adv-label">Category</span>
+								<select
+									className="adv-select"
+									value={accountPick}
+									onChange={e => addAccountFilter(e.target.value)}
+								>
+									<option value="">Add a category…</option>
+									{availableAccounts.map(a => (
+										<option key={a} value={a}>{a}</option>
+									))}
+								</select>
+							</div>
+						</div>
+					)}
+
+					{hasAdvancedFilters && (
 						<div className="filter-chips">
 							{dateChipLabel && (
 								<span className="filter-chip">
 									{dateChipLabel}
-									<button className="filter-chip-remove" onClick={clearDateFilter}>✕</button>
+									<button className="filter-chip-remove" onClick={clearDateFilter} aria-label="Remove date filter">✕</button>
 								</span>
 							)}
 							{selectedAccounts.map(a => (
 								<span className="filter-chip" key={a}>
 									{a}
-									<button className="filter-chip-remove" onClick={() => removeAccountFilter(a)}>✕</button>
+									<button className="filter-chip-remove" onClick={() => removeAccountFilter(a)} aria-label={`Remove ${a} filter`}>✕</button>
 								</span>
 							))}
 							<button className="filter-clear-all" onClick={clearAllFilters}>Clear all</button>

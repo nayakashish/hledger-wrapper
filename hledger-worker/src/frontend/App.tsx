@@ -297,6 +297,7 @@ export default function App() {
 				/>
 				<TransactionsView
 					data={cache.transactions ?? null}
+					accounts={accountsList}
 					isActive={activeView === 'transactions'}
 					onTxnClick={txn => setDetailContent({ kind: 'transaction', txn })}
 				/>

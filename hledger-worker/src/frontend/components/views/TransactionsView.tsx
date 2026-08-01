@@ -5,11 +5,27 @@ import MaskedAmount from '../MaskedAmount';
 
 interface Props {
 	data: Transaction[] | null;
+	accounts: string[];
 	isActive: boolean;
 	onTxnClick: (txn: Transaction) => void;
 }
 
 const START_YEAR = 2026;
+
+type DateFilter =
+	| { mode: 'none' }
+	| { mode: 'thismonth' }
+	| { mode: 'range'; from: string; to: string };
+
+interface SearchFilters {
+	q: string;
+	accounts: string[];
+	dateFilter: DateFilter;
+}
+
+function filtersEmpty(f: SearchFilters): boolean {
+	return !f.q.trim() && f.accounts.length === 0 && f.dateFilter.mode === 'none';
+}
 
 function buildMonthKeys(): string[] {
 	const now = new Date();
@@ -26,29 +42,38 @@ function buildMonthKeys(): string[] {
 	return keys;
 }
 
-export default function TransactionsView({ data, isActive, onTxnClick }: Props) {
+export default function TransactionsView({ data, accounts, isActive, onTxnClick }: Props) {
 	const monthKeys = buildMonthKeys();
 	const latestMonth = currentMonth();
 	const [selectedMonth, setSelectedMonth] = useState(latestMonth);
 	const [searchQuery, setSearchQuery] = useState('');
+	const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
+	const [dateFilter, setDateFilter] = useState<DateFilter>({ mode: 'none' });
+	const [accountPick, setAccountPick] = useState('');
 	const [searchResults, setSearchResults] = useState<Transaction[] | null>(null);
 	const [isSearching, setIsSearching] = useState(false);
 	const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+	const hasActiveFilters = searchQuery.trim() !== '' || selectedAccounts.length > 0 || dateFilter.mode !== 'none';
 
 	const monthLabel = (key: string) => {
 		const dt = new Date(key + '-01T00:00:00');
 		return dt.toLocaleDateString('en-CA', { month: 'long', year: 'numeric' });
 	};
 
-	const runSearch = useCallback(async (q: string) => {
-		const trimmed = q.trim();
-		if (!trimmed) {
-			setSearchResults(null);
-			return;
-		}
+	const runSearch = useCallback(async (f: SearchFilters) => {
 		setIsSearching(true);
 		try {
-			const r = await fetch('/api/search?q=' + encodeURIComponent(trimmed));
+			const params = new URLSearchParams();
+			if (f.q.trim()) params.set('q', f.q.trim());
+			f.accounts.forEach(a => params.append('account', a));
+			if (f.dateFilter.mode === 'thismonth') {
+				params.set('period', 'thismonth');
+			} else if (f.dateFilter.mode === 'range') {
+				if (f.dateFilter.from) params.set('from_date', f.dateFilter.from);
+				if (f.dateFilter.to) params.set('to_date', f.dateFilter.to);
+			}
+			const r = await fetch('/api/search?' + params.toString());
 			if (!r.ok) throw new Error(String(r.status));
 			const json = await r.json() as { raw: string };
 			setSearchResults(JSON.parse(json.raw) as Transaction[]);
@@ -59,14 +84,65 @@ export default function TransactionsView({ data, isActive, onTxnClick }: Props) 
 		}
 	}, []);
 
-	const handleSearchChange = (q: string) => {
-		setSearchQuery(q);
+	const triggerSearch = useCallback((f: SearchFilters, debounce: boolean) => {
 		if (searchTimer.current) clearTimeout(searchTimer.current);
-		if (!q.trim()) {
+		if (filtersEmpty(f)) {
 			setSearchResults(null);
 			return;
 		}
-		searchTimer.current = setTimeout(() => void runSearch(q), 200);
+		if (debounce) {
+			searchTimer.current = setTimeout(() => void runSearch(f), 200);
+		} else {
+			void runSearch(f);
+		}
+	}, [runSearch]);
+
+	const handleSearchChange = (q: string) => {
+		setSearchQuery(q);
+		triggerSearch({ q, accounts: selectedAccounts, dateFilter }, true);
+	};
+
+	const addAccountFilter = (acct: string) => {
+		setAccountPick('');
+		if (!acct || selectedAccounts.includes(acct)) return;
+		const next = [...selectedAccounts, acct];
+		setSelectedAccounts(next);
+		triggerSearch({ q: searchQuery, accounts: next, dateFilter }, false);
+	};
+
+	const removeAccountFilter = (acct: string) => {
+		const next = selectedAccounts.filter(a => a !== acct);
+		setSelectedAccounts(next);
+		triggerSearch({ q: searchQuery, accounts: next, dateFilter }, false);
+	};
+
+	const toggleThisMonth = () => {
+		const next: DateFilter = dateFilter.mode === 'thismonth' ? { mode: 'none' } : { mode: 'thismonth' };
+		setDateFilter(next);
+		triggerSearch({ q: searchQuery, accounts: selectedAccounts, dateFilter: next }, false);
+	};
+
+	const handleDateInputChange = (which: 'from' | 'to', value: string) => {
+		const cur = dateFilter.mode === 'range' ? dateFilter : { from: '', to: '' };
+		const from = which === 'from' ? value : cur.from;
+		const to = which === 'to' ? value : cur.to;
+		const next: DateFilter = (!from && !to) ? { mode: 'none' } : { mode: 'range', from, to };
+		setDateFilter(next);
+		triggerSearch({ q: searchQuery, accounts: selectedAccounts, dateFilter: next }, true);
+	};
+
+	const clearDateFilter = () => {
+		const next: DateFilter = { mode: 'none' };
+		setDateFilter(next);
+		triggerSearch({ q: searchQuery, accounts: selectedAccounts, dateFilter: next }, false);
+	};
+
+	const clearAllFilters = () => {
+		if (searchTimer.current) clearTimeout(searchTimer.current);
+		setSearchQuery('');
+		setSelectedAccounts([]);
+		setDateFilter({ mode: 'none' });
+		setSearchResults(null);
 	};
 
 	const [monthlyTxns, setMonthlyTxns] = useState<Transaction[] | null>(null);
@@ -74,7 +150,7 @@ export default function TransactionsView({ data, isActive, onTxnClick }: Props) 
 
 	const handleMonthChange = useCallback(async (month: string) => {
 		setSelectedMonth(month);
-		if (searchQuery.trim()) return;
+		if (hasActiveFilters) return;
 		setMonthLoading(true);
 		try {
 			const r = await fetch(`/api/transactions?month=${month}`);
@@ -86,9 +162,9 @@ export default function TransactionsView({ data, isActive, onTxnClick }: Props) 
 		} finally {
 			setMonthLoading(false);
 		}
-	}, [searchQuery]);
+	}, [hasActiveFilters]);
 
-	const displayTxns = searchQuery.trim()
+	const displayTxns = hasActiveFilters
 		? searchResults
 		: (monthlyTxns ?? (data ? data.filter(t => (t.tdate || '').startsWith(selectedMonth)) : null));
 
@@ -103,6 +179,15 @@ export default function TransactionsView({ data, isActive, onTxnClick }: Props) 
 		}
 		return { sum, commodity };
 	}, [searchResults]);
+
+	const dateChipLabel = dateFilter.mode === 'thismonth'
+		? 'This month'
+		: dateFilter.mode === 'range'
+		? `${dateFilter.from || 'Start'} → ${dateFilter.to || 'Now'}`
+		: null;
+
+	const dateRangeValue = dateFilter.mode === 'range' ? dateFilter : { from: '', to: '' };
+	const availableAccounts = accounts.filter(a => !selectedAccounts.includes(a));
 
 	return (
 		<div className={`view${isActive ? ' active' : ''}`} id="view-transactions">
@@ -124,17 +209,63 @@ export default function TransactionsView({ data, isActive, onTxnClick }: Props) 
 						{searchQuery && (
 							<button
 								className="search-clear visible"
-								onClick={() => {
-									setSearchQuery('');
-									setSearchResults(null);
-								}}
+								onClick={() => handleSearchChange('')}
 							>
 								✕
 							</button>
 						)}
 					</div>
 
-					{searchQuery.trim() && searchResults !== null && (
+					<div className="filter-row">
+						<button
+							className={`filter-btn${dateFilter.mode === 'thismonth' ? ' active' : ''}`}
+							onClick={toggleThisMonth}
+						>
+							This month
+						</button>
+						<input
+							type="date"
+							className="filter-date-input"
+							value={dateRangeValue.from}
+							onChange={e => handleDateInputChange('from', e.target.value)}
+						/>
+						<input
+							type="date"
+							className="filter-date-input"
+							value={dateRangeValue.to}
+							onChange={e => handleDateInputChange('to', e.target.value)}
+						/>
+						<select
+							className="filter-account-select"
+							value={accountPick}
+							onChange={e => addAccountFilter(e.target.value)}
+						>
+							<option value="">+ Category…</option>
+							{availableAccounts.map(a => (
+								<option key={a} value={a}>{a}</option>
+							))}
+						</select>
+					</div>
+
+					{(selectedAccounts.length > 0 || dateChipLabel) && (
+						<div className="filter-chips">
+							{dateChipLabel && (
+								<span className="filter-chip">
+									{dateChipLabel}
+									<button className="filter-chip-remove" onClick={clearDateFilter}>✕</button>
+								</span>
+							)}
+							{selectedAccounts.map(a => (
+								<span className="filter-chip" key={a}>
+									{a}
+									<button className="filter-chip-remove" onClick={() => removeAccountFilter(a)}>✕</button>
+								</span>
+							))}
+							<button className="filter-clear-all" onClick={clearAllFilters}>Clear all</button>
+						</div>
+					)}
+
+					{hasActiveFilters && searchResults !== null && (
 						<div className="search-count">
 							{isSearching
 								? 'Searching…'
@@ -154,7 +285,7 @@ export default function TransactionsView({ data, isActive, onTxnClick }: Props) 
 						</div>
 					)}
 
-					{!searchQuery.trim() && (
+					{!hasActiveFilters && (
 						<div className="month-select-row">
 							<select
 								className="month-select"

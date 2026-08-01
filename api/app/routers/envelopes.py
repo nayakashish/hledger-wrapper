@@ -79,6 +79,20 @@ def _main_amount(txn: dict) -> float:
     return abs(_extract_amount(postings[0])) if postings else 0.0
 
 
+def _validate_splits_sum(splits: list, target_amount: float) -> None:
+    """Splits must sum to the transaction amount (within a cent) — catches
+    both bad client math and, for the percent-entry UI, any conversion bug,
+    since the frontend always converts percentages to dollar amounts before
+    calling this endpoint."""
+    total = round(sum(float(s.get("amount", 0)) for s in splits), 2)
+    target = round(target_amount, 2)
+    if abs(total - target) > 0.01:
+        raise HTTPException(
+            status_code=400,
+            detail=f"splits must sum to {target:.2f} (got {total:.2f})",
+        )
+
+
 def _suggest_envelope(txn: dict, envelopes: list) -> str | None:
     """Suggest an envelope based on hledger account names. Returns envelope id or None."""
     child_envs = [e for e in envelopes if e.get("parent")]
@@ -163,7 +177,7 @@ def scan_transactions(token: str = Security(verify_token)):
 def assign_transaction(body: Assignment, token: str = Security(verify_token)):
     """
     Assign a pending transaction to envelope(s).
-    Expense: provide envelope_id — drains that envelope by the txn amount.
+    Expense: provide envelope_id (single envelope) or splits (multiple).
     Income: provide splits [{envelope_id, amount}] — fills envelopes.
     Removes from pending, adds to matched, appends history.
     """
@@ -177,26 +191,47 @@ def assign_transaction(body: Assignment, token: str = Security(verify_token)):
     history_entries = []
 
     if txn["type"] == "expense":
-        if not body.envelope_id:
-            raise HTTPException(status_code=400, detail="envelope_id required for expense")
-        eid = body.envelope_id
-        amt = txn["amount"]
-        cur = data["balances"].get(eid, 0.0)
-        data["balances"][eid] = round(cur - amt, 2)
-        entry = {
-            "date": txn["date"],
-            "type": "expense",
-            "envelope": eid,
-            "amount": -amt,
-            "note": body.note or txn["description"],
-            "txn_id": body.txn_id,
-        }
-        data["history"].append(entry)
-        history_entries.append(entry)
+        if body.splits:
+            _validate_splits_sum(body.splits, txn["amount"])
+            for split in body.splits:
+                eid = split["envelope_id"]
+                amt = float(split["amount"])
+                if amt == 0:
+                    continue
+                cur = data["balances"].get(eid, 0.0)
+                data["balances"][eid] = round(cur - amt, 2)
+                entry = {
+                    "date": txn["date"],
+                    "type": "expense",
+                    "envelope": eid,
+                    "amount": -amt,
+                    "note": body.note or txn["description"],
+                    "txn_id": body.txn_id,
+                }
+                data["history"].append(entry)
+                history_entries.append(entry)
+        elif body.envelope_id:
+            eid = body.envelope_id
+            amt = txn["amount"]
+            cur = data["balances"].get(eid, 0.0)
+            data["balances"][eid] = round(cur - amt, 2)
+            entry = {
+                "date": txn["date"],
+                "type": "expense",
+                "envelope": eid,
+                "amount": -amt,
+                "note": body.note or txn["description"],
+                "txn_id": body.txn_id,
+            }
+            data["history"].append(entry)
+            history_entries.append(entry)
+        else:
+            raise HTTPException(status_code=400, detail="envelope_id or splits required for expense")
 
     elif txn["type"] == "income":
         if not body.splits:
             raise HTTPException(status_code=400, detail="splits required for income")
+        _validate_splits_sum(body.splits, txn["amount"])
         for split in body.splits:
             eid = split["envelope_id"]
             amt = float(split["amount"])

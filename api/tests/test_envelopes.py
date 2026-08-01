@@ -92,6 +92,52 @@ def test_assign_income_splits_fill_balances(client, auth, fake_git, seed_envelop
     assert data["balances"] == {"chequing": 60.0, "savings": 40.0}
 
 
+def test_assign_expense_splits_drains_multiple_envelopes(client, auth, fake_git, seed_envelopes):
+    seed_envelopes(base_env_data(
+        envelopes=[
+            {"id": "chequing", "name": "Chequing", "parent": None, "sort_order": 1},
+            {"id": "food", "name": "Food", "parent": None, "sort_order": 2},
+        ],
+        balances={"chequing": 0.0, "food": 0.0},
+        pending=[{"txn_id": "t1", "date": "2026-01-05", "description": "Groceries", "amount": 50.0, "type": "expense", "suggested_envelope": None, "accounts": []}],
+    ))
+    resp = client.post("/envelopes/assign", headers=auth, json={
+        "txn_id": "t1",
+        "splits": [{"envelope_id": "chequing", "amount": 20}, {"envelope_id": "food", "amount": 30}],
+    })
+    assert resp.status_code == 200
+    data = client.get("/envelopes", headers=auth).json()
+    assert data["balances"] == {"chequing": -20.0, "food": -30.0}
+
+
+def test_assign_expense_splits_mismatched_sum_400(client, auth, seed_envelopes):
+    seed_envelopes(base_env_data(pending=[{
+        "txn_id": "t1", "date": "2026-01-05", "description": "Coffee", "amount": 5.0,
+        "type": "expense", "suggested_envelope": None, "accounts": [],
+    }]))
+    resp = client.post("/envelopes/assign", headers=auth, json={
+        "txn_id": "t1",
+        "splits": [{"envelope_id": "chequing", "amount": 1}],
+    })
+    assert resp.status_code == 400
+    data = client.get("/envelopes", headers=auth).json()
+    assert data["pending"] != []  # nothing was assigned
+
+
+def test_assign_income_splits_mismatched_sum_400(client, auth, seed_envelopes):
+    seed_envelopes(base_env_data(
+        pending=[{"txn_id": "t1", "date": "2026-01-05", "description": "Paycheck", "amount": 100.0, "type": "income", "suggested_envelope": None, "accounts": []}],
+    ))
+    resp = client.post("/envelopes/assign", headers=auth, json={
+        "txn_id": "t1",
+        "splits": [{"envelope_id": "chequing", "amount": 10}],
+    })
+    assert resp.status_code == 400
+    data = client.get("/envelopes", headers=auth).json()
+    assert data["balances"]["chequing"] == 0.0
+    assert data["pending"] != []  # nothing was assigned
+
+
 def test_assign_expense_missing_envelope_id_400(client, auth, seed_envelopes):
     seed_envelopes(base_env_data(pending=[{"txn_id": "t1", "date": "2026-01-05", "description": "Coffee", "amount": 5.0, "type": "expense", "suggested_envelope": None, "accounts": []}]))
     resp = client.post("/envelopes/assign", headers=auth, json={"txn_id": "t1"})

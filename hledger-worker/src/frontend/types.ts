@@ -164,3 +164,8 @@ export interface InboxRule {
 	account: string;
 	description: string;
 }
+
+export interface JournalInfo {
+	name: string;
+	active: boolean;
+}

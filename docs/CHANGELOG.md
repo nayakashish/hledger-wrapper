@@ -3,6 +3,26 @@
 All notable changes to this project are documented here. Though since this is personal project, I am not super strict with this. Versioning follows
 `major.minor`; the major version stays at `1` for now.
 
+## [1.7] - 2026-08-03
+
+Journal switching — pick which journal is active from inside the app, for users
+who split their journals by year (or keep a demo journal).
+
+- A journal is now a self-contained folder under `JOURNAL_DIR`
+  (`2026/2026.journal` + `accounts.journal` / `envelopes.json` / `inbox.json`),
+  so multiple journals stay cleanly separated instead of scattering sibling
+  files in one directory
+- Added `GET /journals` (list selectable journals, flagging the active one) and
+  `POST /journals/select` (whitelist-validated switch that seeds a fresh
+  journal's envelope/inbox stores before persisting the choice)
+- Added a `Settings` section (new gear icon in the header) with a `Config`
+  screen; its first field is the active-journal selector. Switching repoints
+  every report, transaction search, and the envelopes/inbox to the selected
+  journal, clearing and reloading the cached data
+- Added `APP_CONFIG_FILE` server env var — a small server-local JSON holding the
+  active journal; the existing `JOURNAL_FILE`/... vars remain the fallback used
+  before any journal is selected, so existing setups keep working unchanged
+
 ## [1.6] - 2026-07-12
 
 Bottom-sheet scroll and dismiss fixes — the pop-up sheets now behave correctly

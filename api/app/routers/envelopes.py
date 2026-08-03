@@ -31,6 +31,12 @@ ACCOUNT_HINTS = {
 }
 
 
+def _default_env_data() -> dict:
+    """Empty envelope store — used to seed a newly selected journal's
+    envelopes.json so the envelope endpoints work against it immediately."""
+    return {"envelopes": [], "pending": [], "matched_hledger_txns": [], "balances": {}, "history": []}
+
+
 def _load_env_data() -> dict:
     settings = get_settings()
     if not settings.envelope_data_file or not os.path.exists(settings.envelope_data_file):

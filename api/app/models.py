@@ -65,3 +65,7 @@ class InboxRuleBody(BaseModel):
     pattern: str
     account: str
     description: str
+
+
+class JournalSelect(BaseModel):
+    name: str

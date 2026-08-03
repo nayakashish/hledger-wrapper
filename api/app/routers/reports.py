@@ -1,7 +1,8 @@
 import json
+import re
 from datetime import date
 
-from fastapi import APIRouter, HTTPException, Security
+from fastapi import APIRouter, HTTPException, Query, Security
 
 from ..auth import verify_token
 from ..config import get_settings
@@ -70,40 +71,67 @@ def get_transactions(month: str = None, token: str = Security(verify_token)):
 
 
 @router.get("/search")
-def search_transactions(q: str, token: str = Security(verify_token)):
+def search_transactions(
+    q: str = "",
+    from_date: str = "",
+    to_date: str = "",
+    period: str = "",
+    account: list[str] = Query(default=[]),
+    token: str = Security(verify_token),
+):
     """
-    Full-text search across all transactions (description, payee, account names).
-    Returns matching transactions sorted most recent first.
-    Uses hledger's built-in description/account search via `print`.
-    Falls back to in-process filtering for broader matching.
+    Search transactions by free text and/or structured filters.
+
+    Date range (from_date/to_date, or a named period like "thismonth") and
+    account/category (one or more `account` values, OR'd together) are
+    pushed down to `hledger` itself via `-p`/`acct:` query args, so the
+    subprocess only has to parse and emit the already-narrowed subset.
+    Free text (`q`) is then substring-matched in Python across description,
+    payee, note, comments, and account names on whatever `hledger` returned
+    — comments specifically have no hledger query equivalent (`tag:` only
+    matches structured tag:value pairs, not arbitrary comment text), so this
+    stays in Python rather than trying to push it down too.
     """
-    if not q or not q.strip():
+    query = q.strip()
+    accounts = [a.strip() for a in account if a.strip()]
+    from_date = from_date.strip()
+    to_date = to_date.strip()
+    period = period.strip()
+
+    if not query and not from_date and not to_date and not period and not accounts:
         return {"raw": "[]"}
 
-    query = q.strip()
+    args = ["print", "--output-format", "json"]
+    if period:
+        args += ["-p", period]
+    elif from_date or to_date:
+        args += ["-p", f"{from_date}..{to_date}"]
+    for acct in accounts:
+        args.append(f"acct:{re.escape(acct)}")
 
-    # Fetch all transactions then filter in Python for flexible matching
-    # (hledger's query syntax is powerful but we want substring match on
-    # description OR any account name, which is easier to do here)
-    output = run_hledger("print", "--output-format", "json")
+    output = run_hledger(*args)
     try:
-        all_txns = json.loads(output)
+        txns = json.loads(output)
     except json.JSONDecodeError:
         return {"raw": "[]"}
 
-    ql = query.lower()
-    matches = []
-    for txn in reversed(all_txns):  # most recent first
-        desc = txn.get("tdescription", "").lower()
-        payee = txn.get("tpayee", "").lower()
-        note = txn.get("tnote", "").lower()
-        accounts = [p.get("paccount", "").lower() for p in txn.get("tpostings", [])]
-        comments = [p.get("pcomment", "").lower() for p in txn.get("tpostings", [])]
-        tcomment = txn.get("tcomment", "").lower()
+    if not query:
+        matches = list(reversed(txns))  # most recent first
+    else:
+        ql = query.lower()
+        matches = []
+        for txn in reversed(txns):  # most recent first
+            desc = txn.get("tdescription", "").lower()
+            payee = txn.get("tpayee", "").lower()
+            note = txn.get("tnote", "").lower()
+            postings = txn.get("tpostings", [])
+            acct_names = [p.get("paccount", "").lower() for p in postings]
+            comments = [p.get("pcomment", "").lower() for p in postings]
+            tcomment = txn.get("tcomment", "").lower()
 
-        haystack = " ".join([desc, payee, note, tcomment] + accounts + comments)
-        if ql in haystack:
-            matches.append(txn)
+            haystack = " ".join([desc, payee, note, tcomment] + acct_names + comments)
+            if ql in haystack:
+                matches.append(txn)
 
     return {"raw": json.dumps(matches)}
 

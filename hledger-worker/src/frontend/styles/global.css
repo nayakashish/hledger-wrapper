@@ -413,6 +413,152 @@ nav button:hover:not(.active) { color: var(--text); }
 
 .search-count { font-size: 11px; color: var(--text-muted); font-weight: 300; margin-bottom: 12px; }
 
+.search-count-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.search-total { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* ── Transaction search + filters ── */
+.search-row {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.search-row .search-wrap { flex: 1; margin-bottom: 0; }
+
+.filter-toggle {
+  position: relative;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  padding: 0 12px;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.filter-toggle svg { width: 18px; height: 18px; }
+.filter-toggle:hover { color: var(--accent); border-color: var(--accent); }
+.filter-toggle.open { color: var(--accent); border-color: var(--accent); background: var(--border); }
+
+.filter-dot {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 1.5px solid var(--surface);
+}
+
+.adv-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+  margin-bottom: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.adv-field { display: flex; flex-direction: column; gap: 7px; }
+
+.adv-label {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.adv-date-row { display: flex; gap: 10px; }
+.adv-date-group { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.adv-date-caption { font-size: 11px; font-weight: 400; color: var(--text-muted); }
+
+.adv-date-input,
+.adv-select {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 13px;
+  font-weight: 400;
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 9px 10px;
+  color: var(--text);
+  outline: none;
+  touch-action: manipulation;
+  transition: border-color 0.15s;
+}
+.adv-date-input:focus,
+.adv-select:focus { border-color: var(--accent); }
+.adv-select { cursor: pointer; }
+
+.filter-chips {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  background: rgba(42, 147, 140, 0.12);
+  color: var(--accent);
+  border-radius: 20px;
+  padding: 4px 6px 4px 10px;
+  white-space: nowrap;
+}
+
+.filter-chip-remove {
+  background: none;
+  border: none;
+  color: inherit;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 4px;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  opacity: 0.75;
+}
+
+.filter-chip-remove:hover { opacity: 1; }
+
+.filter-clear-all {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 4px 2px;
+  touch-action: manipulation;
+}
+
+.filter-clear-all:hover { color: var(--accent); }
+
 /* ── Transaction detail raw entry ── */
 .txn-detail-raw {
   font-family: 'Courier New', monospace;

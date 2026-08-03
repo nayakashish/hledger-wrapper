@@ -5,23 +5,14 @@ All notable changes to this project are documented here. Though since this is pe
 
 ## [1.7] - 2026-08-03
 
-Journal switching — pick which journal is active from inside the app, for users
-who split their journals by year (or keep a demo journal).
+Search results sum + date/category filters — transaction search now summarizes
+and narrows what it finds.
 
-- A journal is now a self-contained folder under `JOURNAL_DIR`
-  (`2026/2026.journal` + `accounts.journal` / `envelopes.json` / `inbox.json`),
-  so multiple journals stay cleanly separated instead of scattering sibling
-  files in one directory
-- Added `GET /journals` (list selectable journals, flagging the active one) and
-  `POST /journals/select` (whitelist-validated switch that seeds a fresh
-  journal's envelope/inbox stores before persisting the choice)
-- Added a `Settings` section (new gear icon in the header) with a `Config`
-  screen; its first field is the active-journal selector. Switching repoints
-  every report, transaction search, and the envelopes/inbox to the selected
-  journal, clearing and reloading the cached data
-- Added `APP_CONFIG_FILE` server env var — a small server-local JSON holding the
-  active journal; the existing `JOURNAL_FILE`/... vars remain the fallback used
-  before any journal is selected, so existing setups keep working unchanged
+- Search results show a running **sum and count** of the matched transactions
+- Added **date-range and category (account) filters** to search, pushed down
+  into `hledger` itself (via `-p` / `acct:`) so the query only parses the
+  already-narrowed subset instead of filtering in the app
+- Tucked the filter controls behind a filter button to keep the search bar clean
 
 ## [1.6] - 2026-07-12
 

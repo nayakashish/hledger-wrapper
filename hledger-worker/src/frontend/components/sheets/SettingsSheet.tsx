@@ -6,7 +6,7 @@ import type { JournalInfo } from '../../types';
 interface Props {
 	isOpen: boolean;
 	onClose: () => void;
-	onJournalSwitch: () => Promise<void>;
+	onJournalSwitch: (journalName: string) => Promise<void>;
 	showToast: (msg: string, duration?: number) => void;
 }
 
@@ -55,7 +55,7 @@ export default function SettingsSheet({ isOpen, onClose, onJournalSwitch, showTo
 			await apiPost('/api/journals/select', { name });
 			setJournals(prev => (prev ? prev.map(j => ({ ...j, active: j.name === name })) : prev));
 			showToast(`Switched to ${name}`);
-			await onJournalSwitch();
+			await onJournalSwitch(name);
 		} catch (e) {
 			showToast('Switch failed: ' + (e instanceof Error ? e.message : String(e)), 4000);
 		} finally {

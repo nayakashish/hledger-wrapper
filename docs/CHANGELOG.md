@@ -3,6 +3,31 @@
 All notable changes to this project are documented here. Though since this is personal project, I am not super strict with this. Versioning follows
 `major.minor`; the major version stays at `1` for now.
 
+## [1.8] - 2026-08-08
+
+Fixes bank alert emails silently landing in the demo journal, plus the
+multi-device desync that caused it to go unnoticed (#15).
+
+- **Email ingest now targets a dedicated `inbox_journal`**, independent of
+  whichever journal is active for viewing. Previously ingest reused the same
+  pointer as the journal switcher, so browsing the demo journal (or any
+  journal) on any device silently redirected all future bank alerts there.
+  No default: an unset or invalid `inbox_journal` rejects the alert (it stays
+  in Gmail for re-forwarding) instead of guessing, and the demo journal can
+  never be picked as the target — enforced both in the picker and at ingest
+  time.
+- Fixed the merchant-history suggestion and duplicate-detection inside
+  `/inbox/ingest`, which still read the *active* journal's transactions
+  instead of the ingest journal's — would have silently mined the wrong
+  journal's history once ingest and viewing diverged.
+- Added a second "Inbox / email journal" selector to Settings → Config.
+- **Multi-device cache reconcile**: each device now tags its cached
+  reports/envelopes/inbox with the journal they belong to, and re-checks the
+  server's active journal on boot, on returning to the app (focus/visibility),
+  and on every sync. A journal switched on another device now clears the
+  stale cache and reloads automatically, with a toast, instead of silently
+  rendering another journal's data.
+
 ## [1.7] - 2026-08-03
 
 Search results sum + date/category filters — transaction search now summarizes

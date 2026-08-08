@@ -31,6 +31,22 @@ import Toast from './components/Toast';
 const CACHE_KEY = 'hledger_cache';
 const SYNC_KEY = 'hledger_last_sync';
 const ENV_CACHE_KEY = 'hledger_envelopes_v3';
+// Tags which journal the caches above belong to, so a switch made on another
+// device can be detected instead of silently rendering stale/foreign data.
+// See temp/bug-fixing/fix-email-inbox-journal-targeting.md §4.2.
+const JOURNAL_TAG_KEY = 'hledger_active_journal';
+
+// null means "never tagged" — a fresh install, or a device upgrading from
+// before this feature existed. That's distinct from "" (tagged, no journal
+// selected) and must not be treated as a mismatch: doing so would wipe an
+// otherwise-valid cache on every device's very first boot after this ships.
+function readJournalTag(): string | null {
+	try {
+		return localStorage.getItem(JOURNAL_TAG_KEY);
+	} catch {
+		return null;
+	}
+}
 
 function loadPersistedCache(): AppCache {
 	try {
@@ -89,6 +105,14 @@ export default function App() {
 			return [];
 		}
 	});
+	// Last journal name these caches are known to belong to. Compared against
+	// the server's active_journal (piggybacked on /api/inbox/count) to detect
+	// a switch made on another device.
+	const activeJournalRef = useRef(readJournalTag());
+	// Bridges handleJournalSwitch (defined after refreshInboxCount, and
+	// depending on it via loadAll) back into refreshInboxCount without an
+	// initialization-order cycle in the useCallback dependency graph.
+	const handleJournalSwitchRef = useRef<(journalName: string) => Promise<void>>(async () => {});
 
 	// Sheets
 	const [addSheetOpen, setAddSheetOpen] = useState(false);
@@ -157,15 +181,49 @@ export default function App() {
 
 	const refreshInboxCount = useCallback(async () => {
 		try {
-			const r = await apiGet<{ pending?: number }>('/api/inbox/count');
+			const r = await apiGet<{ pending?: number; active_journal?: string }>('/api/inbox/count');
 			setInboxPending(r.pending || 0);
+
+			// Cheap multi-device reconcile signal: if the server's active
+			// journal no longer matches what our caches are tagged with, another
+			// device switched it. Clear/reload instead of silently rendering
+			// stale or foreign-journal data.
+			const serverJournal = r.active_journal ?? '';
+			if (activeJournalRef.current === null) {
+				// First time this device has tagged its cache — adopt the
+				// server's value without wiping a cache that may still be valid.
+				try {
+					localStorage.setItem(JOURNAL_TAG_KEY, serverJournal);
+				} catch {
+					// ignore
+				}
+				activeJournalRef.current = serverJournal;
+			} else if (serverJournal !== activeJournalRef.current) {
+				await handleJournalSwitchRef.current(serverJournal);
+				showToast(`Journal changed to ${serverJournal || '(none)'} on another device`, 4000);
+			}
 		} catch {
 			// fail silently
 		}
-	}, []);
+	}, [showToast]);
 
 	useEffect(() => {
 		void refreshInboxCount();
+	}, [refreshInboxCount]);
+
+	// Re-check on return to the app, not just on boot/sync — a switch made on
+	// another device while this one was backgrounded should be caught as soon
+	// as it's opened again.
+	useEffect(() => {
+		const onVisible = () => {
+			if (document.visibilityState === 'visible') void refreshInboxCount();
+		};
+		window.addEventListener('focus', onVisible);
+		document.addEventListener('visibilitychange', onVisible);
+		return () => {
+			window.removeEventListener('focus', onVisible);
+			document.removeEventListener('visibilitychange', onVisible);
+		};
 	}, [refreshInboxCount]);
 
 	const loadEnvelopes = useCallback(async () => {
@@ -271,16 +329,19 @@ export default function App() {
 	// Switching the active journal invalidates every cached report/list — they
 	// belong to the previous journal. Clear the persisted caches and in-memory
 	// state, reload everything from the new journal, and remount date-keyed
-	// views (heatmap) via syncKey.
-	const handleJournalSwitch = useCallback(async () => {
+	// views (heatmap) via syncKey. Also used by the multi-device reconcile
+	// path in refreshInboxCount when another device switches it remotely.
+	const handleJournalSwitch = useCallback(async (journalName: string) => {
 		try {
 			localStorage.removeItem(CACHE_KEY);
 			localStorage.removeItem(ENV_CACHE_KEY);
 			localStorage.removeItem('hledger_accounts');
 			localStorage.removeItem('hledger_descriptions');
+			localStorage.setItem(JOURNAL_TAG_KEY, journalName);
 		} catch {
 			// ignore
 		}
+		activeJournalRef.current = journalName;
 		setCache({});
 		setEnvData(null);
 		setAccountsList([]);
@@ -289,6 +350,8 @@ export default function App() {
 		setSyncKey(prev => prev + 1);
 		persistCache(cacheRef.current, envDataRef.current);
 	}, [loadAll]);
+
+	handleJournalSwitchRef.current = handleJournalSwitch;
 
 	return (
 		<PrivacyProvider>

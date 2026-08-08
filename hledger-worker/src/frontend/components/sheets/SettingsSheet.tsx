@@ -19,6 +19,7 @@ export default function SettingsSheet({ isOpen, onClose, onJournalSwitch, showTo
 	const [journals, setJournals] = useState<JournalInfo[] | null>(null);
 	const [loading, setLoading] = useState(false);
 	const [switching, setSwitching] = useState(false);
+	const [switchingInbox, setSwitchingInbox] = useState(false);
 
 	useBodyScrollLock(isOpen);
 
@@ -45,6 +46,7 @@ export default function SettingsSheet({ isOpen, onClose, onJournalSwitch, showTo
 	if (!isOpen) return null;
 
 	const activeName = journals?.find(j => j.active)?.name ?? '';
+	const inboxName = journals?.find(j => j.inbox)?.name ?? '';
 
 	const handleSelect = async (name: string) => {
 		if (switching || name === activeName) return;
@@ -58,6 +60,23 @@ export default function SettingsSheet({ isOpen, onClose, onJournalSwitch, showTo
 			showToast('Switch failed: ' + (e instanceof Error ? e.message : String(e)), 4000);
 		} finally {
 			setSwitching(false);
+		}
+	};
+
+	// The inbox (email-ingest) journal only controls where bank alerts land —
+	// it never affects what's on screen, so unlike handleSelect this doesn't
+	// touch caches or call onJournalSwitch.
+	const handleSelectInbox = async (name: string) => {
+		if (switchingInbox || name === inboxName) return;
+		setSwitchingInbox(true);
+		try {
+			await apiPost('/api/journals/select-inbox', { name });
+			setJournals(prev => (prev ? prev.map(j => ({ ...j, inbox: j.name === name })) : prev));
+			showToast(`Bank alerts will now land in ${name}`);
+		} catch (e) {
+			showToast('Switch failed: ' + (e instanceof Error ? e.message : String(e)), 4000);
+		} finally {
+			setSwitchingInbox(false);
 		}
 	};
 
@@ -81,7 +100,8 @@ export default function SettingsSheet({ isOpen, onClose, onJournalSwitch, showTo
 							<div className="settings-row-main">
 								<div className="settings-row-title">Config</div>
 								<div className="settings-row-sub">
-									Active journal{activeName ? ` · ${activeName}` : ''}
+									Active{activeName ? ` · ${activeName}` : ''}
+									{' · '}Inbox{inboxName ? ` · ${inboxName}` : ' · not set'}
 								</div>
 							</div>
 							<span className="settings-chevron">›</span>
@@ -91,7 +111,9 @@ export default function SettingsSheet({ isOpen, onClose, onJournalSwitch, showTo
 							journals={journals}
 							loading={loading}
 							switching={switching}
+							switchingInbox={switchingInbox}
 							onSelect={handleSelect}
+							onSelectInbox={handleSelectInbox}
 						/>
 					)}
 				</div>
@@ -100,41 +122,91 @@ export default function SettingsSheet({ isOpen, onClose, onJournalSwitch, showTo
 	);
 }
 
-function ConfigSection({
+function JournalRadioGroup({
 	journals,
-	loading,
-	switching,
+	isSelected,
+	disabled,
 	onSelect,
 }: {
-	journals: JournalInfo[] | null;
-	loading: boolean;
-	switching: boolean;
+	journals: JournalInfo[];
+	isSelected: (j: JournalInfo) => boolean;
+	disabled: boolean;
 	onSelect: (name: string) => Promise<void>;
 }) {
 	return (
 		<>
-			<div className="settings-field-label">Active journal</div>
-			{loading && journals === null ? (
-				<div className="inbox-empty">Loading...</div>
-			) : !journals || journals.length === 0 ? (
-				<div className="inbox-empty">No journals found</div>
-			) : (
-				journals.map(j => (
+			{journals.map(j => {
+				const active = isSelected(j);
+				return (
 					<button
 						key={j.name}
-						className={`settings-radio${j.active ? ' active' : ''}`}
-						disabled={switching}
+						className={`settings-radio${active ? ' active' : ''}`}
+						disabled={disabled}
 						onClick={() => void onSelect(j.name)}
 					>
 						<span className="settings-radio-dot" aria-hidden="true" />
 						<span className="settings-radio-label">{j.name}</span>
-						{j.active && <span className="settings-radio-check">✓</span>}
+						{active && <span className="settings-radio-check">✓</span>}
 					</button>
-				))
-			)}
+				);
+			})}
+		</>
+	);
+}
+
+function ConfigSection({
+	journals,
+	loading,
+	switching,
+	switchingInbox,
+	onSelect,
+	onSelectInbox,
+}: {
+	journals: JournalInfo[] | null;
+	loading: boolean;
+	switching: boolean;
+	switchingInbox: boolean;
+	onSelect: (name: string) => Promise<void>;
+	onSelectInbox: (name: string) => Promise<void>;
+}) {
+	if (loading && journals === null) {
+		return <div className="inbox-empty">Loading...</div>;
+	}
+	if (!journals || journals.length === 0) {
+		return <div className="inbox-empty">No journals found</div>;
+	}
+
+	const inboxCandidates = journals.filter(j => !j.demo);
+
+	return (
+		<>
+			<div className="settings-field-label">Active journal</div>
+			<JournalRadioGroup
+				journals={journals}
+				isSelected={j => j.active}
+				disabled={switching}
+				onSelect={onSelect}
+			/>
 			<div className="settings-hint">
 				Switching repoints every report, transaction search, and the envelopes/inbox to the
 				selected journal.
+			</div>
+
+			<div className="settings-field-label">Inbox / email journal</div>
+			{inboxCandidates.length === 0 ? (
+				<div className="inbox-empty">No journals available (demo doesn't count)</div>
+			) : (
+				<JournalRadioGroup
+					journals={inboxCandidates}
+					isSelected={j => j.inbox}
+					disabled={switchingInbox}
+					onSelect={onSelectInbox}
+				/>
+			)}
+			<div className="settings-hint">
+				Bank alert emails always land in this journal's inbox, regardless of which journal
+				you're viewing. The demo journal can't be picked here. Until one is set, incoming
+				alerts are refused (they stay in Gmail and can be re-forwarded once you pick one).
 			</div>
 		</>
 	);

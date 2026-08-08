@@ -125,8 +125,9 @@ unchanged by that structure.
 | Path | Method | Description |
 |------|--------|-------------|
 | `/api/sync` | POST | Git pull + rebuild hledger data |
-| `/api/journals` | GET | List selectable journals (folders under `JOURNAL_DIR`), flagging the active one |
-| `/api/journals/select` | POST | Switch the active journal (`{name}`); seeds the journal's envelope/inbox stores if absent |
+| `/api/journals` | GET | List selectable journals (folders under `JOURNAL_DIR`), each flagged `active` (viewing), `inbox` (email-ingest target), `demo` |
+| `/api/journals/select` | POST | Switch the active (viewed) journal (`{name}`); seeds the journal's envelope/inbox stores if absent |
+| `/api/journals/select-inbox` | POST | Set the email-ingest target journal (`{name}`), independent of the active journal; rejects the demo journal |
 | `/api/balance` | GET | Account balances (JSON) |
 | `/api/is` | GET | Income statement |
 | `/api/monthly` | GET | Monthly breakdown |
@@ -147,8 +148,8 @@ unchanged by that structure.
 | `/api/monthly-detail` | GET | Monthly breakdown with transaction drilldown |
 | `/api/daily-totals` | GET | `?from_date=YYYY-MM-DD` per-day counts/totals (heatmap) |
 | `/api/inbox` | GET | Pending inbox items + live journal match |
-| `/api/inbox/count` | GET | Pending count (header icon) |
-| `/api/inbox/ingest` | POST | Stage a bank alert (called by the email handler) |
+| `/api/inbox/count` | GET | Pending count + `active_journal` (header icon; the latter doubles as the multi-device reconcile signal) |
+| `/api/inbox/ingest` | POST | Stage a bank alert (called by the email handler); targets `inbox_journal`, independent of the active journal |
 | `/api/inbox/post` | POST | Post an inbox item to the journal |
 | `/api/inbox/dismiss` | POST | Delete an inbox item without posting |
 | `/api/inbox/rule` | POST | Save/replace a merchant rule ("Remember merchant") |
@@ -169,6 +170,17 @@ A journal is a self-contained folder under `JOURNAL_DIR`
   search, `/add`, envelopes, and inbox — with no per-endpoint changes. When no
   journal is selected, the `JOURNAL_FILE`/... env vars are the fallback, so a
   pre-folder setup keeps working. See `api/env.example`.
+- The **email-ingest target is a separate pointer**, `inbox_journal`, set via
+  Settings → Config → "Inbox / email journal" and stored alongside
+  `active_journal` in the same `app_config.json`. Only `POST /inbox/ingest`
+  reads it — every other inbox route still follows `active_journal`. This
+  means switching what you're viewing (e.g. to the demo journal, or an old
+  year) never redirects where new bank alerts land. No default: if
+  `inbox_journal` is unset (or its folder no longer exists) while folder-based
+  journals exist to pick from, ingest rejects the alert rather than guessing —
+  it stays in Gmail until you set one and re-forward it. The demo journal can
+  never be the ingest target. See `docs/transaction-inbox.md` for the full
+  rationale.
 
 ## Coding Standards
 

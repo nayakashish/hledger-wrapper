@@ -204,11 +204,32 @@ reflect the change immediately.
 ## Storage
 
 `inbox.json` lives in the journal repo (path set by `INBOX_DATA_FILE` in the
-server `.env`) and is committed and pushed on every mutation, like
-`envelopes.json`. Only pending items are stored — post and dismiss both
-delete the item, with the journal's git history serving as the audit trail
-for posted entries. Posting commits the journal append and the inbox removal
-together in one commit tagged `Source: hledger-mobile-api`.
+server `.env`, or resolved per-journal once folder-based journals are in use)
+and is committed and pushed on every mutation, like `envelopes.json`. Only
+pending items are stored — post and dismiss both delete the item, with the
+journal's git history serving as the audit trail for posted entries. Posting
+commits the journal append and the inbox removal together in one commit
+tagged `Source: hledger-mobile-api`.
+
+### Ingest target vs. viewing target
+
+`/inbox/ingest` — and only that route — resolves its target from a separate
+`inbox_journal` pointer (Settings → Config → "Inbox / email journal"), not
+from whichever journal is active for viewing. Every other inbox route
+(`/inbox`, `/inbox/count`, `/inbox/post`, `/inbox/dismiss`, `/inbox/rule`)
+stays on the active journal, since reviewing/posting an item is an in-context
+action. This means:
+
+- Browsing the demo journal (or any other journal) never redirects real bank
+  alerts — they always land in `inbox_journal`, set once and left alone.
+- The demo journal can never be the ingest target, by construction.
+- If `inbox_journal` isn't set (and folder-based journals exist to choose
+  from), ingest rejects the alert rather than guessing. The Worker already
+  swallows ingest failures to avoid SMTP retry storms, so the alert isn't
+  lost — it just stays in Gmail until you set an inbox journal and
+  re-forward it.
+- To review an item ingested into a journal you aren't currently viewing,
+  switch the active journal to it first.
 
 The file also holds the two hand-maintained config pieces: `card_map` and
 `merchant_rules` (see above), plus the `seen_message_ids` dedup ledger.
@@ -220,9 +241,9 @@ as `/api/inbox/...`:
 
 | Path | Method | Description |
 |------|--------|-------------|
-| `/inbox/ingest` | POST | Called by the Worker email handler. Dedupes, suggests, stores. |
+| `/inbox/ingest` | POST | Called by the Worker email handler. Dedupes, suggests, stores — targets `inbox_journal`, independent of the active journal. |
 | `/inbox` | GET | Pending items with stored suggestions plus live `journal_match` |
-| `/inbox/count` | GET | `{pending: n}` — cheap poll for the header icon |
+| `/inbox/count` | GET | `{pending: n, active_journal: name}` — cheap poll for the header icon, doubles as the multi-device reconcile signal |
 | `/inbox/post` | POST | `{id}` posts the suggestion; `{id, raw_entry}` posts the edited text |
 | `/inbox/dismiss` | POST | `{id}` — delete without posting |
 | `/inbox/rule` | POST | `{pattern, account, description}` — save/replace a merchant rule ("Remember merchant") |
@@ -246,6 +267,9 @@ tap to dismiss; it can never write to the journal.
   `INBOX_DATA_FILE` is missing from the server `.env`, or if the file it
   points at does not exist (create it with `{}` — the loader fills in the
   default keys).
+- **Alert in Gmail, ingest returns 503 "No inbox journal configured"**:
+  `inbox_journal` hasn't been picked yet (Settings → Config → "Inbox / email
+  journal"). Pick one, then re-forward the alert.
 
 ## Known Limitations / Future Ideas
 

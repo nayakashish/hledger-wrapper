@@ -3,6 +3,7 @@ import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { fmtAmount, amountClass } from '../../utils/format';
 import { apiPost } from '../../utils/api';
 import { allocateByPercent, percentOfTotal } from '../../utils/splitAllocation';
+import { CloseIcon } from '../Icons';
 import type { PendingTxn, EnvelopeData } from '../../types';
 
 interface Props {
@@ -27,7 +28,9 @@ export default function AssignSheet({ txn, envData, onClose, onSuccess, showToas
 					<span className="assign-title">
 						{txn.type === 'income' ? 'Allocate income' : 'Assign expense'}
 					</span>
-					<button className="assign-close" onClick={onClose}>✕</button>
+					<button className="assign-close" onClick={onClose} aria-label="Close">
+						<CloseIcon />
+					</button>
 				</div>
 				<div className="assign-body">
 					<div className="assign-txn-info">

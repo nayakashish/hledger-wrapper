@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
+import { ChevronLeftIcon, CloseIcon } from '../Icons';
 import type { AddFormState, PredictedPosting } from '../../types';
 
 const STEPS = ['date', 'description', 'account1', 'amount1', 'account2', 'amount2', 'preview'] as const;
@@ -92,11 +93,14 @@ export default function AddSheet({
 						className="add-back"
 						style={{ visibility: stepIdx === 0 ? 'hidden' : 'visible' }}
 						onClick={goBack}
+						aria-label="Back"
 					>
-						←
+						<ChevronLeftIcon />
 					</button>
 					<span className="add-title">{STEP_TITLES[step]}</span>
-					<button className="add-close" onClick={onClose}>✕</button>
+					<button className="add-close" onClick={onClose} aria-label="Close">
+						<CloseIcon />
+					</button>
 				</div>
 				<div className="add-progress">
 					<div className="add-progress-bar" style={{ width: `${progress}%` }} />
@@ -374,9 +378,10 @@ function AccountStep({
 				{text && (
 					<button
 						className="input-clear-btn"
+						aria-label="Clear"
 						onPointerDown={e => { e.preventDefault(); setText(''); onChange(''); setSuggestions([]); inputRef.current?.focus(); }}
 					>
-						✕
+						<CloseIcon size={14} />
 					</button>
 				)}
 				{suggestions.length > 0 && (

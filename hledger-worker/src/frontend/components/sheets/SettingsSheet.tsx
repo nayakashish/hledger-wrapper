@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { apiGet, apiPost } from '../../utils/api';
+import { ChevronLeftIcon, ChevronRightIcon, CloseIcon } from '../Icons';
 import type { JournalInfo } from '../../types';
 
 interface Props {
@@ -87,12 +88,14 @@ export default function SettingsSheet({ isOpen, onClose, onJournalSwitch, showTo
 					<div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
 						{section !== 'root' && (
 							<button className="assign-close" onClick={() => setSection('root')} aria-label="Back to settings">
-								←
+								<ChevronLeftIcon />
 							</button>
 						)}
 						<span className="assign-title">{section === 'config' ? 'Config' : 'Settings'}</span>
 					</div>
-					<button className="assign-close" onClick={onClose}>✕</button>
+					<button className="assign-close" onClick={onClose} aria-label="Close settings">
+						<CloseIcon />
+					</button>
 				</div>
 				<div className="assign-body">
 					{section === 'root' ? (
@@ -104,7 +107,7 @@ export default function SettingsSheet({ isOpen, onClose, onJournalSwitch, showTo
 									{' · '}Inbox{inboxName ? ` · ${inboxName}` : ' · not set'}
 								</div>
 							</div>
-							<span className="settings-chevron">›</span>
+							<span className="settings-chevron"><ChevronRightIcon size={16} /></span>
 						</button>
 					) : (
 						<ConfigSection
@@ -142,11 +145,11 @@ function JournalRadioGroup({
 						key={j.name}
 						className={`settings-radio${active ? ' active' : ''}`}
 						disabled={disabled}
+						aria-pressed={active}
 						onClick={() => void onSelect(j.name)}
 					>
 						<span className="settings-radio-dot" aria-hidden="true" />
 						<span className="settings-radio-label">{j.name}</span>
-						{active && <span className="settings-radio-check">✓</span>}
 					</button>
 				);
 			})}

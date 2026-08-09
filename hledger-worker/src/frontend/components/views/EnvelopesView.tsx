@@ -1,6 +1,7 @@
 import { extractAmount, fmtAmount, amountClass } from '../../utils/format';
 import type { EnvelopeData, PendingTxn, BalanceRow } from '../../types';
 import MaskedAmount from '../MaskedAmount';
+import { ChevronRightIcon } from '../Icons';
 
 interface Props {
 	data: EnvelopeData | null;
@@ -192,7 +193,7 @@ function EnvelopesContent({
 										<span className={`env-child-balance ${amountClass(bal)}`}>
 											<MaskedAmount value={bal} />
 										</span>
-										<span className="env-child-chevron">›</span>
+										<span className="env-child-chevron"><ChevronRightIcon size={12} /></span>
 									</div>
 								</div>
 							);

@@ -4,6 +4,12 @@ venv/
 __pycache__/
 *.pyc
 
+# Test / coverage artefacts
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+
 # OS
 .DS_Store
 

@@ -5,9 +5,25 @@ All notable changes to this project are documented here. Though since this is pe
 
 ## [1.8] - 2026-08-08
 
-Fixes bank alert emails silently landing in the demo journal, plus the
-multi-device desync that caused it to go unnoticed (#15).
+Journal switching — pick which journal is active from inside the app, for users
+who split their journals by year (or keep a demo journal) — plus the follow-up
+fixes for bank alert emails silently landing in the demo journal and the
+multi-device desync that caused it to go unnoticed (#4, #15).
 
+- A journal is now a self-contained folder under `JOURNAL_DIR`
+  (`2026/2026.journal` + `accounts.journal` / `envelopes.json` / `inbox.json`),
+  so multiple journals stay cleanly separated instead of scattering sibling
+  files in one directory
+- Added `GET /journals` (list selectable journals, flagging the active one) and
+  `POST /journals/select` (whitelist-validated switch that seeds a fresh
+  journal's envelope/inbox stores before persisting the choice)
+- Added a `Settings` section (new gear icon in the header) with a `Config`
+  screen; its first field is the active-journal selector. Switching repoints
+  every report, transaction search, and the envelopes/inbox to the selected
+  journal, clearing and reloading the cached data
+- Added `APP_CONFIG_FILE` server env var — a small server-local JSON holding the
+  active journal; the existing `JOURNAL_FILE`/... vars remain the fallback used
+  before any journal is selected, so existing setups keep working unchanged
 - **Email ingest now targets a dedicated `inbox_journal`**, independent of
   whichever journal is active for viewing. Previously ingest reused the same
   pointer as the journal switcher, so browsing the demo journal (or any
@@ -21,6 +37,9 @@ multi-device desync that caused it to go unnoticed (#15).
   instead of the ingest journal's — would have silently mined the wrong
   journal's history once ingest and viewing diverged.
 - Added a second "Inbox / email journal" selector to Settings → Config.
+- Replaced unicode arrow/close/checkmark glyphs with proper SVG icons
+  throughout, and dropped the checkmark on Settings radio buttons (the filled
+  dot + bold label already show the active selection).
 - **Multi-device cache reconcile**: each device now tags its cached
   reports/envelopes/inbox with the journal they belong to, and re-checks the
   server's active journal on boot, on returning to the app (focus/visibility),

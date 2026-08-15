@@ -8,6 +8,7 @@ import { usePrivacy } from '../../context/PrivacyContext';
 import { loadRawEndpoint } from '../../utils/api';
 import MaskedAmount from '../MaskedAmount';
 import VerseCard from '../VerseCard';
+import { CloseIcon } from '../Icons';
 import type { DailyTotal, MonthlyData, Transaction } from '../../types';
 
 interface Props {
@@ -196,7 +197,9 @@ function DayDetail({
 		<div className="day-detail">
 			<div className="day-detail-header">
 				<span className="day-detail-title">{label}</span>
-				<button className="day-detail-close" onClick={onClose}>✕</button>
+				<button className="day-detail-close" onClick={onClose} aria-label="Close">
+					<CloseIcon size={14} />
+				</button>
 			</div>
 			{loading ? (
 				<div className="drilldown-loading">Loading…</div>

@@ -8,9 +8,16 @@ from datetime import date, datetime, timezone
 from fastapi import APIRouter, HTTPException, Security
 
 from ..auth import verify_token
-from ..config import get_settings
+from ..config import (
+    active_journal_name,
+    get_settings,
+    inbox_journal_name,
+    is_demo_journal,
+    journal_paths,
+    list_journals,
+)
 from ..git_ops import git_transaction
-from ..hledger import extract_amount, run_hledger
+from ..hledger import extract_amount, run_hledger, run_hledger_file
 from ..models import InboxDismissBody, InboxIngest, InboxPostBody, InboxRuleBody
 from ..storage import load_json, save_json
 
@@ -36,22 +43,22 @@ def _default_inbox_data() -> dict:
     return {"items": [], "seen_message_ids": [], "merchant_rules": [], "card_map": {}}
 
 
-def _load_inbox_data() -> dict:
-    settings = get_settings()
-    if not settings.inbox_data_file:
+def _load_inbox_data(path: str | None = None) -> dict:
+    path = path if path is not None else get_settings().inbox_data_file
+    if not path:
         raise HTTPException(status_code=503, detail="INBOX_DATA_FILE not configured. Set it in .env")
-    if not os.path.exists(settings.inbox_data_file):
-        raise HTTPException(status_code=503, detail=f"Inbox data file not found: {settings.inbox_data_file}")
-    data = load_json(settings.inbox_data_file)
+    if not os.path.exists(path):
+        raise HTTPException(status_code=503, detail=f"Inbox data file not found: {path}")
+    data = load_json(path)
     for key, default in _default_inbox_data().items():
         data.setdefault(key, default)
     return data
 
 
-def _save_inbox_data(data: dict) -> None:
-    settings = get_settings()
+def _save_inbox_data(data: dict, path: str | None = None) -> None:
+    path = path if path is not None else get_settings().inbox_data_file
     data["seen_message_ids"] = data.get("seen_message_ids", [])[-INBOX_SEEN_IDS_MAX:]
-    save_json(settings.inbox_data_file, data)
+    save_json(path, data)
 
 
 def _clean_merchant(raw: str) -> str:
@@ -71,11 +78,38 @@ def _merchant_tokens(s: str) -> set:
     return {t for t in re.split(r"[^a-z0-9]+", s.lower()) if len(t) >= 3}
 
 
-def _journal_txns() -> list:
+def _journal_txns(journal_file: str | None = None) -> list:
     try:
-        return json.loads(run_hledger("print", "--output-format", "json"))
+        if journal_file is None:
+            return json.loads(run_hledger("print", "--output-format", "json"))
+        return json.loads(run_hledger_file(journal_file, "print", "--output-format", "json"))
     except json.JSONDecodeError:
         return []
+
+
+def _resolve_ingest_target(settings) -> dict | None:
+    """Resolve where inbound bank-alert emails should be written, independent
+    of active_journal (see temp/bug-fixing/fix-email-inbox-journal-targeting.md).
+    Returns a journal_paths()-shaped dict ({"journal_file", "inbox_data_file",
+    ...}), or None when there is no valid, unambiguous target and the caller
+    must reject rather than guess.
+
+    - `inbox_journal` set, its folder still exists, and it isn't demo -> route there.
+    - Folder-based journals exist but `inbox_journal` doesn't resolve to a
+      real, non-demo one among them -> ambiguous; refuse to guess (never
+      falls back to active_journal, never to demo).
+    - No folder-based journals exist at all (legacy single-journal deployment,
+      flat env vars only) -> those flat vars are the one unambiguous target,
+      the same fallback precedent get_settings() already uses for active_journal.
+    """
+    journal_dir = settings.journal_dir
+    names = list_journals(journal_dir) if journal_dir else []
+    name = inbox_journal_name()
+    if name and name in names and not is_demo_journal(name):
+        return journal_paths(journal_dir, name)
+    if names:
+        return None
+    return {"journal_file": settings.journal_file, "inbox_data_file": settings.inbox_data_file}
 
 
 def _history_match(merchant_clean: str, txns: list):
@@ -180,6 +214,15 @@ def inbox_ingest(body: InboxIngest, token: str = Security(verify_token)):
     posting, and stores the item as pending.
     """
     settings = get_settings()
+    target = _resolve_ingest_target(settings)
+    if target is None:
+        raise HTTPException(
+            status_code=503,
+            detail="No inbox journal configured — pick one in Settings before bank alerts can be ingested",
+        )
+    inbox_path = target["inbox_data_file"]
+    journal_file = target["journal_file"]
+
     if abs(body.amount) > 1_000_000:
         raise HTTPException(status_code=400, detail="amount out of range")
     if body.parsed and round(body.amount, 2) == 0:
@@ -195,7 +238,9 @@ def inbox_ingest(body: InboxIngest, token: str = Security(verify_token)):
         txn_date = center.isoformat()
 
     with _inbox_lock:
-        data = _load_inbox_data()
+        if not os.path.exists(inbox_path):
+            save_json(inbox_path, _default_inbox_data())
+        data = _load_inbox_data(inbox_path)
 
         msg_id = body.email_message_id.strip()[:200]
         if msg_id and msg_id in data["seen_message_ids"]:
@@ -214,19 +259,19 @@ def inbox_ingest(body: InboxIngest, token: str = Security(verify_token)):
                 if abs((d - center).days) <= INBOX_MATCH_WINDOW_DAYS:
                     if msg_id:
                         data["seen_message_ids"].append(msg_id)
-                        _save_inbox_data(data)
+                        _save_inbox_data(data, inbox_path)
                     return {"status": "duplicate", "reason": "pending"}
 
         if len(data["items"]) >= INBOX_MAX_PENDING:
             raise HTTPException(status_code=429, detail="Inbox full")
 
-        txns = _journal_txns()
+        txns = _journal_txns(journal_file)
 
         # Already posted manually (e.g. from the Mac) before the alert landed
         if body.parsed and _find_journal_match(txns, body.amount, txn_date):
             if msg_id:
                 data["seen_message_ids"].append(msg_id)
-                _save_inbox_data(data)
+                _save_inbox_data(data, inbox_path)
             return {"status": "duplicate", "reason": "journal"}
 
         item = {
@@ -249,8 +294,8 @@ def inbox_ingest(body: InboxIngest, token: str = Security(verify_token)):
         if msg_id:
             data["seen_message_ids"].append(msg_id)
 
-        with git_transaction([settings.inbox_data_file], f"inbox: ingest {item['merchant_clean'][:40]} {txn_date}"):
-            _save_inbox_data(data)
+        with git_transaction([inbox_path], f"inbox: ingest {item['merchant_clean'][:40]} {txn_date}"):
+            _save_inbox_data(data, inbox_path)
 
     return {"status": "ok", "id": item["id"]}
 
@@ -274,9 +319,12 @@ def get_inbox(token: str = Security(verify_token)):
 
 @router.get("/inbox/count")
 def get_inbox_count(token: str = Security(verify_token)):
+    """Pending count (header icon). Also carries `active_journal` — this is
+    already polled on mount/focus, so the frontend piggybacks its multi-device
+    reconcile check here instead of a separate /journals round-trip."""
     with _inbox_lock:
         data = _load_inbox_data()
-    return {"pending": len(data["items"])}
+    return {"pending": len(data["items"]), "active_journal": active_journal_name()}
 
 
 @router.post("/inbox/post")

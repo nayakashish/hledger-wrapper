@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useMemo } from 'react';
 import { extractAmount, fmtAmount, amountClass, currentMonth } from '../../utils/format';
 import type { Transaction } from '../../types';
 import MaskedAmount from '../MaskedAmount';
+import { CloseIcon } from '../Icons';
 
 interface Props {
 	data: Transaction[] | null;
@@ -211,7 +212,7 @@ export default function TransactionsView({ data, accounts, isActive, onTxnClick 
 									onClick={() => handleSearchChange('')}
 									aria-label="Clear search"
 								>
-									✕
+									<CloseIcon size={14} />
 								</button>
 							)}
 						</div>
@@ -276,13 +277,13 @@ export default function TransactionsView({ data, accounts, isActive, onTxnClick 
 							{dateChipLabel && (
 								<span className="filter-chip">
 									{dateChipLabel}
-									<button className="filter-chip-remove" onClick={clearDateFilter} aria-label="Remove date filter">✕</button>
+									<button className="filter-chip-remove" onClick={clearDateFilter} aria-label="Remove date filter"><CloseIcon size={11} /></button>
 								</span>
 							)}
 							{selectedAccounts.map(a => (
 								<span className="filter-chip" key={a}>
 									{a}
-									<button className="filter-chip-remove" onClick={() => removeAccountFilter(a)} aria-label={`Remove ${a} filter`}>✕</button>
+									<button className="filter-chip-remove" onClick={() => removeAccountFilter(a)} aria-label={`Remove ${a} filter`}><CloseIcon size={11} /></button>
 								</span>
 							))}
 							<button className="filter-clear-all" onClick={clearAllFilters}>Clear all</button>

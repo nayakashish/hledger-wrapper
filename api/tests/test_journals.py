@@ -46,8 +46,23 @@ def test_list_journals_flags_active(client, auth, journals_env):
     resp = client.get("/journals", headers=auth)
     assert resp.status_code == 200
     assert resp.json()["journals"] == [
-        {"name": "2026", "active": False},
-        {"name": "2027", "active": True},
+        {"name": "2026", "active": False, "inbox": False, "demo": False},
+        {"name": "2027", "active": True, "inbox": False, "demo": False},
+    ]
+
+
+def test_list_journals_flags_inbox_and_demo(client, auth, journals_env):
+    root = journals_env["root"]
+    demo = root / "demo"
+    demo.mkdir()
+    (demo / "demo.journal").write_text("")
+    journals_env["cfg"].write_text(json.dumps({"active_journal": "demo", "inbox_journal": "2027"}))
+
+    resp = client.get("/journals", headers=auth)
+    assert resp.json()["journals"] == [
+        {"name": "2026", "active": False, "inbox": False, "demo": False},
+        {"name": "2027", "active": False, "inbox": True, "demo": False},
+        {"name": "demo", "active": True, "inbox": False, "demo": True},
     ]
 
 
@@ -89,4 +104,38 @@ def test_select_unknown_journal_rejected(client, auth, journals_env):
 
 def test_select_rejects_path_traversal(client, auth):
     resp = client.post("/journals/select", json={"name": "../secrets"}, headers=auth)
+    assert resp.status_code == 400
+
+
+def test_select_inbox_journal_persists_independent_of_active(client, auth, journals_env):
+    journals_env["cfg"].write_text(json.dumps({"active_journal": "2026"}))
+    resp = client.post("/journals/select-inbox", json={"name": "2027"}, headers=auth)
+    assert resp.status_code == 200
+    assert resp.json()["inbox_journal"] == "2027"
+
+    cfg = json.loads(journals_env["cfg"].read_text())
+    assert cfg["active_journal"] == "2026"  # untouched
+    assert cfg["inbox_journal"] == "2027"
+
+    # 2027 was fresh -> sidecars seeded, same as /journals/select.
+    root = journals_env["root"]
+    inbox_data = json.loads((root / "2027" / "inbox.json").read_text())
+    assert inbox_data["items"] == []
+
+
+def test_select_inbox_journal_rejects_demo(client, auth, journals_env):
+    root = journals_env["root"]
+    demo = root / "demo"
+    demo.mkdir()
+    (demo / "demo.journal").write_text("")
+
+    resp = client.post("/journals/select-inbox", json={"name": "demo"}, headers=auth)
+    assert resp.status_code == 400
+    assert "demo" in resp.json()["detail"].lower()
+    cfg = json.loads(journals_env["cfg"].read_text()) if journals_env["cfg"].exists() else {}
+    assert "inbox_journal" not in cfg
+
+
+def test_select_inbox_journal_rejects_unknown(client, auth, journals_env):
+    resp = client.post("/journals/select-inbox", json={"name": "1999"}, headers=auth)
     assert resp.status_code == 400

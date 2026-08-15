@@ -56,12 +56,17 @@ def auth():
 class FakeHledger:
     """Records every call and returns canned output. `output` backs
     `print`/`balance`/`is` calls; `accounts_output` backs `accounts` calls
-    (both the journal-accounts and --declared forms)."""
+    (both the journal-accounts and --declared forms). `file_calls` and
+    `file_outputs` let a test verify/vary behavior per journal file for
+    `run_hledger_file` callers, without disturbing `calls`' shape for the
+    (much more common) ambient `run_hledger` callers."""
 
     def __init__(self):
         self.calls: list[tuple] = []
+        self.file_calls: list[tuple] = []  # (journal_file, args)
         self.output = "[]"
         self.accounts_output = ""
+        self.file_outputs: dict[str, str] = {}
 
     def __call__(self, *args):
         self.calls.append(args)
@@ -72,6 +77,9 @@ class FakeHledger:
     def set_txns(self, txns: list[dict]) -> None:
         self.output = json.dumps(txns)
 
+    def set_file_txns(self, journal_file: str, txns: list[dict]) -> None:
+        self.file_outputs[journal_file] = json.dumps(txns)
+
 
 @pytest.fixture
 def fake_hledger(env, monkeypatch):
@@ -81,7 +89,10 @@ def fake_hledger(env, monkeypatch):
     reach the routers — every import site has to be patched individually."""
     fake = FakeHledger()
 
-    def fake_file(_journal_file, *args):
+    def fake_file(journal_file, *args):
+        fake.file_calls.append((journal_file, args))
+        if journal_file in fake.file_outputs:
+            return fake.file_outputs[journal_file]
         return fake(*args)
 
     monkeypatch.setattr("app.hledger.run_hledger", fake)
@@ -91,6 +102,7 @@ def fake_hledger(env, monkeypatch):
     monkeypatch.setattr("app.routers.journal.run_hledger", fake)
     monkeypatch.setattr("app.routers.envelopes.run_hledger", fake)
     monkeypatch.setattr("app.routers.inbox.run_hledger", fake)
+    monkeypatch.setattr("app.routers.inbox.run_hledger_file", fake_file)
     return fake
 
 

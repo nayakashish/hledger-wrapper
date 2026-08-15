@@ -408,7 +408,7 @@ nav button:hover:not(.active) { color: var(--text); }
   touch-action: manipulation;
 }
 
-.search-clear.visible { display: block; }
+.search-clear.visible { display: flex; align-items: center; justify-content: center; }
 .search-clear:hover { color: var(--accent); }
 
 .search-count { font-size: 11px; color: var(--text-muted); font-weight: 300; margin-bottom: 12px; }
@@ -530,11 +530,12 @@ nav button:hover:not(.active) { color: var(--text); }
 }
 
 .filter-chip-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: none;
   border: none;
   color: inherit;
-  font-size: 12px;
-  line-height: 1;
   cursor: pointer;
   padding: 2px 4px;
   touch-action: manipulation;
@@ -680,14 +681,15 @@ body.is-offline header {
 
 .add-back, .add-close {
   font-family: 'Montserrat', sans-serif;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: none;
   border: none;
-  font-size: 18px;
   color: var(--text-muted);
   cursor: pointer;
   padding: 4px 8px;
   border-radius: var(--radius);
-  line-height: 1;
   touch-action: manipulation;
 }
 
@@ -1400,10 +1402,12 @@ body.is-offline header {
 }
 
 .day-detail-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: none;
   border: none;
   color: var(--text-muted);
-  font-size: 12px;
   cursor: pointer;
   padding: 2px 4px;
   touch-action: manipulation;
@@ -1676,7 +1680,7 @@ body.is-offline header {
 
 .env-child-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
 .env-child-balance { font-size: 13px; font-weight: 500; font-variant-numeric: tabular-nums; }
-.env-child-chevron { font-size: 10px; color: var(--text-muted); }
+.env-child-chevron { display: inline-flex; color: var(--text-muted); }
 
 /* ── Envelope detail ── */
 .env-detail-bal {
@@ -1837,15 +1841,19 @@ body.is-offline header {
 
 .assign-close {
   font-family: 'Montserrat', sans-serif;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: none;
   border: none;
-  font-size: 18px;
   color: var(--text-muted);
   cursor: pointer;
   padding: 4px 8px;
   border-radius: var(--radius);
   touch-action: manipulation;
 }
+
+.assign-close:hover { color: var(--accent); }
 
 .assign-body { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; padding: 20px 20px 40px; }
 
@@ -2148,7 +2156,7 @@ body.is-offline header {
 .settings-row-main { flex: 1; min-width: 0; }
 .settings-row-title { font-size: 14px; color: var(--text); font-weight: 500; }
 .settings-row-sub { font-size: 12px; color: var(--text-muted); font-weight: 300; margin-top: 2px; }
-.settings-chevron { color: var(--text-muted); font-size: 20px; line-height: 1; }
+.settings-chevron { display: inline-flex; color: var(--text-muted); }
 
 .settings-field-label {
   font-size: 11px;
@@ -2190,7 +2198,6 @@ body.is-offline header {
 }
 .settings-radio-label { flex: 1; font-size: 14px; color: var(--text); }
 .settings-radio.active .settings-radio-label { font-weight: 600; color: var(--accent); }
-.settings-radio-check { color: var(--accent); font-size: 14px; }
 
 .settings-hint {
   font-size: 11px;

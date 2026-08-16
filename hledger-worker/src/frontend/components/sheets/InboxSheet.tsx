@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { fmtAmount } from '../../utils/format';
 import { apiGet, apiPost } from '../../utils/api';
+import { ChevronLeftIcon, CloseIcon } from '../Icons';
 import type { InboxItem, InboxResponse, InboxRule } from '../../types';
 
 interface Props {
@@ -127,12 +128,14 @@ export default function InboxSheet({ isOpen, onClose, onChange, accountsList, sh
 					<div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
 						{selected && (
 							<button className="assign-close" onClick={backToList} aria-label="Back to inbox">
-								←
+								<ChevronLeftIcon />
 							</button>
 						)}
 						<span className="assign-title">{selected ? 'Review transaction' : 'Inbox'}</span>
 					</div>
-					<button className="assign-close" onClick={onClose}>✕</button>
+					<button className="assign-close" onClick={onClose} aria-label="Close inbox">
+						<CloseIcon />
+					</button>
 				</div>
 				<div className="assign-body">
 					{selected ? (

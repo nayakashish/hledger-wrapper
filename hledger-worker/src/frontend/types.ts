@@ -168,4 +168,6 @@ export interface InboxRule {
 export interface JournalInfo {
 	name: string;
 	active: boolean;
+	inbox: boolean;
+	demo: boolean;
 }

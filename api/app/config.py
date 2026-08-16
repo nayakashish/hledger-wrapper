@@ -48,6 +48,23 @@ def active_journal_name() -> str:
     return str(load_app_config().get("active_journal", "") or "")
 
 
+def inbox_journal_name() -> str:
+    """Name of the journal inbound bank-alert emails are routed to,
+    independent of active_journal, or "" if none is set. See
+    docs/transaction-inbox.md for why this is a separate pointer."""
+    return str(load_app_config().get("inbox_journal", "") or "")
+
+
+DEMO_JOURNAL_NAME = "demo"
+
+
+def is_demo_journal(name: str) -> bool:
+    """The demo journal (see temp/resources/demo-journal) is a real,
+    selectable journal for browsing, identified by its fixed folder name, but
+    must never be a valid email-ingest target."""
+    return name == DEMO_JOURNAL_NAME
+
+
 def journal_paths(journal_dir: str, name: str) -> dict:
     """Resolve the files that make up one journal.
 

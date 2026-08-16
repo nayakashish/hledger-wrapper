@@ -1,23 +1,22 @@
 # Envelopes
 
-Virtual envelope budgeting layered on top of hledger. Envelopes partition the
-money that already exists in real accounts into named buckets — groceries, gas,
-tithe, savings — without ever changing the journal. The journal remains the
-single source of truth for what happened; envelopes are a second ledger that
-answers a different question: not "how much is in my chequing account" but "how
-much of it is already spoken for."
+Envelope budgeting on top of hledger. Envelopes divide the money that already
+exists in your real accounts into named buckets: groceries, gas, tithe, savings.
+The journal does not change. It stays the record of what happened, while the
+envelopes answer a different question — not how much is in the chequing account,
+but how much of it is already committed.
 
-Nothing in this feature writes to the hledger journal. Envelope state lives in
-its own JSON file (`envelopes.json`) committed alongside the journal. The two
-are reconciled by a running total, not by shared entries — see
+No part of this feature writes to the journal. Envelope state lives in its own
+JSON file, `envelopes.json`, which is committed next to the journal. The app
+compares the two by their totals, not by shared entries. See
 [Reconciliation](#reconciliation).
 
 ## Model
 
-An envelope is a named bucket with a balance. Envelopes form a two-level tree:
-top-level **parent** envelopes group related **child** envelopes. Money is only
-ever held in a specific envelope; a parent's displayed total is the sum of its
-own balance plus its children's.
+An envelope is a named bucket with a balance. Envelopes form a tree of two
+levels: a **parent** envelope groups related **child** envelopes. Money is
+always held in one specific envelope. The total shown for a parent is its own
+balance plus the balances of its children.
 
 ```
 Everyday (parent)                 $1,240.00   ← total = unallocated + children
@@ -29,15 +28,16 @@ Savings (parent)                  $8,000.00
 Tithe                                $320.00
 ```
 
-Two envelopes are treated as **system envelopes** and cannot be deleted:
-`savings` and `chequing`. They are the default landing spots for income
-allocation and for expenses that do not match a more specific envelope.
+Two envelopes are **system envelopes**: `savings` and `chequing`. You cannot
+delete them. They receive income by default, and they take the expenses that
+match no other envelope.
 
 ### Data file
 
-The server reads and writes a single JSON file whose path is set by
-`ENVELOPE_DATA_FILE` in the server `.env`. It is committed and pushed on every
-mutation, exactly like the transaction inbox's `inbox.json`. Its shape:
+The server reads and writes one JSON file. Its path comes from
+`ENVELOPE_DATA_FILE` in the server `.env`. The server commits and pushes the
+file after every change, in the same way as the inbox file. The file has this
+shape:
 
 ```json
 {
@@ -60,40 +60,40 @@ mutation, exactly like the transaction inbox's `inbox.json`. Its shape:
 
 | Key | Meaning |
 |-----|---------|
-| `envelopes` | The tree. Each entry has `id`, `name`, optional `parent`, and `sort_order` (position among siblings). |
-| `balances` | Current dollar balance per envelope id. The authoritative number. |
-| `pending` | Transactions scanned from the journal but not yet assigned to an envelope. |
-| `history` | Append-only log of every balance change: assignments, income allocations, transfers, adjustments. |
-| `matched_hledger_txns` | Ids of journal transactions already handled (assigned or dismissed), so a re-scan never surfaces them twice. |
-| `income_split_default` | Optional default percentages used to pre-fill the income allocation form. |
+| `envelopes` | The tree. Each entry has `id`, `name`, an optional `parent`, and `sort_order` (its position among its siblings). |
+| `balances` | The current balance of each envelope. This is the authoritative number. |
+| `pending` | Transactions read from the journal that have no envelope yet. |
+| `history` | An append-only log of every balance change: assignments, income allocations, transfers, and adjustments. |
+| `matched_hledger_txns` | The ids of journal transactions that are already assigned or dismissed. A new scan does not show them again. |
+| `income_split_default` | Optional default percentages for the income allocation form. |
 
-Balances are the stored truth; `history` is the audit trail that explains how
-each balance got where it is. Nothing is recomputed from history on read — the
-server trusts `balances` and appends to `history` alongside every change.
+The balances are the stored truth. The history explains how each balance reached
+its value. The server does not recompute balances from the history. It trusts
+`balances` and appends to `history` with each change.
 
 ## Reconciliation
 
-Envelopes never touch the journal, so the two can drift. The Envelopes view
-guards against silent drift with a single indicator. It sums every envelope
-balance and compares that against the real liquid net worth hledger reports
-(assets plus liabilities from the Balance report):
+Envelopes never touch the journal, so the two records can move apart. The
+Envelopes view shows one indicator to make this visible. It adds up all envelope
+balances and compares the sum with the liquid net worth that hledger reports,
+which is assets plus liabilities from the Balance report.
 
-- **in sync** — the envelope total matches hledger within one cent.
+- **in sync** — the envelope total agrees with hledger to within one cent.
 - **+/- $X vs hledger** — the two disagree by that amount. Every real dollar
-  should live in exactly one envelope, so a non-zero difference means a
-  transaction was scanned but not assigned, an assignment was missed, or a
-  manual adjustment is needed.
+  must be in exactly one envelope. A difference thus means that a transaction
+  was scanned but not assigned, that an assignment was missed, or that a manual
+  adjustment is needed.
 
-This is a deliberate design choice: the envelope layer is allowed to be wrong,
-and the app makes the wrongness visible rather than forcing the two ledgers to
-share state. Assigning every pending transaction and correcting with manual
-adjustments is what drives the difference back to zero.
+This is intentional. The envelope layer is permitted to be wrong, and the app
+shows the error instead of forcing the two records to share state. To drive the
+difference back to zero, assign the pending transactions and correct the rest
+with manual adjustments.
 
 ## Lifecycle
 
-The core loop is scan, then assign. A journal transaction becomes a pending
-item; the user assigns it to one or more envelopes (or dismisses it); the
-balances move and the item is marked handled so it never reappears.
+The main loop is scan, then assign. A journal transaction becomes a pending
+item. You assign it to one or more envelopes, or you dismiss it. The balances
+move, and the item is marked as handled so that it does not come back.
 
 ```mermaid
 sequenceDiagram
@@ -119,169 +119,170 @@ sequenceDiagram
 
 ### Scan
 
-`POST /envelopes/scan` reads every transaction from the journal
-(`hledger print`) and, for each one not already in `pending` or
-`matched_hledger_txns`:
+`POST /envelopes/scan` reads every transaction from the journal with
+`hledger print`. For each transaction that is not already in `pending` or in
+`matched_hledger_txns`, the server does this:
 
-1. Classifies it as **income** (any posting to an `income:*` account) or
-   **expense**.
-2. Computes its primary amount — the magnitude of the first `expenses:*` or
-   `income:*` posting. Transactions with a zero primary amount (pure transfers
-   between asset accounts) are skipped.
-3. For expenses only, computes a **suggested envelope** (income is always left
-   unsuggested, because the user decides how to divide it).
+1. It classifies the transaction as **income** if any posting goes to an
+   `income:*` account. If not, the transaction is an **expense**.
+2. It calculates the primary amount, which is the magnitude of the first
+   `expenses:*` or `income:*` posting. If that amount is zero, the transaction
+   is a transfer between asset accounts, and the server skips it.
+3. For an expense, it calculates a **suggested envelope**. Income gets no
+   suggestion, because you decide how to divide it.
 
-Each surviving transaction is appended to `pending` with its date,
-description, amount, type, the suggested envelope, and its posting accounts.
-Scanning is idempotent: running it repeatedly only ever adds transactions the
-envelope layer has not seen.
+Each remaining transaction goes into `pending` with its date, description,
+amount, type, suggested envelope, and posting accounts. Scan is idempotent: it
+only ever adds transactions that the envelope layer has not seen.
 
 ### Expense suggestion
 
-The suggestion for an expense is a heuristic over the transaction's posting
-accounts, first match wins:
+The suggestion is a heuristic over the posting accounts of the transaction. The
+first match wins.
 
 1. **Account hints** — a small built-in map from expense account prefixes to
-   envelope ids (for example `expenses:generosity:tithe` → the `tithe`
-   envelope).
-2. **Name-in-account** — if a child envelope's name (lowercased, spaces
-   removed) appears inside a posting account, that envelope wins. A `Groceries`
-   envelope matches a posting to `expenses:food:groceries`.
-3. **Fallback** — any remaining expense defaults to the `chequing` envelope.
+   envelope ids. For example, `expenses:generosity:tithe` gives the `tithe`
+   envelope.
+2. **Name in account** — if the name of a child envelope, in lower case and
+   without spaces, occurs in a posting account, that envelope wins. A
+   `Groceries` envelope thus matches a posting to `expenses:food:groceries`.
+3. **Fallback** — all other expenses go to the `chequing` envelope.
 
-The suggestion is only a default; the assignment screen lets the user override
-it, split across several envelopes, or dismiss the transaction entirely.
+The suggestion is only a default. On the assignment screen you can change it,
+divide the amount across several envelopes, or dismiss the transaction.
 
 ### Assign
 
-`POST /envelopes/assign` takes a pending transaction id and moves money. The
-request shape depends on the transaction type and whether the user split it:
+`POST /envelopes/assign` takes the id of a pending transaction and moves the
+money. The body depends on the type of transaction and on whether you split it:
 
-- **Single-envelope expense** — `{ txn_id, envelope_id, note? }`. The full
-  amount is subtracted from that one envelope.
+- **Single-envelope expense** — `{ txn_id, envelope_id, note? }`. The server
+  subtracts the full amount from that envelope.
 - **Split expense** — `{ txn_id, splits: [{ envelope_id, amount }], note? }`.
-  Each envelope is debited its share.
-- **Income allocation** — `{ txn_id, splits: [{ envelope_id, amount }] }`. Each
-  envelope is credited its share. Income must always be split (even if to a
-  single envelope) so the allocation is explicit.
+  The server subtracts each share from its envelope.
+- **Income allocation** — `{ txn_id, splits: [{ envelope_id, amount }] }`. The
+  server adds each share to its envelope. Income must always be split, even into
+  a single envelope, so that the allocation stays explicit.
 
-For any split, the server validates that the amounts sum to the transaction
-total within one cent before touching a balance; a mismatch is a `400`. Once
-validated, it debits or credits each envelope, appends a `history` entry per
-envelope (`expense`, `income_allocation`), removes the item from `pending`, and
-adds its id to `matched_hledger_txns`.
+For a split, the server first makes sure that the amounts add up to the
+transaction total to within one cent. If they do not, it returns `400` and
+changes nothing. If they do, it moves each balance, appends one `history` entry
+per envelope (`expense` or `income_allocation`), removes the item from
+`pending`, and adds its id to `matched_hledger_txns`.
 
 ### Dismiss
 
 `POST /envelopes/dismiss` with `{ txn_id }` removes a pending item without
-moving any money and marks it matched, so a re-scan will not resurface it. This
-is for journal transactions that are irrelevant to the envelope layer — an
-internal transfer between two of the user's own accounts, say.
+moving money, and marks it as matched so that a new scan does not show it again.
+Use it for journal transactions that do not concern the envelope layer, such as
+a transfer between two of your own accounts.
 
-## Splitting: amount and percent
+## Splitting by amount or percent
 
-The assignment sheet's split editor is shared between income allocation and
-split expenses. It offers two entry modes:
+Income allocation and split expenses use the same split editor. It has two entry
+modes:
 
-- **$ Amount** — type a dollar figure per envelope.
-- **% Percent** — type a percentage per envelope; the editor shows the
-  resulting dollar figure live beside each row.
+- **$ Amount** — you type a dollar figure for each envelope.
+- **% Percent** — you type a percentage for each envelope, and the editor shows
+  the equivalent dollar figure beside each row as you type.
 
-Percentages are converted to cent-exact dollar amounts using the
-largest-remainder method (Hamilton's apportionment): each share is rounded down
-to the cent, then the leftover pennies are handed to the envelopes that were
-closest to rounding up. The result always sums exactly to the transaction total
-with no rounding drift, and identical inputs always produce identical cents.
-The API only ever receives dollar amounts — percentage entry never leaves the
-browser, and the server-side sum check is the same for both modes.
+The editor converts percentages into cent-exact amounts with the
+largest-remainder method (Hamilton's apportionment). It rounds each share down
+to the cent, then gives the remaining cents to the envelopes that were nearest
+to the next cent. The shares therefore always add up to the transaction total,
+and the same input always produces the same cents. The API receives dollar
+amounts only. Percentage entry stays in the browser, and the server runs the
+same sum check for both modes.
 
-Switching modes seeds the other mode from what was already entered (dollar
-amounts become their equivalent percentages and vice versa) so no work is lost.
+If you change mode, the editor fills the other mode from what you already
+entered, so no work is lost.
 
-The editor tracks the running remainder — the transaction total minus what has
-been allocated so far — and shows it as **fully allocated**, **$X unassigned**,
-or **$X over-allocated**. The confirm button is disabled until the split
-balances. Three helpers assist:
+The editor also tracks the remainder, which is the transaction total minus the
+amount allocated so far. It shows the remainder as **fully allocated**,
+**$X unassigned**, or **$X over-allocated**, and it keeps the confirm button
+disabled until the split balances. Three helpers are available:
 
-- **Reset defaults** (income only) — re-applies the default percentage split.
-- **Clear all** — zeroes every row.
-- **Auto-balance** — pushes the outstanding remainder into a target envelope
-  (the suggested one, else `chequing`, else the first envelope) so the split
-  balances in one tap.
+- **Reset defaults** (income only) — applies the default percentages again.
+- **Clear all** — sets every row to zero.
+- **Auto-balance** — puts the remainder into one target envelope: the suggested
+  envelope, or `chequing`, or the first envelope. The split then balances with
+  one tap.
 
 ### Income defaults
 
-Income allocation pre-fills from `income_split_default`: a tithe percentage
-(default 10%) and a savings percentage (default 40%), with the remainder going
-to `chequing`. These are only starting values — the user edits freely before
-confirming, and the defaults themselves are edited in `envelopes.json`.
+The income form is filled from `income_split_default`: a tithe percentage,
+10 percent by default, and a savings percentage, 40 percent by default. The rest
+goes to `chequing`. These are start values only. You can change them before you
+confirm, and you edit the defaults themselves in `envelopes.json`.
 
 ## Envelope detail: transfer, adjust, correct
 
-Tapping an envelope opens its detail sheet: current balance, action buttons, and
-its slice of the history log. Four operations live here.
+Tap an envelope to open its detail sheet. The sheet shows the current balance,
+the action buttons, and the part of the history log that belongs to that
+envelope. Four operations are available here.
 
 ### Transfer
 
 `POST /envelopes/transfer` with `{ from_envelope, to_envelope, amount, note? }`
-moves money between two envelopes. It debits the source, credits the
-destination, and writes two mirrored `history` entries. Real account balances
-are untouched — this only re-partitions money that already exists.
+moves money between two envelopes. It subtracts from the source, adds to the
+destination, and writes two matching `history` entries. The real account
+balances do not change, because this only re-divides money that already exists.
 
 ### Adjust
 
-`POST /envelopes/adjust` with `{ envelope, amount, note? }` adds a signed
-amount to one envelope (positive adds, negative subtracts) and logs an
-`adjustment` history entry. This is the manual lever for pushing the
-reconciliation difference back to zero, or for correcting a mis-entered split.
+`POST /envelopes/adjust` with `{ envelope, amount, note? }` adds a signed amount
+to one envelope. A positive amount adds, a negative amount subtracts. The server
+logs an `adjustment` entry. This is the manual control for driving the
+reconciliation difference to zero, or for correcting a wrong split.
 
 ### Correct a split
 
-Income allocations and multi-envelope expense splits can be reopened from the
-history log. The correction form shows every envelope's current share for that
-transaction and lets the user type new amounts. On submit it computes the
-difference per envelope and applies each as an `adjustment`, so the original
-history is preserved and the correction is itself auditable. A history row is
-correctable when it is an income allocation or when its `txn_id` is shared by
-more than one envelope (i.e. it was part of a split).
+You can reopen income allocations and multi-envelope expense splits from the
+history log. The correction form shows the current share of each envelope for
+that transaction, and you type the new amounts. On submit, the server calculates
+the difference for each envelope and applies it as an `adjustment`. The original
+history stays intact, and the correction is itself auditable. A history row can
+be corrected when it is an income allocation, or when more than one envelope
+shares its `txn_id`, which means it was part of a split.
 
 ### Create and delete
 
-`POST /envelopes/create` with `{ name, parent? }` adds an envelope. The id is
-derived from the name (lowercased, spaces and hyphens to underscores, with a
-numeric suffix if that id already exists), and `sort_order` is set to one past
-the highest sibling.
+`POST /envelopes/create` with `{ name, parent? }` adds an envelope. The server
+makes the id from the name: lower case, with spaces and hyphens changed to
+underscores, and with a number added if that id already exists. It sets
+`sort_order` to one more than the highest value among the siblings.
 
-`DELETE /envelopes/<id>` removes an envelope, subject to two guards: the
-system envelopes (`savings`, `chequing`) can never be deleted, and an envelope
-must have a zero balance first — money has to be transferred out before the
-envelope can go.
+`DELETE /envelopes/<id>` removes an envelope. Two guards apply. The system
+envelopes `savings` and `chequing` can never be deleted, and any other envelope
+must have a zero balance first. You must move the money out before the envelope
+can go.
 
 ## Privacy
 
-Envelope balances are sensitive. When the header privacy toggle is on, every
-envelope balance, the all-envelopes total, and income amounts in the pending
-list render as masked placeholders (see [architecture.md](architecture.md#privacy-toggle)).
-Expense amounts, envelope names, dates, and descriptions stay visible.
+Envelope balances are sensitive. When the privacy toggle in the header is on,
+the app masks every envelope balance, the total of all envelopes, and the income
+amounts in the pending list. See
+[architecture.md](architecture.md#privacy-toggle). Expense amounts, envelope
+names, dates, and descriptions stay visible.
 
 ## Storage and git
 
-`envelopes.json` lives in the journal repository (path from
-`ENVELOPE_DATA_FILE`). Every mutating endpoint — scan, assign, dismiss,
-transfer, adjust, create, delete — writes the file and immediately commits and
-pushes it with a message tagged `Source: hledger-mobile-api`. Git history is
-the durable audit trail; the in-file `history` array is the app-facing one.
+`envelopes.json` lives in the journal repository, at the path given by
+`ENVELOPE_DATA_FILE`. Every endpoint that changes it — scan, assign, dismiss,
+transfer, adjust, create, and delete — writes the file and then commits and
+pushes it with a message tagged `Source: hledger-mobile-api`. The git history is
+the durable audit trail. The `history` array in the file is the one you see in
+the app.
 
-Because the file is committed on every change, envelope state survives a server
-rebuild and is recoverable from git like any other tracked file. The app caches
-the last-loaded state in `localStorage` (`hledger_envelopes_v3`) so the
-Envelopes view renders instantly on open and refreshes on the next sync or
-mutation.
+Because each change is committed, the envelope state survives a rebuild of the
+server, and you can recover it from git like any other tracked file. The app
+keeps the last loaded state in `localStorage` (`hledger_envelopes_v3`), so the
+Envelopes view opens immediately and refreshes on the next sync or change.
 
 ## API reference
 
-All endpoints are bearer-authenticated, served by FastAPI, and reached through
-the Worker proxy as `/api/envelopes/...`.
+All endpoints use bearer authentication, are served by FastAPI, and are reached
+through the Worker proxy as `/api/envelopes/...`.
 
 | Path | Method | Body | Description |
 |------|--------|------|-------------|
@@ -294,18 +295,20 @@ the Worker proxy as `/api/envelopes/...`.
 | `/envelopes/create` | POST | `{ name, parent? }` | Create an envelope |
 | `/envelopes/<id>` | DELETE | — | Delete an envelope (zero balance, non-system only) |
 
-The GET response is served straight from `envelopes.json`. Every POST/DELETE
-mutates the file, commits, pushes, and returns the affected slice of state.
+The GET response comes straight from `envelopes.json`. Each POST and DELETE
+changes the file, commits, pushes, and returns the part of the state that
+changed.
 
 ## Known limitations
 
-- **Reconciliation is one-directional.** The app surfaces drift but does not
-  auto-correct it; closing the gap is a manual adjust or a missed assignment.
-- **The expense suggestion is a heuristic.** It leans on account-name
-  conventions and a small built-in hint map; unusual account structures fall
-  back to `chequing` and are corrected by hand at assignment time.
-- **Two levels only.** The tree is parent-and-child; there is no grandchild
-  nesting.
-- **Deletion needs a zero balance.** Emptying an envelope before removing it is
-  intentional — it forces the money to be re-homed rather than silently lost —
-  but it is a two-step operation.
+- **Reconciliation runs in one direction.** The app shows the difference but
+  does not correct it. You close the gap with an adjustment or with the missing
+  assignment.
+- **The expense suggestion is a heuristic.** It depends on account naming and on
+  a small built-in hint map. An unusual account structure falls back to
+  `chequing`, and you correct it when you assign.
+- **The tree has two levels.** There are parents and children, but no third
+  level.
+- **Deletion needs a zero balance.** This is intentional, because it makes you
+  move the money somewhere else instead of losing it. It is nonetheless a
+  two-step operation.

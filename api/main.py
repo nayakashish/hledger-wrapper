@@ -882,7 +882,7 @@ def _commit_inbox(message: str):
 
 def _clean_merchant(raw: str) -> str:
     """Strip payment-processor prefixes and trailing store numbers from a
-    bank merchant descriptor, e.g. 'TST-The Samosa Factory' -> 'The Samosa Factory'."""
+    bank merchant descriptor, e.g. 'TST-Corner Cafe' -> 'Corner Cafe'."""
     s = raw.strip()
     upper = s.upper()
     for prefix in _MERCHANT_PREFIXES:

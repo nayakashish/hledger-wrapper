@@ -1,15 +1,16 @@
 # Deployment Guide
 
-Full setup guide for running hledger Mobile from scratch.
+How to set up hledger Mobile from nothing. Do the six steps in order. Each one
+ends with a check, so you find a mistake before it hides behind the next step.
 
 ## Prerequisites
 
-- A Linux machine running 24/7 (home server, VPS, etc.)
-- [hledger](https://hledger.org/install.html) installed on the server
-- A hledger journal file in a git repository
-- A Cloudflare account (free tier is sufficient)
-- A domain managed by Cloudflare DNS
-- Node.js 18+ on your dev machine
+- A Linux machine that runs continuously (home server, VPS, or similar)
+- [hledger](https://hledger.org/install.html) installed on that machine
+- An hledger journal file in a git repository
+- A Cloudflare account (the free tier is sufficient)
+- A domain on Cloudflare DNS
+- Node.js 18 or later on your development machine
 
 ---
 
@@ -58,11 +59,11 @@ ENVELOPE_DATA_FILE=/path/to/journal-repo/envelopes.json   # see docs/envelopes.m
 INBOX_DATA_FILE=/path/to/journal-repo/inbox.json          # see docs/transaction-inbox.md
 ```
 
-`ENVELOPE_DATA_FILE` and `INBOX_DATA_FILE` are optional — leave them unset to
-run without the Envelopes or Transaction Inbox features. When unset, those
-endpoints return `503` and the rest of the app is unaffected.
+`ENVELOPE_DATA_FILE` and `INBOX_DATA_FILE` are optional. Leave them unset if you
+do not want the Envelopes or Transaction Inbox features. Their endpoints then
+return `503`, and the rest of the app works as usual.
 
-### Verify locally
+### Check it locally
 
 ```bash
 source venv/bin/activate
@@ -78,7 +79,7 @@ curl http://localhost:8000/health
 curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8000/balance
 ```
 
-### Install as a systemd service
+### Install it as a systemd service
 
 ```bash
 sudo cp ~/hledger-wrapper/api/hledger-api.service /etc/systemd/system/
@@ -89,7 +90,8 @@ sudo systemctl start hledger-api
 sudo systemctl status hledger-api
 ```
 
-Logs:
+To read the logs:
+
 ```bash
 journalctl -u hledger-api -f
 ```
@@ -98,7 +100,8 @@ journalctl -u hledger-api -f
 
 ## 2. Cloudflare Tunnel
 
-The tunnel exposes the FastAPI app to the internet without opening any inbound ports on your server.
+The tunnel publishes FastAPI to the internet. The server keeps all inbound
+ports closed, because the tunnel connects outward.
 
 ```bash
 # Install cloudflared on the server
@@ -134,32 +137,37 @@ sudo systemctl start cloudflared
 sudo systemctl enable cloudflared
 ```
 
-Verify: `curl https://api.yourdomain.com/health` should return `{"status":"ok"}`.
+Check it: `curl https://api.yourdomain.com/health` must return
+`{"status":"ok"}`.
 
 ---
 
 ## 3. Cloudflare Access
 
-Access sits in front of the tunnel URL and blocks unauthenticated requests before they reach the server.
+Access stands in front of the tunnel. It stops unauthenticated requests before
+they reach the server.
 
 In the [Cloudflare Zero Trust dashboard](https://one.dash.cloudflare.com/):
 
 1. **Applications → Add an application → Self-hosted**
    - Application name: hledger API
    - Domain: `api.yourdomain.com`
-   - Session duration: 24 hours (or longer)
+   - Session duration: 24 hours or longer
 
-2. **Add a policy** — allow your email address via One-time PIN or your identity provider
+2. **Add a policy** that allows your email address, through a one-time PIN or
+   your identity provider.
 
 3. **Service Tokens → Create service token**
    - Name: hledger-worker
-   - Copy the **Client ID** and **Client Secret** — you will only see the secret once
+   - Copy the **Client ID** and the **Client Secret** now. Cloudflare shows the
+     secret only once.
 
 4. **Add a second policy** on the same application:
    - Action: Service Auth
    - Rule: Service Token → hledger-worker
 
-This allows the Cloudflare Worker to call the API using the service token, bypassing the browser login flow.
+The second policy lets the Worker call the API with the service token, so the
+Worker does not go through the browser login.
 
 ---
 
@@ -182,6 +190,12 @@ wrangler secret put CF_ACCESS_CLIENT_SECRET
 # → Client Secret from step 3
 ```
 
+If you use the Transaction Inbox, also set `FORWARD_VERIFICATION_EMAIL` in the
+`vars` block of `wrangler.jsonc`. Use your own address, and make sure it is a
+verified destination in Email Routing. The email handler forwards Gmail's
+forwarding-confirmation message to it, and it accepts mail from it as a manual
+forward.
+
 ---
 
 ## 5. Deploy
@@ -192,17 +206,19 @@ npm run deploy
 # runs: vite build && wrangler deploy
 ```
 
-The worker is deployed to `<worker-name>.<your-subdomain>.workers.dev` by default. To use a custom domain, configure a Worker Route in the Cloudflare dashboard.
+By default the Worker is deployed to
+`<worker-name>.<your-subdomain>.workers.dev`. For a custom domain, add a Worker
+Route in the Cloudflare dashboard.
 
 ---
 
-## 6. Verify end-to-end
+## 6. Check the whole path
 
-1. Open the Worker URL in a browser
-2. You should see the React app load
-3. Tap **Sync** — the button should spin and display a timestamp
-4. Tap **Balance** in the Reports tab — your account tree should appear
-5. Install as a PWA via "Add to Home Screen" on iOS/Android
+1. Open the Worker URL in a browser.
+2. Confirm that the React app loads.
+3. Tap **Sync**. The button spins, then shows a timestamp.
+4. Open the Reports tab and tap **Balance**. Your account tree appears.
+5. Install the app with "Add to Home Screen" on iOS or Android.
 
 ---
 
@@ -215,7 +231,7 @@ npm run dev
 # Worker runs via @cloudflare/vite-plugin
 ```
 
-Create `hledger-worker/.dev.vars` with the same secrets:
+Put the same secrets in `hledger-worker/.dev.vars`:
 
 ```ini
 API_BASE_URL=https://api.yourdomain.com
@@ -224,7 +240,7 @@ CF_ACCESS_CLIENT_ID=your-client-id
 CF_ACCESS_CLIENT_SECRET=your-client-secret
 ```
 
-After changing bindings in `wrangler.jsonc`:
+After you change the bindings in `wrangler.jsonc`:
 
 ```bash
 npm run cf-typegen   # regenerates worker-configuration.d.ts
@@ -233,6 +249,8 @@ npm run cf-typegen   # regenerates worker-configuration.d.ts
 ---
 
 ## API reference
+
+These are the server paths. The Worker proxies them as `/api/...`.
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -257,9 +275,8 @@ npm run cf-typegen   # regenerates worker-configuration.d.ts
 | `POST` | `/envelopes/create` | Create envelope |
 | `DELETE` | `/envelopes/<id>` | Delete envelope |
 
-The Transaction Inbox endpoints (`/inbox/...`) are documented in
-[transaction-inbox.md](transaction-inbox.md); the envelope endpoints are
-covered in depth in [envelopes.md](envelopes.md).
+The inbox endpoints (`/inbox/...`) are in
+[transaction-inbox.md](transaction-inbox.md). The envelope endpoints are
+described in full in [envelopes.md](envelopes.md).
 
-See the [documentation index](README.md) for the full set of reference
-documents.
+For the other reference documents, see the [documentation index](README.md).

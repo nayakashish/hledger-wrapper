@@ -21,13 +21,13 @@ Cloudflare Worker (hledger-worker)
 ```
 
 **Cloudflare secrets** (set via `wrangler secret put`, never committed):
-- `API_BASE_URL` — e.g. `https://hledger-api.nayakashish.cc`
+- `API_BASE_URL` — e.g. `https://hledger-api.example.com`
 - `BEARER_TOKEN` — FastAPI auth token
 - `CF_ACCESS_CLIENT_ID` — Cloudflare Access service token ID
 - `CF_ACCESS_CLIENT_SECRET` — Cloudflare Access service token secret
 
 **Vars** (in `wrangler.jsonc`, not secret):
-- `FORWARD_VERIFICATION_EMAIL` — where the email handler forwards Gmail's forwarding-confirmation emails; also the trusted sender for manually forwarded alerts.
+- `FORWARD_VERIFICATION_EMAIL` — the owner's own address: where the email handler forwards Gmail's forwarding-confirmation emails, and the trusted sender for manually forwarded alerts.
 
 ## Project Layout
 

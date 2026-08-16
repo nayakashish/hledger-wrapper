@@ -9,15 +9,15 @@
  * 3. Fall through to Workers Assets for the React SPA
  *
  * Secrets (set via `wrangler secret put <name>`):
- *   API_BASE_URL            - e.g. https://hledger-api.nayakashish.cc
+ *   API_BASE_URL            - e.g. https://hledger-api.example.com
  *   BEARER_TOKEN            - the token your FastAPI validates
  *   CF_ACCESS_CLIENT_ID     - Cloudflare Access service token ID
  *   CF_ACCESS_CLIENT_SECRET - Cloudflare Access service token secret
  *
  * Vars (wrangler.jsonc):
- *   FORWARD_VERIFICATION_EMAIL - where Gmail's forwarding-confirmation
- *                                emails get forwarded so the auto-forward
- *                                address can be verified
+ *   FORWARD_VERIFICATION_EMAIL - the owner's own address: where Gmail's
+ *                                forwarding-confirmation emails get sent,
+ *                                and the trusted sender for manual forwards
  *
  * Assets binding (set in wrangler.jsonc):
  *   ASSETS                  - Workers Assets binding (serves built React app)
@@ -127,8 +127,8 @@ const BANK_PARSERS: BankParser[] = [
 	{
 		bank: 'cibc',
 		fromMatch: /@(?:[a-z0-9-]+\.)*cibc\.(?:com|ca)$/i,
-		// "You've recently made a purchase with your CIBC Costco Mastercard
-		//  ending in 1234 for $22.94 at TST-The Samosa Factory."
+		// Alert body shape:
+		//   "... your <card name> ending in 0000 for $00.00 at MERCHANT NAME."
 		parse: (_subject, body) => {
 			const flat = body.replace(/\s+/g, ' ');
 			const m = flat.match(/ending in (\d{4}) for \$([\d,]+\.\d{2}) at (.+?)\.(?:\s|$)/);

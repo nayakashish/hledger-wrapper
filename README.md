@@ -1,12 +1,18 @@
 # hledger Mobile
 
-A self-hosted, privacy-first personal finance PWA that puts a mobile interface on top of [hledger](https://hledger.org/) — without any financial data ever leaving your home server.
+A self-hosted personal finance PWA. It puts a phone-friendly interface on top of
+[hledger](https://hledger.org/). No financial data leaves the home server.
 
 ---
 
 ## Overview
 
-hledger is a fast, reliable plain-text accounting tool — and entirely terminal-based. Checking your balance from your phone means either SSHing into a server or maintaining a spreadsheet somewhere. This project solves that by wrapping hledger in a secure API layer and serving a mobile-first PWA through Cloudflare, without any financial data ever leaving the home server.
+hledger is a fast, reliable plain-text accounting tool. It is also
+terminal-only. To check a balance from a phone, you must SSH into a server or
+handle duplicate files on your devices.
+
+This project wraps hledger in an API and serves a mobile-first PWA through
+Cloudflare. The journal stays in one location on the home server.
 
 ```mermaid
 sequenceDiagram
@@ -35,47 +41,40 @@ sequenceDiagram
     Journal-->>Dev: available on next pull
 ```
 
-The Worker injects auth secrets server-side — the browser never sees them. The home server has zero open inbound ports; all traffic arrives through a Cloudflare Tunnel.
+The Worker adds the auth secrets on the server side. The browser never sees
+them. The home server has no open inbound ports. All traffic comes through a
+Cloudflare Tunnel.
 
-See [`docs/architecture.md`](docs/architecture.md) for detailed sequence diagrams.
+For the full request flow, see [`docs/architecture.md`](docs/architecture.md).
 
 ---
 
 ## Features
 
-**Dashboard**
-- Year-to-date activity heatmap — tap any day to see that day's transactions
-- Profit / loss bar chart (trailing 12 months)
-- Spending vs prior period with last-month / 3-month-average toggle
-- Net worth trend line
+**Dashboard** - year-to-date activity heatmap, profit/loss bars, spending
+against the prior period, and a net worth trend.
 
-**Envelopes**
-- Virtual envelope budgeting layered over hledger (no journal changes required)
-- Scan for new unassigned transactions, assign income splits, assign expenses
-- Transfer between envelopes, manual adjustments, full history
+**Transactions** — month picker, full-text search with date and category
+filters, and a tap-to-expand view with the raw journal entry.
 
-**Transactions**
-- Month picker and full-text search across all transactions
-- Tap to expand: postings, comments, raw hledger journal entry
+**Reports** — balance tree, monthly breakdown, and the chart of accounts. Tap an
+account row to see its transactions.
 
-**Reports**
-- Balance tree and monthly breakdown in one tab with sub-tab toggle
-- Tap any account row to expand this month's transactions inline (both views)
+**Envelopes** — envelope budgeting on top of hledger. The journal format does
+not change. See [`docs/envelopes.md`](docs/envelopes.md).
 
-**Privacy toggle**
-- Eye icon in the header masks income amounts, net worth, and envelope balances in-memory
-- Does not persist — resets on page load
-- Charts remain visible (aggregate data, not sensitive)
+**Transaction inbox** — bank alert emails arrive as pending items with a
+suggested entry. You review each one before it reaches the journal. See
+[`docs/transaction-inbox.md`](docs/transaction-inbox.md).
 
-**Add transaction**
-- 7-step guided form: date → description → account → amount → account → amount → preview
-- Live autocomplete for account names and descriptions
-- Description lookup pre-fills accounts from your most recent matching transaction
-- Editable raw preview before submit
+**Add transaction** — a guided form with autocomplete. It pre-fills the accounts
+from your last matching transaction.
 
-**PWA**
-- Installable on iOS and Android via "Add to Home Screen"
-- Offline support via service worker cache
+**Privacy toggle** — an eye icon masks income, net worth, and envelope balances.
+The mask does not persist. It resets on page load.
+
+**PWA** — installable on iOS and Android. A service worker caches the app for
+offline use.
 
 ---
 
@@ -95,45 +94,34 @@ See [`docs/architecture.md`](docs/architecture.md) for detailed sequence diagram
 
 ## Security model
 
-Auth secrets (`BEARER_TOKEN`, `CF-Access-Client-Id`, `CF-Access-Client-Secret`) are stored as Cloudflare Worker secrets. They are injected into API proxy requests server-side — the browser never sees them and they never appear in the client bundle.
+The auth secrets (`BEARER_TOKEN`, `CF-Access-Client-Id`,
+`CF-Access-Client-Secret`) are Cloudflare Worker secrets. The Worker adds them
+to each proxied API request. They are not in the client bundle.
 
-The journal file and all raw financial data live only on the home server. The Worker only ever forwards JSON query results, never raw journal content.
+The journal and all raw financial data stay on the home server. The Worker
+forwards JSON results only. It never forwards raw journal content.
 
 ---
 
-## Changelog
+### Project Note
 
-Releases are tagged `v1.x` and documented per-version in [docs/CHANGELOG.md](docs/CHANGELOG.md). The two big eras so far:
+This app is built around my own accounts, my bank's alert emails, my journal
+layout, and budgeting style. It is public so that others can take inspiration from it and see the project, not because it
+is a product you can install as-is.
 
-### React rewrite — v1.2 and later (current)
+If you want to get started with something like this, start with plain [hledger](https://hledger.org/) in a terminal. 
 
-The entire frontend was migrated from a monolithic ~2,400-line vanilla JS/HTML file to a typed React 19 + Vite 6 component tree (~20 files). This was a prerequisite for the features below.
-
-| What changed | Detail |
-|---|---|
-| Frontend | Vanilla JS → React 19 + TypeScript + Vite 6 |
-| Demo mode | Removed entirely (PIN modal, KV namespace, `/api/demo/*` routes) |
-| Privacy toggle | Eye icon masks income amounts and balances in-memory |
-| Tab layout | 4 tabs: Dashboard, Envelopes, Transactions, Reports |
-| Dashboard | YTD heatmap, profit/loss, spending comparison, net worth line |
-| Monthly report | Depth-2 by default; tap a row to expand transactions |
-| Balance report | Tap any account row to expand this month's transactions |
-| Bundle | Workers Assets (static file serving) replaces bundled HTML import |
-| XSS protection | React JSX auto-escaping replaces manual `escHtml()` calls |
-
-### Vanilla JS SPA — v1.0 to v1.1
-
-- Balance, income statement, monthly, and transactions views
-- Add transaction form with account/description autocomplete
-- Sync button (git pull + hledger rebuild)
-- Demo mode backed by Cloudflare KV
-- Envelope budgeting system (scan, assign, transfer, adjust)
-- Search across all transactions
-- PWA: installable, offline cache via hand-rolled service worker
+If you want a budgeting app instead, look at
+[YNAB](https://www.ynab.com/) or [Actual Budget](https://actualbudget.org/).
 
 ---
 
 ## Docs
 
-- [`docs/architecture.md`](docs/architecture.md) — request flow, auth layers, caching strategy, sequence diagrams
-- [`docs/deploy.md`](docs/deploy.md) — setup guide: home server, Cloudflare Tunnel, Access, Worker, local dev
+Full documentation is in [`docs/`](docs/README.md):
+
+- [`docs/architecture.md`](docs/architecture.md) — request flow, auth layers, caching, sequence diagrams
+- [`docs/deploy.md`](docs/deploy.md) — setup: home server, Cloudflare Tunnel, Access, Worker, local dev
+- [`docs/envelopes.md`](docs/envelopes.md) — envelope budgeting: model, reconciliation, scan and assign, API
+- [`docs/transaction-inbox.md`](docs/transaction-inbox.md) — capture from bank-alert emails
+- [`docs/CHANGELOG.md`](docs/CHANGELOG.md) — what changed in each version

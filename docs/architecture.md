@@ -1,6 +1,12 @@
 # Architecture
 
+How a request travels from the phone to the journal and back.
+
 ## System Overview
+
+The browser talks only to Cloudflare. The Worker adds the auth headers and
+passes API requests through the tunnel to the home server. hledger reads the
+journal there.
 
 ```mermaid
 graph TD
@@ -24,7 +30,10 @@ graph TD
 
 ---
 
-## Flow 1 — Authentication & First Load
+## Flow 1 — Authentication and First Load
+
+The user logs in through Cloudflare Access. The Worker then serves the app and
+proxies the first data request.
 
 ```mermaid
 sequenceDiagram
@@ -59,7 +68,10 @@ sequenceDiagram
 
 ---
 
-## Flow 2 — Sync & Read
+## Flow 2 — Sync and Read
+
+Sync pulls the journal from git. Each read runs an hledger query against the
+pulled journal.
 
 ```mermaid
 sequenceDiagram
@@ -94,6 +106,9 @@ sequenceDiagram
 ---
 
 ## Flow 3 — Add Transaction
+
+The form fetches its autocomplete data first. On submit, the server appends the
+entry to the journal and pushes it.
 
 ```mermaid
 sequenceDiagram
@@ -132,20 +147,27 @@ sequenceDiagram
 
 ## Authentication Layers
 
+Two independent checks guard the API.
+
 | Layer | Mechanism | Protects |
 |-------|-----------|----------|
-| Cloudflare Access | Service token (Client ID + Secret headers) | Blocks requests not originating from the Worker |
+| Cloudflare Access | Service token (Client ID + Secret headers) | Blocks requests that do not come from the Worker |
 | FastAPI Bearer token | `Authorization: Bearer ...` | Second layer if Access is bypassed |
 
-Neither token ever reaches the browser — both are injected by the Worker from its secret store (`wrangler secret put`).
+Neither token reaches the browser. The Worker reads both from its secret store
+(`wrangler secret put`) and adds them to each proxied request.
 
 ---
 
 ## Frontend State
 
-All state lives in `App.tsx` and is prop-drilled. No Redux or Context beyond `PrivacyContext` (an in-memory boolean). At the current scale (~20 components) this is intentional.
+All state lives in `App.tsx` and is passed down as props. There is no Redux and
+no Context other than `PrivacyContext`, which holds one boolean in memory. At
+the present size of about 20 components, this is a deliberate choice.
 
 ### Caching Strategy
+
+The app shows cached data first, then refreshes it.
 
 | Data | Where cached | TTL |
 |------|-------------|-----|
@@ -160,22 +182,28 @@ All state lives in `App.tsx` and is prop-drilled. No Redux or Context beyond `Pr
 
 ## Privacy Toggle
 
-The eye icon in the header toggles `privacyMode` in `PrivacyContext`. Resets on page reload — never persisted.
+The eye icon in the header sets `privacyMode` in `PrivacyContext`. The setting
+is never written to storage, so a page reload clears it.
 
-**Masked** (rendered as `••••` via `<MaskedAmount>`):
-- Net worth, assets, liabilities in summary cards
+`<MaskedAmount>` shows these values as `••••`:
+
+- Net worth, assets, and liabilities in the summary cards
 - Envelope balances and totals
-- Income transaction amounts (posting account starts with `income`)
+- Income transaction amounts, where the posting account starts with `income`
 - Income row amounts in the Monthly report
 
-**Never masked:**
+These stay visible:
+
 - Expense amounts
-- Account names, dates, descriptions
-- Dashboard charts (aggregate trend data)
+- Account names, dates, and descriptions
+- Dashboard charts, which show aggregate trends only
 
 ---
 
 ## Journal Git Flow
+
+Git is the transport between the desktop and the server. Both sides edit the
+same repository.
 
 ```mermaid
 sequenceDiagram
@@ -207,9 +235,10 @@ else's work.
 
 ## systemd Services (Home Server)
 
-Two services run permanently:
+Two services run continuously.
 
 **FastAPI** (`/etc/systemd/system/hledger-api.service`):
+
 ```ini
 [Unit]
 Description=hledger FastAPI
@@ -226,15 +255,19 @@ Restart=on-failure
 WantedBy=multi-user.target
 ```
 
-**Cloudflare Tunnel** — managed by `cloudflared service install` after authenticating.
+**Cloudflare Tunnel** — install it with `cloudflared service install` after you
+authenticate.
 
 ---
 
-## Build & Deploy
+## Build and Deploy
 
 ```bash
 cd hledger-worker
 npm run deploy   # vite build → dist/client/ then wrangler deploy
 ```
 
-After changing `wrangler.jsonc` bindings: `npm run cf-typegen` to regenerate `worker-configuration.d.ts`.
+If you change the bindings in `wrangler.jsonc`, run `npm run cf-typegen` to
+regenerate `worker-configuration.d.ts`.
+
+For the full setup procedure, see [deploy.md](deploy.md).

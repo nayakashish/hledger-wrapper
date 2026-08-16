@@ -6,6 +6,12 @@ __pycache__/
 .coverage
 .pytest_cache/
 
+# Test / coverage artefacts
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+
 # OS
 .DS_Store
 

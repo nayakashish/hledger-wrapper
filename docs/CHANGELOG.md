@@ -2,6 +2,17 @@
 
 Notable changes to the project are documented here. I track versions to have a good return point if I dislike a feature I've added or want to revert to another state. So versioning is not very strict. Follows major.minor, incrementing minor for new features/changes. 
 
+## [1.7] - 2026-08-03
+
+Search results sum + date/category filters — transaction search now summarizes
+and narrows what it finds.
+
+- Search results show a running **sum and count** of the matched transactions
+- Added **date-range and category (account) filters** to search, pushed down
+  into `hledger` itself (via `-p` / `acct:`) so the query only parses the
+  already-narrowed subset instead of filtering in the app
+- Tucked the filter controls behind a filter button to keep the search bar clean
+
 ## [1.6] - 2026-07-12
 
 Bottom-sheet scroll and dismiss fixes — the pop-up sheets now behave correctly

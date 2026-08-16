@@ -229,14 +229,28 @@ async function handleEmail(message: ForwardableEmailMessage, env: Env): Promise<
 		parsed: alert !== null,
 	};
 
-	const r = await fetch(`${env.API_BASE_URL}/inbox/ingest`, {
-		method: 'POST',
-		headers: apiAuthHeaders(env),
-		body: JSON.stringify(payload),
-	});
-	if (!r.ok) {
-		// Surface the failure in the Email Routing dashboard; the original
-		// alert is still in Gmail, and dedup makes retries safe.
-		throw new Error(`inbox ingest failed: ${r.status}`);
+	// An ingest failure must NOT propagate out of the email handler. Throwing
+	// temp-fails the inbound SMTP session, so Gmail retries for ~72h and spams
+	// a "Delivery incomplete" bounce notice on every attempt (this is what the
+	// 530 outage looked like: the home server / tunnel was down for hours).
+	// Instead we swallow it and log at error level — with observability enabled
+	// (wrangler.jsonc) this surfaces in Workers Logs for our own visibility,
+	// without touching the SMTP result. The original alert is still in Gmail,
+	// so recovery is a manual re-forward to the alerts address once the server
+	// is back; server-side dedup (email_message_id) makes that re-send a no-op
+	// if the item actually did land.
+	const label = `${parser.bank}, msg ${payload.email_message_id || 'none'}`;
+	try {
+		const r = await fetch(`${env.API_BASE_URL}/inbox/ingest`, {
+			method: 'POST',
+			headers: apiAuthHeaders(env),
+			body: JSON.stringify(payload),
+		});
+		if (!r.ok) {
+			console.error(`inbox ingest failed: ${r.status} (${label})`);
+		}
+	} catch (err) {
+		const detail = err instanceof Error ? err.message : String(err);
+		console.error(`inbox ingest error: ${detail} (${label})`);
 	}
 }

@@ -25,6 +25,7 @@ import AddSheet from './components/sheets/AddSheet';
 import DetailSheet from './components/sheets/DetailSheet';
 import AssignSheet from './components/sheets/AssignSheet';
 import InboxSheet from './components/sheets/InboxSheet';
+import SettingsSheet from './components/sheets/SettingsSheet';
 import Toast from './components/Toast';
 
 const CACHE_KEY = 'hledger_cache';
@@ -95,6 +96,7 @@ export default function App() {
 	const [assignTxn, setAssignTxn] = useState<PendingTxn | null>(null);
 	const [inboxOpen, setInboxOpen] = useState(false);
 	const [inboxPending, setInboxPending] = useState(0);
+	const [settingsOpen, setSettingsOpen] = useState(false);
 
 	// Toast
 	const [toastMsg, setToastMsg] = useState('');
@@ -266,6 +268,28 @@ export default function App() {
 		persistCache(cacheRef.current, envDataRef.current);
 	}, [loadAll]);
 
+	// Switching the active journal invalidates every cached report/list — they
+	// belong to the previous journal. Clear the persisted caches and in-memory
+	// state, reload everything from the new journal, and remount date-keyed
+	// views (heatmap) via syncKey.
+	const handleJournalSwitch = useCallback(async () => {
+		try {
+			localStorage.removeItem(CACHE_KEY);
+			localStorage.removeItem(ENV_CACHE_KEY);
+			localStorage.removeItem('hledger_accounts');
+			localStorage.removeItem('hledger_descriptions');
+		} catch {
+			// ignore
+		}
+		setCache({});
+		setEnvData(null);
+		setAccountsList([]);
+		setDescriptionsList([]);
+		await loadAll();
+		setSyncKey(prev => prev + 1);
+		persistCache(cacheRef.current, envDataRef.current);
+	}, [loadAll]);
+
 	return (
 		<PrivacyProvider>
 			<Banners isOffline={isOffline} />
@@ -273,6 +297,7 @@ export default function App() {
 				<Header
 					inboxPending={inboxPending > 0}
 					onInboxOpen={() => setInboxOpen(true)}
+					onSettingsOpen={() => setSettingsOpen(true)}
 				/>
 				<SyncRow
 					isSyncing={isSyncing}
@@ -297,6 +322,7 @@ export default function App() {
 				/>
 				<TransactionsView
 					data={cache.transactions ?? null}
+					accounts={accountsList}
 					isActive={activeView === 'transactions'}
 					onTxnClick={txn => setDetailContent({ kind: 'transaction', txn })}
 				/>
@@ -343,6 +369,13 @@ export default function App() {
 				onClose={() => setInboxOpen(false)}
 				onChange={handleInboxChange}
 				accountsList={accountsList}
+				showToast={showToast}
+			/>
+
+			<SettingsSheet
+				isOpen={settingsOpen}
+				onClose={() => setSettingsOpen(false)}
+				onJournalSwitch={handleJournalSwitch}
 				showToast={showToast}
 			/>
 		</PrivacyProvider>

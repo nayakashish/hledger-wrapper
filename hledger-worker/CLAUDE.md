@@ -116,9 +116,17 @@ npm run cf-typegen   # regenerates worker-configuration.d.ts
 
 ## Key API Endpoints (served by FastAPI on home server)
 
+The backend lives in `../api/` (a package under `api/app/`, split by domain
+into config/auth/hledger/git_ops/storage/models plus one router per area, with
+an atomic git-write wrapper for every mutating endpoint). See `api/README.md`
+for the package layout and how to run its pytest suite; the routes below are
+unchanged by that structure.
+
 | Path | Method | Description |
 |------|--------|-------------|
 | `/api/sync` | POST | Git pull + rebuild hledger data |
+| `/api/journals` | GET | List selectable journals (folders under `JOURNAL_DIR`), flagging the active one |
+| `/api/journals/select` | POST | Switch the active journal (`{name}`); seeds the journal's envelope/inbox stores if absent |
 | `/api/balance` | GET | Account balances (JSON) |
 | `/api/is` | GET | Income statement |
 | `/api/monthly` | GET | Monthly breakdown |
@@ -146,6 +154,21 @@ npm run cf-typegen   # regenerates worker-configuration.d.ts
 | `/api/inbox/rule` | POST | Save/replace a merchant rule ("Remember merchant") |
 
 The Transaction Inbox (email pipeline, suggestion engine, dedup) is documented in depth in `docs/transaction-inbox.md`.
+
+### Journals & the active-journal switcher
+
+A journal is a self-contained folder under `JOURNAL_DIR`
+(`2026/2026.journal` alongside `accounts.journal` / `envelopes.json` /
+`inbox.json`). The app can switch which one is active (Settings → Config):
+
+- `APP_CONFIG_FILE` (server-local, not committed to the journal repo) holds the
+  selection, e.g. `{"active_journal": "2026"}`.
+- `app/config.py`'s `get_settings()` resolves the journal/accounts/envelopes/
+  inbox paths from the selected journal's folder. Because every endpoint reads
+  config through `get_settings()`, the switch flows through all of them — reports,
+  search, `/add`, envelopes, and inbox — with no per-endpoint changes. When no
+  journal is selected, the `JOURNAL_FILE`/... env vars are the fallback, so a
+  pre-folder setup keeps working. See `api/env.example`.
 
 ## Coding Standards
 

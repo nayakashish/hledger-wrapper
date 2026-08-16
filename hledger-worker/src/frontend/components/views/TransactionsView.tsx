@@ -1,15 +1,27 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useMemo } from 'react';
 import { extractAmount, fmtAmount, amountClass, currentMonth } from '../../utils/format';
 import type { Transaction } from '../../types';
 import MaskedAmount from '../MaskedAmount';
 
 interface Props {
 	data: Transaction[] | null;
+	accounts: string[];
 	isActive: boolean;
 	onTxnClick: (txn: Transaction) => void;
 }
 
 const START_YEAR = 2026;
+
+interface SearchFilters {
+	q: string;
+	accounts: string[];
+	from: string;
+	to: string;
+}
+
+function filtersEmpty(f: SearchFilters): boolean {
+	return !f.q.trim() && f.accounts.length === 0 && !f.from && !f.to;
+}
 
 function buildMonthKeys(): string[] {
 	const now = new Date();
@@ -26,29 +38,37 @@ function buildMonthKeys(): string[] {
 	return keys;
 }
 
-export default function TransactionsView({ data, isActive, onTxnClick }: Props) {
+export default function TransactionsView({ data, accounts, isActive, onTxnClick }: Props) {
 	const monthKeys = buildMonthKeys();
 	const latestMonth = currentMonth();
 	const [selectedMonth, setSelectedMonth] = useState(latestMonth);
 	const [searchQuery, setSearchQuery] = useState('');
+	const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
+	const [dateFrom, setDateFrom] = useState('');
+	const [dateTo, setDateTo] = useState('');
+	const [accountPick, setAccountPick] = useState('');
+	const [advancedOpen, setAdvancedOpen] = useState(false);
 	const [searchResults, setSearchResults] = useState<Transaction[] | null>(null);
 	const [isSearching, setIsSearching] = useState(false);
 	const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+	const hasAdvancedFilters = selectedAccounts.length > 0 || dateFrom !== '' || dateTo !== '';
+	const hasActiveFilters = searchQuery.trim() !== '' || hasAdvancedFilters;
 
 	const monthLabel = (key: string) => {
 		const dt = new Date(key + '-01T00:00:00');
 		return dt.toLocaleDateString('en-CA', { month: 'long', year: 'numeric' });
 	};
 
-	const runSearch = useCallback(async (q: string) => {
-		const trimmed = q.trim();
-		if (!trimmed) {
-			setSearchResults(null);
-			return;
-		}
+	const runSearch = useCallback(async (f: SearchFilters) => {
 		setIsSearching(true);
 		try {
-			const r = await fetch('/api/search?q=' + encodeURIComponent(trimmed));
+			const params = new URLSearchParams();
+			if (f.q.trim()) params.set('q', f.q.trim());
+			f.accounts.forEach(a => params.append('account', a));
+			if (f.from) params.set('from_date', f.from);
+			if (f.to) params.set('to_date', f.to);
+			const r = await fetch('/api/search?' + params.toString());
 			if (!r.ok) throw new Error(String(r.status));
 			const json = await r.json() as { raw: string };
 			setSearchResults(JSON.parse(json.raw) as Transaction[]);
@@ -59,14 +79,67 @@ export default function TransactionsView({ data, isActive, onTxnClick }: Props) 
 		}
 	}, []);
 
-	const handleSearchChange = (q: string) => {
-		setSearchQuery(q);
+	const triggerSearch = useCallback((f: SearchFilters, debounce: boolean) => {
 		if (searchTimer.current) clearTimeout(searchTimer.current);
-		if (!q.trim()) {
+		if (filtersEmpty(f)) {
 			setSearchResults(null);
 			return;
 		}
-		searchTimer.current = setTimeout(() => void runSearch(q), 200);
+		if (debounce) {
+			searchTimer.current = setTimeout(() => void runSearch(f), 200);
+		} else {
+			void runSearch(f);
+		}
+	}, [runSearch]);
+
+	const currentFilters = (overrides: Partial<SearchFilters> = {}): SearchFilters => ({
+		q: searchQuery,
+		accounts: selectedAccounts,
+		from: dateFrom,
+		to: dateTo,
+		...overrides,
+	});
+
+	const handleSearchChange = (q: string) => {
+		setSearchQuery(q);
+		triggerSearch(currentFilters({ q }), true);
+	};
+
+	const addAccountFilter = (acct: string) => {
+		setAccountPick('');
+		if (!acct || selectedAccounts.includes(acct)) return;
+		const next = [...selectedAccounts, acct];
+		setSelectedAccounts(next);
+		triggerSearch(currentFilters({ accounts: next }), false);
+	};
+
+	const removeAccountFilter = (acct: string) => {
+		const next = selectedAccounts.filter(a => a !== acct);
+		setSelectedAccounts(next);
+		triggerSearch(currentFilters({ accounts: next }), false);
+	};
+
+	const handleDateChange = (which: 'from' | 'to', value: string) => {
+		const from = which === 'from' ? value : dateFrom;
+		const to = which === 'to' ? value : dateTo;
+		setDateFrom(from);
+		setDateTo(to);
+		triggerSearch(currentFilters({ from, to }), true);
+	};
+
+	const clearDateFilter = () => {
+		setDateFrom('');
+		setDateTo('');
+		triggerSearch(currentFilters({ from: '', to: '' }), false);
+	};
+
+	const clearAllFilters = () => {
+		if (searchTimer.current) clearTimeout(searchTimer.current);
+		setSearchQuery('');
+		setSelectedAccounts([]);
+		setDateFrom('');
+		setDateTo('');
+		setSearchResults(null);
 	};
 
 	const [monthlyTxns, setMonthlyTxns] = useState<Transaction[] | null>(null);
@@ -74,7 +147,7 @@ export default function TransactionsView({ data, isActive, onTxnClick }: Props) 
 
 	const handleMonthChange = useCallback(async (month: string) => {
 		setSelectedMonth(month);
-		if (searchQuery.trim()) return;
+		if (hasActiveFilters) return;
 		setMonthLoading(true);
 		try {
 			const r = await fetch(`/api/transactions?month=${month}`);
@@ -86,11 +159,33 @@ export default function TransactionsView({ data, isActive, onTxnClick }: Props) 
 		} finally {
 			setMonthLoading(false);
 		}
-	}, [searchQuery]);
+	}, [hasActiveFilters]);
 
-	const displayTxns = searchQuery.trim()
+	const displayTxns = hasActiveFilters
 		? searchResults
 		: (monthlyTxns ?? (data ? data.filter(t => (t.tdate || '').startsWith(selectedMonth)) : null));
+
+	const searchTotal = useMemo(() => {
+		if (!searchResults || searchResults.length === 0) return null;
+		let sum = 0;
+		let commodity = '$';
+		for (const txn of searchResults) {
+			const { val, commodity: com } = extractAmount(txn.tpostings?.[0]?.pamount);
+			sum += val;
+			commodity = com || commodity;
+		}
+		return { sum, commodity };
+	}, [searchResults]);
+
+	const dateChipLabel = dateFrom && dateTo
+		? `${dateFrom} → ${dateTo}`
+		: dateFrom
+		? `From ${dateFrom}`
+		: dateTo
+		? `Until ${dateTo}`
+		: null;
+
+	const availableAccounts = accounts.filter(a => !selectedAccounts.includes(a));
 
 	return (
 		<div className={`view${isActive ? ' active' : ''}`} id="view-transactions">
@@ -98,41 +193,122 @@ export default function TransactionsView({ data, isActive, onTxnClick }: Props) 
 				<div className="state-msg">Tap sync to load data.</div>
 			) : (
 				<>
-					<div className="search-wrap">
-						<input
-							type="search"
-							className="search-input"
-							placeholder="Search all transactions…"
-							autoComplete="off"
-							autoCorrect="off"
-							spellCheck={false}
-							value={searchQuery}
-							onChange={e => handleSearchChange(e.target.value)}
-						/>
-						{searchQuery && (
-							<button
-								className="search-clear visible"
-								onClick={() => {
-									setSearchQuery('');
-									setSearchResults(null);
-								}}
-							>
-								✕
-							</button>
-						)}
+					<div className="search-row">
+						<div className="search-wrap">
+							<input
+								type="search"
+								className="search-input"
+								placeholder="Search transactions…"
+								autoComplete="off"
+								autoCorrect="off"
+								spellCheck={false}
+								value={searchQuery}
+								onChange={e => handleSearchChange(e.target.value)}
+							/>
+							{searchQuery && (
+								<button
+									className="search-clear visible"
+									onClick={() => handleSearchChange('')}
+									aria-label="Clear search"
+								>
+									✕
+								</button>
+							)}
+						</div>
+						<button
+							className={`filter-toggle${advancedOpen ? ' open' : ''}`}
+							onClick={() => setAdvancedOpen(o => !o)}
+							aria-label="Filters"
+							aria-expanded={advancedOpen}
+						>
+							<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+								<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+							</svg>
+							{hasAdvancedFilters && <span className="filter-dot" />}
+						</button>
 					</div>
 
-					{searchQuery.trim() && searchResults !== null && (
-						<div className="search-count">
-							{isSearching
-								? 'Searching…'
-								: searchResults.length === 0
-								? 'No results'
-								: `${searchResults.length} result${searchResults.length === 1 ? '' : 's'}`}
+					{advancedOpen && (
+						<div className="adv-panel">
+							<div className="adv-field">
+								<span className="adv-label">Date range</span>
+								<div className="adv-date-row">
+									<label className="adv-date-group">
+										<span className="adv-date-caption">From</span>
+										<input
+											type="date"
+											className="adv-date-input"
+											value={dateFrom}
+											max={dateTo || undefined}
+											onChange={e => handleDateChange('from', e.target.value)}
+										/>
+									</label>
+									<label className="adv-date-group">
+										<span className="adv-date-caption">To</span>
+										<input
+											type="date"
+											className="adv-date-input"
+											value={dateTo}
+											min={dateFrom || undefined}
+											onChange={e => handleDateChange('to', e.target.value)}
+										/>
+									</label>
+								</div>
+							</div>
+							<div className="adv-field">
+								<span className="adv-label">Category</span>
+								<select
+									className="adv-select"
+									value={accountPick}
+									onChange={e => addAccountFilter(e.target.value)}
+								>
+									<option value="">Add a category…</option>
+									{availableAccounts.map(a => (
+										<option key={a} value={a}>{a}</option>
+									))}
+								</select>
+							</div>
 						</div>
 					)}
 
-					{!searchQuery.trim() && (
+					{hasAdvancedFilters && (
+						<div className="filter-chips">
+							{dateChipLabel && (
+								<span className="filter-chip">
+									{dateChipLabel}
+									<button className="filter-chip-remove" onClick={clearDateFilter} aria-label="Remove date filter">✕</button>
+								</span>
+							)}
+							{selectedAccounts.map(a => (
+								<span className="filter-chip" key={a}>
+									{a}
+									<button className="filter-chip-remove" onClick={() => removeAccountFilter(a)} aria-label={`Remove ${a} filter`}>✕</button>
+								</span>
+							))}
+							<button className="filter-clear-all" onClick={clearAllFilters}>Clear all</button>
+						</div>
+					)}
+
+					{hasActiveFilters && searchResults !== null && (
+						isSearching ? (
+							<div className="search-count">Searching…</div>
+						) : searchResults.length === 0 ? (
+							<div className="search-count">No results</div>
+						) : (
+							<div className="search-count search-count-row">
+								{searchTotal && (
+									<MaskedAmount
+										value={searchTotal.sum}
+										commodity={searchTotal.commodity}
+										className={`search-total ${amountClass(searchTotal.sum)}`}
+									/>
+								)}
+								<span>{searchResults.length} result{searchResults.length === 1 ? '' : 's'}</span>
+							</div>
+						)
+					)}
+
+					{!hasActiveFilters && (
 						<div className="month-select-row">
 							<select
 								className="month-select"

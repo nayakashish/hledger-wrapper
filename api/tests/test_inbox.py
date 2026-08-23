@@ -93,6 +93,48 @@ def test_ingest_dedup_by_journal_match(client, auth, fake_hledger, fake_git, see
     assert resp.json() == {"status": "duplicate", "reason": "journal"}
 
 
+def test_ingest_pending_dedup_commits_seen_message_id(client, auth, env, fake_hledger, fake_git, seed_inbox):
+    """The seen-id guard is only useful if it reaches the remote — otherwise a
+    re-forwarded alert re-ingests on another device (#17)."""
+    seed_inbox(base_inbox_data(items=[{
+        "id": "ibx-1", "card_last4": "1234", "amount": 12.50, "txn_date": "2026-01-05",
+        "merchant_clean": "x", "parsed": True,
+    }]))
+    fake_hledger.set_txns([])
+    resp = client.post("/inbox/ingest", headers=auth, json={
+        "amount": 12.50, "merchant": "Store", "card_last4": "1234",
+        "txn_date": "2026-01-06", "email_message_id": "msg1",
+    })
+    assert resp.json() == {"status": "duplicate", "reason": "pending"}
+    assert [c[0] for c in fake_git.calls] == ["rev-parse", "add", "commit", "push"]
+    assert json.loads(env["inbox_file"].read_text())["seen_message_ids"] == ["msg1"]
+
+
+def test_ingest_journal_dedup_commits_seen_message_id(client, auth, env, fake_hledger, fake_git, seed_inbox):
+    seed_inbox(base_inbox_data())
+    fake_hledger.set_txns([make_txn("2026-01-06", "Already Posted", [("expenses:misc", 12.50), ("assets:chequing", -12.50)])])
+    resp = client.post("/inbox/ingest", headers=auth, json={
+        "amount": 12.50, "merchant": "Store", "card_last4": "1234",
+        "txn_date": "2026-01-06", "email_message_id": "msg1",
+    })
+    assert resp.json() == {"status": "duplicate", "reason": "journal"}
+    assert [c[0] for c in fake_git.calls] == ["rev-parse", "add", "commit", "push"]
+    assert json.loads(env["inbox_file"].read_text())["seen_message_ids"] == ["msg1"]
+
+
+def test_ingest_dedup_without_message_id_makes_no_commit(client, auth, fake_hledger, fake_git, seed_inbox):
+    seed_inbox(base_inbox_data(items=[{
+        "id": "ibx-1", "card_last4": "1234", "amount": 12.50, "txn_date": "2026-01-05",
+        "merchant_clean": "x", "parsed": True,
+    }]))
+    fake_hledger.set_txns([])
+    resp = client.post("/inbox/ingest", headers=auth, json={
+        "amount": 12.50, "merchant": "Store", "card_last4": "1234", "txn_date": "2026-01-06",
+    })
+    assert resp.json() == {"status": "duplicate", "reason": "pending"}
+    assert fake_git.calls == []
+
+
 def test_ingest_amount_out_of_range_400(client, auth, fake_hledger, seed_inbox):
     seed_inbox(base_inbox_data())
     resp = client.post("/inbox/ingest", headers=auth, json={"amount": 2_000_000, "merchant": "Store"})

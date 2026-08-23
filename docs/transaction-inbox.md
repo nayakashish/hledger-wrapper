@@ -231,7 +231,9 @@ the journal you are looking at. Four consequences follow:
   the active journal to that journal first.
 
 The file also holds the two settings you maintain by hand, `card_map` and
-`merchant_rules`, and the `seen_message_ids` list used for dedup.
+`merchant_rules`, and the `seen_message_ids` list used for dedup. A dropped
+duplicate still commits and pushes its message id, so the guard holds on every
+device rather than only on the server that received the alert.
 
 ## API Reference
 

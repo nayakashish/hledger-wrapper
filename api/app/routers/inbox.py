@@ -259,7 +259,8 @@ def inbox_ingest(body: InboxIngest, token: str = Security(verify_token)):
                 if abs((d - center).days) <= INBOX_MATCH_WINDOW_DAYS:
                     if msg_id:
                         data["seen_message_ids"].append(msg_id)
-                        _save_inbox_data(data, inbox_path)
+                        with git_transaction([inbox_path], f"inbox: seen duplicate alert {_clean_merchant(merchant)[:40]} {txn_date}"):
+                            _save_inbox_data(data, inbox_path)
                     return {"status": "duplicate", "reason": "pending"}
 
         if len(data["items"]) >= INBOX_MAX_PENDING:
@@ -271,7 +272,8 @@ def inbox_ingest(body: InboxIngest, token: str = Security(verify_token)):
         if body.parsed and _find_journal_match(txns, body.amount, txn_date):
             if msg_id:
                 data["seen_message_ids"].append(msg_id)
-                _save_inbox_data(data, inbox_path)
+                with git_transaction([inbox_path], f"inbox: seen already-posted alert {_clean_merchant(merchant)[:40]} {txn_date}"):
+                    _save_inbox_data(data, inbox_path)
             return {"status": "duplicate", "reason": "journal"}
 
         item = {

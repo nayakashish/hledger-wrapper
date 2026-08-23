@@ -270,7 +270,8 @@ names, dates, and descriptions stay visible.
 `envelopes.json` lives in the journal repository, at the path given by
 `ENVELOPE_DATA_FILE`. Every endpoint that changes it — scan, assign, dismiss,
 transfer, adjust, create, and delete — writes the file and then commits and
-pushes it with a message tagged `Source: hledger-mobile-api`. The git history is
+pushes it with a message tagged `Source: hledger-mobile-api`. A scan that finds
+no new transactions writes nothing and makes no commit. The git history is
 the durable audit trail. The `history` array in the file is the one you see in
 the app.
 

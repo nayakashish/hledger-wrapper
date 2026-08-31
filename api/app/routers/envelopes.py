@@ -175,7 +175,14 @@ def scan_transactions(token: str = Security(verify_token)):
         pending_ids.add(tid)
         added.append(pending_entry)
 
-    _save_env_data(data)
+    if not added:
+        # Nothing changed — skip the commit so git has nothing to complain about.
+        return {"status": "ok", "added": 0, "pending_total": len(data["pending"])}
+
+    settings = get_settings()
+    with git_transaction([settings.envelope_data_file], f"envelopes: scan {len(added)} new pending"):
+        _save_env_data(data)
+
     return {"status": "ok", "added": len(added), "pending_total": len(data["pending"])}
 
 

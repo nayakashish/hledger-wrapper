@@ -27,7 +27,7 @@ def test_get_envelopes_missing_data_file_503(client, auth, env):
     assert resp.status_code == 503
 
 
-def test_scan_adds_new_pending_and_skips_matched(client, auth, fake_hledger, seed_envelopes):
+def test_scan_adds_new_pending_and_skips_matched(client, auth, fake_hledger, fake_git, seed_envelopes):
     seed_envelopes(base_env_data(matched_hledger_txns=["2026-01-01|Old|1"]))
     fake_hledger.set_txns([
         make_txn("2026-01-01", "Old", [("expenses:misc", 5), ("assets:chequing", -5)], tindex=1),
@@ -44,7 +44,7 @@ def test_scan_skips_already_pending(client, auth, fake_hledger, seed_envelopes):
     assert resp.json()["added"] == 0
 
 
-def test_scan_types_income_vs_expense(client, auth, fake_hledger, seed_envelopes):
+def test_scan_types_income_vs_expense(client, auth, fake_hledger, fake_git, seed_envelopes):
     seed_envelopes(base_env_data())
     fake_hledger.set_txns([make_txn("2026-01-05", "Paycheck", [("income:salary", -100), ("assets:chequing", 100)])])
     client.post("/envelopes/scan", headers=auth)
@@ -58,6 +58,32 @@ def test_scan_zero_amount_skipped(client, auth, fake_hledger, seed_envelopes):
     fake_hledger.set_txns([make_txn("2026-01-05", "Zero", [("expenses:misc", 0), ("assets:chequing", 0)])])
     resp = client.post("/envelopes/scan", headers=auth)
     assert resp.json()["added"] == 0
+
+
+def test_scan_commits_and_pushes_new_pending(client, auth, fake_hledger, fake_git, seed_envelopes):
+    seed_envelopes(base_env_data())
+    fake_hledger.set_txns([make_txn("2026-01-05", "Coffee", [("expenses:food:diningout", 5), ("assets:chequing", -5)])])
+    resp = client.post("/envelopes/scan", headers=auth)
+    assert resp.status_code == 200
+    subcommands = [c[0] for c in fake_git.calls]
+    assert subcommands == ["rev-parse", "add", "commit", "push"]
+
+
+def test_scan_no_new_txns_makes_no_commit(client, auth, fake_hledger, fake_git, seed_envelopes):
+    seed_envelopes(base_env_data(matched_hledger_txns=["2026-01-05|Coffee|1"]))
+    fake_hledger.set_txns([make_txn("2026-01-05", "Coffee", [("expenses:food:diningout", 5), ("assets:chequing", -5)])])
+    resp = client.post("/envelopes/scan", headers=auth)
+    assert resp.json()["added"] == 0
+    assert fake_git.calls == []
+
+
+def test_scan_failed_push_rolls_back(client, auth, fake_hledger, fake_git, seed_envelopes):
+    seed_envelopes(base_env_data())
+    fake_hledger.set_txns([make_txn("2026-01-05", "Coffee", [("expenses:food:diningout", 5), ("assets:chequing", -5)])])
+    fake_git.fail_on = "push"
+    resp = client.post("/envelopes/scan", headers=auth)
+    assert resp.status_code == 500
+    assert ("reset", "--hard", fake_git.head) in fake_git.calls
 
 
 def test_scan_malformed_hledger_output_500(client, auth, fake_hledger, seed_envelopes):

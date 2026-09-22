@@ -2,6 +2,58 @@
 
 Notable changes to the project are documented here. I track versions to have a good return point if I dislike a feature I've added or want to revert to another state. So versioning is not very strict. Follows major.minor, incrementing minor for new features/changes. 
 
+## [1.9] - 2026-09-21
+
+Add-transaction presets — the add button opens on a list of common
+transaction types that arrive with their accounts, signs, and titles already
+decided, so the usual entry is a date and an amount (#20). Also the monthly
+income/expenses chart and the inbox preview fix found alongside it.
+
+- **Preset picker on the add sheet.** Regular expense, pay credit card,
+  transfer between accounts, receive e-transfer, send e-transfer, plus
+  "Something else…" for the original seven-step flow, which is unchanged.
+  Every preset takes one positive amount — the account receiving it is always
+  the first posting, so the second is its inverse and there is no second
+  amount to enter — and every preset still ends at the same editable preview
+- **A preset names a transaction shape, never an account.** "Pay credit card"
+  is a positive `liabilities:` posting against a negative `assets:` one, and
+  the accounts come back from the journal, which already records them. No
+  personal account name enters the app repo and every preset works on any
+  journal. Titles come from the matched transaction, which is the only way to
+  recover wording that no account name contains
+- Added `GET /presets`, resolving every preset in one journal scan and
+  reporting whether each answer came from history or the stored fallback. A
+  description hint separates shapes that collide — a received e-transfer and a
+  paycheque are both "asset up, income down", and only the wording tells them
+  apart
+- Added a `presets.json` sidecar in the journal folder, the fallback for a
+  journal too new to infer from. Seeded on journal switch from the journal
+  being left, and committed so other devices get the same answer: January
+  works because December already answered. Best-effort — a failed seed costs
+  a preset its preselected account and never blocks the switch
+- Presets with no title template (regular expense, account transfer) ask for
+  a description; the e-transfer presets take an optional note alongside the
+  name, appended to the title as an hledger inline comment. Where a
+  description lookup matches, it preselects the sides the form would otherwise
+  ask about, but never overrides a side the preset already resolved
+- **Refactor:** one journal-history lookup module (`app/prediction.py`) now
+  backs `/lookup`, `/descriptions`, and the preset resolution, which asked the
+  same question of the same scan with three different predicates. The inbox
+  suggester is the remaining caller and moves onto it next — that is what will
+  let its hardcoded account names go
+- **Refactor:** one `EntryPreview` component now backs the entry textarea in
+  both the add sheet and the inbox review, which had drifted into two
+  behaviours
+- Fixed the inbox entry preview swallowing the first tap: it sat behind
+  `readOnly` and flipped the flag without focusing anything, so the tap
+  produced no cursor and no keyboard and read as dead. Unlocking and focusing
+  now happen together
+- Added a monthly income/expenses chart to the dashboard, above the category
+  comparison — one bar per month, switchable between expenses (the default)
+  and income, with the YTD total and monthly average beneath it
+- Pinned the Worker to its custom domain in `wrangler.jsonc`, and bumped the
+  API's pinned dependency versions to what the server runs
+
 ## [1.8] - 2026-08-08
 
 Journal switching — pick which journal is active from inside the app, for users

@@ -111,7 +111,7 @@ export default function SettingsSheet({ isOpen, onClose, onJournalSwitch, showTo
 						<CloseIcon />
 					</button>
 				</div>
-				<div className="assign-body">
+				<div className={`assign-body${section === 'root' ? ' settings-body' : ''}`}>
 					{section === 'root' ? (
 						<>
 						<button className="settings-row" onClick={() => setSection('config')}>
@@ -189,9 +189,9 @@ function VersionBlock({ info, failed }: { info: VersionInfo | null; failed: bool
 			{info && (info.branch || info.dirty || info.committed_at) && (
 				<div className="version-detail">
 					{[
-						info.branch,
-						info.committed_at ? relativeDay(info.committed_at) : '',
-						info.dirty ? 'uncommitted changes' : '',
+						info.branch ? `API on branch ${info.branch}` : '',
+						info.committed_at ? `committed ${relativeDay(info.committed_at)}` : '',
+						info.dirty ? 'with uncommitted changes' : '',
 					].filter(Boolean).join(' · ')}
 				</div>
 			)}

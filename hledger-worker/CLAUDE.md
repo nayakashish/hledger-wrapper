@@ -60,6 +60,7 @@ hledger-worker/
         │   └── useSheetSwipe.ts
         └── components/
             ├── Header.tsx        ← title + inbox icon + privacy toggle
+            ├── EntryPreview.tsx  ← shared editable journal-entry textarea
             ├── Nav.tsx
             ├── SummaryCards.tsx
             ├── SyncRow.tsx
@@ -76,7 +77,7 @@ hledger-worker/
             │   ├── TransactionsView.tsx
             │   └── EnvelopesView.tsx
             └── sheets/
-                ├── AddSheet.tsx
+                ├── AddSheet.tsx      ← preset picker + per-preset step plan
                 ├── DetailSheet.tsx   ← shared bottom sheet (txn + env detail)
                 ├── AssignSheet.tsx
                 └── InboxSheet.tsx    ← transaction inbox review (list + review)
@@ -145,6 +146,7 @@ unchanged by that structure.
 | `/api/envelopes/dismiss` | POST | Dismiss a pending transaction |
 | `/api/envelopes/create` | POST | Create a new envelope |
 | `/api/envelopes/<id>` | DELETE | Delete an envelope |
+| `/api/presets` | GET | Add-transaction presets with accounts/titles resolved from journal history (see `docs/add-presets.md`) |
 | `/api/monthly-detail` | GET | Monthly breakdown with transaction drilldown |
 | `/api/daily-totals` | GET | `?from_date=YYYY-MM-DD` per-day counts/totals (heatmap) |
 | `/api/inbox` | GET | Pending inbox items + live journal match |
@@ -155,6 +157,8 @@ unchanged by that structure.
 | `/api/inbox/rule` | POST | Save/replace a merchant rule ("Remember merchant") |
 
 The Transaction Inbox (email pipeline, suggestion engine, dedup) is documented in depth in `docs/transaction-inbox.md`.
+Add-transaction presets (how a preset resolves its accounts, and the
+`presets.json` sidecar) are documented in `docs/add-presets.md`.
 
 ### Journals & the active-journal switcher
 

@@ -13,6 +13,7 @@ class Settings:
     default_currency: str
     envelope_data_file: str
     inbox_data_file: str
+    presets_data_file: str  # remembered preset resolutions (see app/presets.py)
     active_journal: str  # selected journal folder name, "" when none is selected
 
 
@@ -80,6 +81,7 @@ def journal_paths(journal_dir: str, name: str) -> dict:
         "accounts_file": accounts if os.path.exists(accounts) else "",
         "envelope_data_file": os.path.join(base, "envelopes.json"),
         "inbox_data_file": os.path.join(base, "inbox.json"),
+        "presets_data_file": os.path.join(base, "presets.json"),
     }
 
 
@@ -110,6 +112,7 @@ def get_settings() -> Settings:
     accounts_file = os.getenv("ACCOUNTS_FILE", "")
     envelope_data_file = os.getenv("ENVELOPE_DATA_FILE", "")
     inbox_data_file = os.getenv("INBOX_DATA_FILE", "")
+    presets_data_file = os.getenv("PRESETS_DATA_FILE", "")
 
     active = active_journal_name()
     if active and journal_dir:
@@ -118,6 +121,7 @@ def get_settings() -> Settings:
         accounts_file = paths["accounts_file"]
         envelope_data_file = paths["envelope_data_file"]
         inbox_data_file = paths["inbox_data_file"]
+        presets_data_file = paths["presets_data_file"]
 
     return Settings(
         journal_dir=journal_dir,
@@ -128,5 +132,6 @@ def get_settings() -> Settings:
         default_currency=os.getenv("DEFAULT_CURRENCY", "$"),
         envelope_data_file=envelope_data_file,
         inbox_data_file=inbox_data_file,
+        presets_data_file=presets_data_file,
         active_journal=active,
     )

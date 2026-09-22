@@ -139,3 +139,69 @@ def test_select_inbox_journal_rejects_demo(client, auth, journals_env):
 def test_select_inbox_journal_rejects_unknown(client, auth, journals_env):
     resp = client.post("/journals/select-inbox", json={"name": "1999"}, headers=auth)
     assert resp.status_code == 400
+
+
+@pytest.fixture
+def journal_history(monkeypatch):
+    """Canned journal history plus a recording git, patched directly rather
+    than through conftest's fakes: those depend on the `env` fixture, whose
+    JOURNAL_DIR would override journals_env's."""
+    from conftest import make_txn
+
+    txns = [make_txn("2026-09-06", "Monthly Card Payment", [
+        ("liabilities:creditcard:main", 45.01),
+        ("assets:chequing", -45.01),
+    ])]
+    calls: list[tuple] = []
+
+    def fake_hledger(*args):
+        return json.dumps(txns)
+
+    def fake_git(*args):
+        calls.append(args)
+        if args[:2] == ("rev-parse", "HEAD"):
+            return "deadbeef\n"
+        if getattr(fake_git, "fail_on", None) and args[0] == fake_git.fail_on:
+            raise RuntimeError(f"simulated {args[0]} failure")
+        return ""
+
+    monkeypatch.setattr("app.prediction.run_hledger", fake_hledger)
+    monkeypatch.setattr("app.git_ops.run_git", fake_git)
+    return {"git_calls": calls, "git": fake_git}
+
+
+def test_select_carries_presets_into_a_fresh_journal(client, auth, journals_env, journal_history):
+    """A new year's journal has no history to infer presets from, so selecting
+    it stores what the journal we're leaving resolves to — and commits it, so
+    the other devices get the same answer."""
+    resp = client.post("/journals/select", headers=auth, json={"name": "2027"})
+    assert resp.status_code == 200
+
+    stored = json.loads((journals_env["root"] / "2027" / "presets.json").read_text())
+    assert stored["resolved"]["pay-card"] == {
+        "debit": "liabilities:creditcard:main",
+        "credit": "assets:chequing",
+        "title": "Monthly Card Payment",
+    }
+    assert [c[0] for c in journal_history["git_calls"]] == ["rev-parse", "add", "commit", "push"]
+
+
+def test_select_does_not_overwrite_existing_presets(client, auth, journals_env, journal_history):
+    existing = journals_env["root"] / "2027" / "presets.json"
+    existing.write_text(json.dumps({"resolved": {"pay-card": {"debit": "kept"}}}))
+
+    client.post("/journals/select", headers=auth, json={"name": "2027"})
+
+    assert json.loads(existing.read_text())["resolved"]["pay-card"]["debit"] == "kept"
+    assert journal_history["git_calls"] == []
+
+
+def test_select_still_works_when_presets_cannot_be_seeded(client, auth, journals_env, journal_history):
+    """Seeding is best-effort: a failed push costs a preset its preselected
+    account, which must not block switching journals."""
+    journal_history["git"].fail_on = "push"
+
+    resp = client.post("/journals/select", headers=auth, json={"name": "2027"})
+
+    assert resp.status_code == 200
+    assert json.loads(journals_env["cfg"].read_text())["active_journal"] == "2027"

@@ -13,10 +13,14 @@ from ..config import (
     load_app_config,
     save_app_config,
 )
+from ..git_ops import git_transaction
 from ..models import JournalSelect
+from ..prediction import load_transactions
+from ..presets import resolve_all, snapshot
 from ..storage import save_json
 from .envelopes import _default_env_data
 from .inbox import _default_inbox_data
+from .presets import load_stored_presets
 
 router = APIRouter()
 
@@ -28,6 +32,32 @@ def _seed_sidecars_if_missing(paths: dict) -> None:
         save_json(paths["envelope_data_file"], _default_env_data())
     if not os.path.exists(paths["inbox_data_file"]):
         save_json(paths["inbox_data_file"], _default_inbox_data())
+    _carry_presets_forward(paths)
+
+
+def _carry_presets_forward(paths: dict) -> None:
+    """Copy the presets this journal resolves today into a journal that has no
+    history to resolve from.
+
+    A new year's journal starts empty, so every preset would come up blank
+    until enough transactions existed to infer from — the one gap inference
+    cannot cover. Resolving against the journal we are leaving and storing the
+    result means January works because December already answered.
+
+    Committed, not just written, so the answer reaches the other devices; and
+    best-effort, because failing to seed only costs a preset its preselected
+    account, which is not worth blocking a journal switch over."""
+    path = paths.get("presets_data_file", "")
+    if not path or os.path.exists(path):
+        return
+    try:
+        remembered = snapshot(resolve_all(load_transactions(), load_stored_presets()))
+        if not remembered:
+            return
+        with git_transaction([path], "chore: carry presets into a new journal"):
+            save_json(path, {"resolved": remembered})
+    except Exception:
+        return
 
 
 @router.get("/journals")

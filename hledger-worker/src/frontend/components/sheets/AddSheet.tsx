@@ -37,6 +37,10 @@ function stepsFor(preset: Preset | null): Step[] {
 		'preset',
 		'date',
 		...(preset.asks_party ? ['party' as Step] : []),
+		// A preset with no title template has nothing to call the entry, so it
+		// asks — an expense or an account transfer needs a description the same
+		// way the free-form flow does.
+		...(preset.title ? [] : ['description' as Step]),
 		...(preset.debit?.pick ? ['account1' as Step] : []),
 		...(preset.credit?.pick ? ['account2' as Step] : []),
 		'amount1',
@@ -44,9 +48,13 @@ function stepsFor(preset: Preset | null): Step[] {
 	];
 }
 
-/** Fill a preset's title template, e.g. "e-transfer to {name}". */
-function fillTitle(title: string | undefined, party: string): string {
-	return (title ?? '').replace('{name}', party.trim());
+/** Fill a preset's title template, e.g. "e-transfer to {name}", and append an
+ * optional note as an hledger inline comment — the same "  ; note" convention
+ * the inbox review uses. */
+function fillTitle(title: string | undefined, party: string, note = ''): string {
+	const filled = (title ?? '').replace('{name}', party.trim());
+	const n = note.trim();
+	return n ? `${filled}  ; ${n}` : filled;
 }
 
 interface Props {
@@ -170,8 +178,9 @@ export default function AddSheet({
 						<PartyStep
 							label={preset?.id === 'receive-etransfer' ? 'Who sent it?' : 'Who is it going to?'}
 							value={form.party}
-							onNext={party => {
-								updateForm({ party, description: fillTitle(preset?.title, party) });
+							note={form.note}
+							onNext={(party, note) => {
+								updateForm({ party, note, description: fillTitle(preset?.title, party, note) });
 								goNext();
 							}}
 						/>
@@ -198,7 +207,16 @@ export default function AddSheet({
 										predicted = j.match || null;
 									}
 								} catch { /* ignore */ }
-								updateForm({ _predicted: predicted, _amount2edited: false });
+								// A description match is more specific than the
+								// preset's shape, so let it preselect the sides
+								// the form would otherwise ask about — but never
+								// override a side the preset already resolved.
+								const refined: Partial<AddFormState> = {};
+								if (predicted && preset && !preset.free_form) {
+									if (preset.debit?.pick && predicted.account1) refined.account1 = predicted.account1;
+									if (preset.credit?.pick && predicted.account2) refined.account2 = predicted.account2;
+								}
+								updateForm({ _predicted: predicted, _amount2edited: false, ...refined });
 								goNext();
 							}}
 						/>
@@ -323,20 +341,23 @@ function PresetStep({
 function PartyStep({
 	label,
 	value,
+	note,
 	onNext,
 }: {
 	label: string;
 	value?: string;
-	onNext: (party: string) => void;
+	note?: string;
+	onNext: (party: string, note: string) => void;
 }) {
 	const [text, setText] = useState(value || '');
+	const [noteText, setNoteText] = useState(note || '');
 	const inputRef = useRef<HTMLInputElement>(null);
 
 	useEffect(() => {
 		setTimeout(() => inputRef.current?.focus(), 50);
 	}, []);
 
-	const advance = () => { if (text.trim()) onNext(text.trim()); };
+	const advance = () => { if (text.trim()) onNext(text.trim(), noteText); };
 
 	return (
 		<>
@@ -351,6 +372,16 @@ function PartyStep({
 				autoCorrect="off"
 				spellCheck={false}
 				onChange={e => setText(e.target.value)}
+				onKeyDown={e => { if (e.key === 'Enter') advance(); }}
+			/>
+			<div className="step-label">What for? <span className="step-optional">optional</span></div>
+			<input
+				type="text"
+				className="step-input"
+				placeholder="e.g. paid back for dinner"
+				value={noteText}
+				autoComplete="off"
+				onChange={e => setNoteText(e.target.value)}
 				onKeyDown={e => { if (e.key === 'Enter') advance(); }}
 			/>
 			<button className="step-next" disabled={!text.trim()} onClick={advance}>

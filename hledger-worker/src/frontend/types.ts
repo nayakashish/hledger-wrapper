@@ -107,6 +107,7 @@ export interface AddFormState {
 	account2?: string;
 	amount2?: number;
 	party?: string;          // the other person, for the e-transfer presets
+	note?: string;           // free text appended to the title as a ; comment
 	_preset?: string;
 	_predicted?: PredictedPosting | null;
 	_amount2edited?: boolean;

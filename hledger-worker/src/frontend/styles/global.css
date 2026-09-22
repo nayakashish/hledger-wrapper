@@ -2231,7 +2231,16 @@ body.is-offline header {
   margin-top: 16px;
 }
 
-/* ── Versions (Settings root) ── */
+/* ── Versions (Settings root, footer) ── */
+/* Reference information rather than a setting, so it sits under everything
+   else with a rule separating it from the rows above. */
+.version-footer {
+  margin-top: 36px;
+  padding-top: 4px;
+  border-top: 1px solid var(--border);
+}
+.version-footer .settings-field-label { margin-top: 16px; }
+
 .version-row {
   display: flex;
   align-items: baseline;

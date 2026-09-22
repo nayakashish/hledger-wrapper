@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { ChevronLeftIcon, CloseIcon } from '../Icons';
 import EntryPreview from '../EntryPreview';
@@ -46,6 +46,25 @@ function stepsFor(preset: Preset | null): Step[] {
 		'amount1',
 		'preview',
 	];
+}
+
+/**
+ * Focus a step's field as soon as it mounts, and select whatever is in it.
+ *
+ * This has to happen synchronously in a layout effect, not behind a timeout.
+ * React flushes a tap handler's render before the browser yields, so a layout
+ * effect still runs inside the gesture that advanced the step — which is what
+ * lets iOS treat the focus as user-initiated and actually raise the keyboard.
+ * From a `setTimeout` the gesture is over, iOS ignores the focus, and the
+ * field ends up needing a second tap of its own.
+ */
+function useAutoFocus(ref: React.RefObject<HTMLInputElement | null>, select = false, enabled = true) {
+	useLayoutEffect(() => {
+		const el = ref.current;
+		if (!enabled || !el) return;
+		el.focus();
+		if (select) el.select();
+	}, [ref, select, enabled]);
 }
 
 /** Fill a preset's title template, e.g. "e-transfer to {name}", and append an
@@ -353,9 +372,7 @@ function PartyStep({
 	const [noteText, setNoteText] = useState(note || '');
 	const inputRef = useRef<HTMLInputElement>(null);
 
-	useEffect(() => {
-		setTimeout(() => inputRef.current?.focus(), 50);
-	}, []);
+	useAutoFocus(inputRef);
 
 	const advance = () => { if (text.trim()) onNext(text.trim(), noteText); };
 
@@ -473,9 +490,7 @@ function DescriptionStep({
 	const [loading, setLoading] = useState(false);
 	const inputRef = useRef<HTMLInputElement>(null);
 
-	useEffect(() => {
-		setTimeout(() => inputRef.current?.focus(), 50);
-	}, []);
+	useAutoFocus(inputRef);
 
 	const handleInput = (val: string) => {
 		setText(val);
@@ -564,9 +579,10 @@ function AccountStep({
 	const initial = filter ? candidates.slice(0, 8) : [];
 	const [suggestions, setSuggestions] = useState<string[]>(initial);
 
-	useEffect(() => {
-		setTimeout(() => inputRef.current?.focus(), 50);
-	}, []);
+	// A preset's account step already lists its choices, and raising the
+	// keyboard would cover them — so focus only when there is nothing to show
+	// and typing is the only way through.
+	useAutoFocus(inputRef, false, !filter);
 
 	const handleInput = (val: string) => {
 		setText(val);
@@ -651,9 +667,7 @@ function AmountStep({
 	const [text, setText] = useState(defaultValue !== undefined ? String(defaultValue) : '');
 	const inputRef = useRef<HTMLInputElement>(null);
 
-	useEffect(() => {
-		setTimeout(() => { inputRef.current?.focus(); inputRef.current?.select(); }, 50);
-	}, []);
+	useAutoFocus(inputRef, true);
 
 	const advance = () => {
 		const val = parseFloat(text);
@@ -669,6 +683,7 @@ function AmountStep({
 				className="step-input"
 				placeholder="0.00"
 				step="0.01"
+				inputMode="decimal"
 				value={text}
 				onChange={e => setText(e.target.value)}
 				onKeyDown={e => { if (e.key === 'Enter') advance(); }}

@@ -162,7 +162,7 @@ function VersionBlock({ info, failed }: { info: VersionInfo | null; failed: bool
 	const mismatch = !!info?.version && info.version !== __APP_VERSION__;
 
 	return (
-		<>
+		<div className="version-footer">
 			<div className="settings-field-label">Versions</div>
 			<div className="version-row">
 				<span className="version-label">App</span>
@@ -201,7 +201,7 @@ function VersionBlock({ info, failed }: { info: VersionInfo | null; failed: bool
 					the other.
 				</div>
 			)}
-		</>
+		</div>
 	);
 }
 

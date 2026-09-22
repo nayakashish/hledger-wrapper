@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { ChevronLeftIcon, CloseIcon } from '../Icons';
+import EntryPreview from '../EntryPreview';
 import type { AddFormState, PredictedPosting } from '../../types';
 
 const STEPS = ['date', 'description', 'account1', 'amount1', 'account2', 'amount2', 'preview'] as const;
@@ -487,13 +488,7 @@ function PreviewStep({
 			<div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6, fontWeight: 300 }}>
 				Edit directly to add comments (use ; for inline comments)
 			</div>
-			<textarea
-				className="preview-entry"
-				rows={6}
-				spellCheck={false}
-				value={text}
-				onChange={e => setText(e.target.value)}
-			/>
+			<EntryPreview value={text} onChange={setText} />
 			<button
 				className="confirm-btn"
 				disabled={submitting}

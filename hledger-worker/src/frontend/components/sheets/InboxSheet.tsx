@@ -3,6 +3,7 @@ import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { fmtAmount } from '../../utils/format';
 import { apiGet, apiPost } from '../../utils/api';
 import { ChevronLeftIcon, CloseIcon } from '../Icons';
+import EntryPreview from '../EntryPreview';
 import type { InboxItem, InboxResponse, InboxRule } from '../../types';
 
 interface Props {
@@ -315,16 +316,11 @@ function ReviewItem({
 				</div>
 			)}
 
-			<textarea
-				className="preview-entry"
-				rows={6}
-				spellCheck={false}
-				readOnly={!editing}
+			<EntryPreview
 				value={entry}
-				onChange={e => setRawText(e.target.value)}
-				onClick={() => {
-					if (!editing) setRawText(buildEntry(item, title, '', account1));
-				}}
+				onChange={setRawText}
+				locked={!editing}
+				onUnlock={() => setRawText(buildEntry(item, title, '', account1))}
 			/>
 
 			<label className="inbox-remember">

@@ -7,7 +7,8 @@
 		"nodejs_compat"
 	],
 	"observability": {
-		"enabled": true
+		"enabled": true,
+		"redact_query_string": false
 	},
 	"assets": {
 		"directory": "./dist/client",
@@ -19,6 +20,15 @@
 		// verified destination address in Email Routing)
 		"FORWARD_VERIFICATION_EMAIL": "a.samuel.nayak@gmail.com"
 	},
+	"routes": [
+		{
+			"pattern": "hledger.nayakashish.cc",
+			"zone_name": "nayakashish.cc",
+			"custom_domain": true,
+			"enabled": true,
+			"previews_enabled": false
+		}
+	],
 	/**
 	 * Secrets (set via wrangler CLI, never committed):
 	 *   wrangler secret put BEARER_TOKEN

@@ -23,6 +23,7 @@ const TEAL = '#2a938c';
 const CORAL = '#c0392b';
 
 const TEAL_PALETTE = ['#1a6560', '#2a938c', '#3aada6', '#5db8b2', '#84ccc8', '#b8dbd9'];
+const DARK_TEAL = TEAL_PALETTE[0];
 
 const TOOLTIP_STYLE = {
 	fontSize: 11,
@@ -521,6 +522,54 @@ function CategoryComparisonChart({
 	);
 }
 
+// ── Monthly Income / Expenses chart ───────────────────────────────────────────
+
+type FlowMode = 'expenses' | 'income';
+
+// One bar per YTD month, switchable between expenses and income so the two
+// live on the same axis instead of competing for space side by side.
+function MonthlyFlowChart({ chartData }: { chartData: ChartPoint[] }) {
+	const { privacyMode } = usePrivacy();
+	const [mode, setMode] = useState<FlowMode>('expenses');
+
+	const isIncome = mode === 'income';
+	const total = chartData.reduce((s, d) => s + (isIncome ? d.income : d.expenses), 0);
+	const avg = total / Math.max(1, chartData.length);
+
+	if (chartData.length === 0) return null;
+
+	return (
+		<div className="dash-chart-card">
+			<div className="dash-chart-header">
+				<span className="dash-chart-title">{isIncome ? 'Income' : 'Expenses'} by Month</span>
+				<div className="dash-compare-toggle">
+					<button className={!isIncome ? 'active' : ''} onClick={() => setMode('expenses')}>Expenses</button>
+					<button className={isIncome ? 'active' : ''} onClick={() => setMode('income')}>Income</button>
+				</div>
+			</div>
+			<ResponsiveContainer width="100%" height={150}>
+				<BarChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+					<XAxis dataKey="month" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
+					<YAxis tickFormatter={fmtK} tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} width={36} />
+					<Tooltip
+						formatter={(v) => [privacyMode ? '••••' : `$${Number(v).toFixed(2)}`, isIncome ? 'Income' : 'Expenses']}
+						labelStyle={{ fontSize: 11 }}
+						contentStyle={TOOLTIP_STYLE}
+					/>
+					<Bar
+						dataKey={mode}
+						fill={isIncome ? DARK_TEAL : TEAL}
+						radius={[4, 4, 0, 0]}
+					/>
+				</BarChart>
+			</ResponsiveContainer>
+			<div className="pace-detail">
+				YTD total: <MaskedAmount value={total} /> · Monthly avg: <MaskedAmount value={avg} />
+			</div>
+		</div>
+	);
+}
+
 // ── Category vs YTD Average chart ─────────────────────────────────────────────
 
 const CAT_CURRENT = TEAL_PALETTE[0];
@@ -823,6 +872,7 @@ export default function DashboardView({ isActive, monthly, syncKey }: Props) {
 					{monthlyDetail && (
 						<CategoryComparisonChart monthlyDetail={monthlyDetail} ytdMonthsList={ytdMonthsList} />
 					)}
+					<MonthlyFlowChart chartData={chartData} />
 					<CategoryVsAvgChart monthly={monthly} ytdMonthsList={ytdMonthsList} />
 				</>
 			)}

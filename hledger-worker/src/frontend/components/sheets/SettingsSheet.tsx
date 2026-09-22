@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { apiGet, apiPost } from '../../utils/api';
 import { ChevronLeftIcon, ChevronRightIcon, CloseIcon } from '../Icons';
-import type { JournalInfo } from '../../types';
+import type { JournalInfo, VersionInfo } from '../../types';
 
 interface Props {
 	isOpen: boolean;
@@ -21,6 +21,8 @@ export default function SettingsSheet({ isOpen, onClose, onJournalSwitch, showTo
 	const [loading, setLoading] = useState(false);
 	const [switching, setSwitching] = useState(false);
 	const [switchingInbox, setSwitchingInbox] = useState(false);
+	const [apiVersion, setApiVersion] = useState<VersionInfo | null>(null);
+	const [apiVersionFailed, setApiVersionFailed] = useState(false);
 
 	useBodyScrollLock(isOpen);
 
@@ -37,12 +39,24 @@ export default function SettingsSheet({ isOpen, onClose, onJournalSwitch, showTo
 		}
 	}, [showToast]);
 
+	// Not cached: a stale answer would hide the case worth catching, which is a
+	// server running older code than the app talking to it.
+	const loadVersion = useCallback(async () => {
+		setApiVersionFailed(false);
+		try {
+			setApiVersion(await apiGet<VersionInfo>('/api/version'));
+		} catch {
+			setApiVersionFailed(true);
+		}
+	}, []);
+
 	useEffect(() => {
 		if (isOpen) {
 			setSection('root');
 			void loadJournals();
+			void loadVersion();
 		}
-	}, [isOpen, loadJournals]);
+	}, [isOpen, loadJournals, loadVersion]);
 
 	if (!isOpen) return null;
 
@@ -99,6 +113,7 @@ export default function SettingsSheet({ isOpen, onClose, onJournalSwitch, showTo
 				</div>
 				<div className="assign-body">
 					{section === 'root' ? (
+						<>
 						<button className="settings-row" onClick={() => setSection('config')}>
 							<div className="settings-row-main">
 								<div className="settings-row-title">Config</div>
@@ -109,6 +124,8 @@ export default function SettingsSheet({ isOpen, onClose, onJournalSwitch, showTo
 							</div>
 							<span className="settings-chevron"><ChevronRightIcon size={16} /></span>
 						</button>
+						<VersionBlock info={apiVersion} failed={apiVersionFailed} />
+						</>
 					) : (
 						<ConfigSection
 							journals={journals}
@@ -121,6 +138,69 @@ export default function SettingsSheet({ isOpen, onClose, onJournalSwitch, showTo
 					)}
 				</div>
 			</div>
+		</div>
+	);
+}
+
+// ── Versions ──────────────────────────────────────────────────────────────────
+
+function relativeDay(iso: string): string {
+	const then = new Date(iso);
+	if (isNaN(then.getTime())) return '';
+	const days = Math.floor((Date.now() - then.getTime()) / 86400000);
+	if (days <= 0) return 'today';
+	if (days === 1) return 'yesterday';
+	if (days < 30) return `${days}d ago`;
+	return then.toLocaleDateString('en-CA', { month: 'short', day: 'numeric' });
+}
+
+/** What each side reports about itself. The app's half is baked in at build
+ * time (see vite.config.ts); the API reads it off its own checkout. Shown
+ * together because the useful question is whether they agree — a deploy that
+ * updated one side and not the other is otherwise invisible. */
+function VersionBlock({ info, failed }: { info: VersionInfo | null; failed: boolean }) {
+	const mismatch = !!info?.version && info.version !== __APP_VERSION__;
+
+	return (
+		<div className="version-footer">
+			<div className="settings-field-label">Versions</div>
+			<div className="version-row">
+				<span className="version-label">App</span>
+				<span className="version-value">
+					{__APP_VERSION__}
+					{__APP_COMMIT__ && <span className="version-commit">{__APP_COMMIT__}</span>}
+				</span>
+			</div>
+			<div className="version-row">
+				<span className="version-label">API</span>
+				<span className="version-value">
+					{failed ? (
+						<span className="version-muted">unavailable</span>
+					) : !info ? (
+						<span className="version-muted">checking…</span>
+					) : (
+						<>
+							{info.version || <span className="version-muted">unknown</span>}
+							{info.commit && <span className="version-commit">{info.commit}</span>}
+						</>
+					)}
+				</span>
+			</div>
+			{info && (info.branch || info.dirty || info.committed_at) && (
+				<div className="version-detail">
+					{[
+						info.branch,
+						info.committed_at ? relativeDay(info.committed_at) : '',
+						info.dirty ? 'uncommitted changes' : '',
+					].filter(Boolean).join(' · ')}
+				</div>
+			)}
+			{mismatch && (
+				<div className="settings-hint version-mismatch">
+					The app and the API are on different versions — one side was deployed without
+					the other.
+				</div>
+			)}
 		</div>
 	);
 }

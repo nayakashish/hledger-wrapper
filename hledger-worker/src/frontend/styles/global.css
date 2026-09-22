@@ -2230,3 +2230,43 @@ body.is-offline header {
   line-height: 1.5;
   margin-top: 16px;
 }
+
+/* ── Versions (Settings root) ── */
+.version-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--border);
+}
+.version-row:last-of-type { border-bottom: none; }
+
+.version-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.version-value { font-size: 13px; font-weight: 500; color: var(--text); }
+
+.version-commit {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--text-muted);
+  margin-left: 8px;
+}
+
+.version-muted { color: var(--text-muted); font-weight: 300; }
+
+.version-detail {
+  font-size: 11px;
+  font-weight: 300;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.version-mismatch { color: var(--negative); }

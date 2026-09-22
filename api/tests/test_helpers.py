@@ -199,3 +199,48 @@ def test_suggest_envelope_default_expense_fallback():
 def test_suggest_envelope_none_for_non_expense():
     txn = make_txn("2026-01-01", "Transfer", [("assets:savings", 100), ("assets:chequing", -100)])
     assert _suggest_envelope(txn, []) is None
+
+
+# ── /version ──────────────────────────────────────────────────────────────────
+
+def test_version_requires_auth(client):
+    assert client.get("/version").status_code == 403
+
+
+def test_version_reports_project_version_and_commit(client, auth, monkeypatch):
+    """The version is the app version we bump in package.json, not a library
+    string, and the commit is the code repo's HEAD."""
+    monkeypatch.setattr("app.version.project_version", lambda: "9.9.0")
+    monkeypatch.setattr(
+        "app.version._git",
+        lambda *args: {
+            ("log", "-1", "--format=%h%n%H%n%cI"): "abc1234\nabc1234def\n2026-09-21T10:00:00-07:00",
+            ("rev-parse", "--abbrev-ref", "HEAD"): "main",
+            ("status", "--porcelain"): "",
+        }.get(args, ""),
+    )
+    body = client.get("/version", headers=auth).json()
+    assert body == {
+        "version": "9.9.0",
+        "commit": "abc1234",
+        "commit_full": "abc1234def",
+        "branch": "main",
+        "committed_at": "2026-09-21T10:00:00-07:00",
+        "dirty": False,
+    }
+
+
+def test_version_degrades_when_git_is_unavailable(client, auth, monkeypatch):
+    """No git, no checkout, or a timeout reports unknown rather than failing."""
+    monkeypatch.setattr("app.version.project_version", lambda: "1.0.0")
+    monkeypatch.setattr("app.version._git", lambda *args: "")
+    body = client.get("/version", headers=auth).json()
+    assert body["version"] == "1.0.0"
+    assert body["commit"] == ""
+    assert body["branch"] == ""
+    assert body["dirty"] is False
+
+
+def test_version_flags_a_dirty_checkout(client, auth, monkeypatch):
+    monkeypatch.setattr("app.version._git", lambda *a: " M api/app/main.py" if a[0] == "status" else "")
+    assert client.get("/version", headers=auth).json()["dirty"] is True

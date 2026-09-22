@@ -21,8 +21,9 @@ api/
 │   ├── models.py               # pydantic request models
 │   ├── prediction.py            # journal-history lookup: by description, by shape
 │   ├── presets.py                # add-transaction preset catalog + resolution
+│   ├── version.py                 # app version + code-repo commit for /version
 │   └── routers/
-│       ├── health.py              # /health
+│       ├── health.py              # /health /version
 │       ├── reports.py              # /balance /is /monthly /monthly-detail
 │       │                           #   /transactions /search /accounts /daily-totals
 │       ├── journal.py               # /add /descriptions /lookup /sync

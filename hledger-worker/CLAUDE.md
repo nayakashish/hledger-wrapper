@@ -49,6 +49,7 @@ hledger-worker/
         ├── main.tsx
         ├── App.tsx
         ├── types.ts
+        ├── build-info.d.ts  ← __APP_VERSION__ / __APP_COMMIT__, injected by vite.config.ts
         ├── styles/
         │   └── global.css
         ├── context/
@@ -146,6 +147,7 @@ unchanged by that structure.
 | `/api/envelopes/dismiss` | POST | Dismiss a pending transaction |
 | `/api/envelopes/create` | POST | Create a new envelope |
 | `/api/envelopes/<id>` | DELETE | Delete an envelope |
+| `/api/version` | GET | App version + code-repo commit/branch this server is running (shown in Settings) |
 | `/api/presets` | GET | Add-transaction presets with accounts/titles resolved from journal history (see `docs/add-presets.md`) |
 | `/api/monthly-detail` | GET | Monthly breakdown with transaction drilldown |
 | `/api/daily-totals` | GET | `?from_date=YYYY-MM-DD` per-day counts/totals (heatmap) |

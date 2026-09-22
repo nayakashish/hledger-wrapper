@@ -198,3 +198,13 @@ export interface JournalInfo {
 	inbox: boolean;
 	demo: boolean;
 }
+
+/** What the API reports about the code it is running (GET /api/version). */
+export interface VersionInfo {
+	version: string;
+	commit: string;
+	commit_full: string;
+	branch: string;
+	committed_at: string;
+	dirty: boolean;
+}

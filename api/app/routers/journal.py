@@ -1,12 +1,10 @@
-import json
-
 from fastapi import APIRouter, HTTPException, Security
 
 from ..auth import verify_token
 from ..config import get_settings
 from ..git_ops import git_transaction, run_git
-from ..hledger import extract_amount, run_hledger
 from ..models import Transaction
+from ..prediction import load_transactions, match_by_description
 
 router = APIRouter()
 
@@ -48,11 +46,7 @@ def add_transaction(tx: Transaction, token: str = Security(verify_token)):
 @router.get("/descriptions")
 def get_descriptions(token: str = Security(verify_token)):
     """All unique transaction descriptions, sorted by most recent first."""
-    output = run_hledger("print", "--output-format", "json")
-    try:
-        txns = json.loads(output)
-    except json.JSONDecodeError:
-        return {"descriptions": []}
+    txns = load_transactions()
     seen = []
     for txn in reversed(txns):  # most recent first
         desc = txn.get("tdescription", "").strip()
@@ -67,24 +61,7 @@ def lookup_description(description: str, token: str = Security(verify_token)):
     Given a description, return the most recent matching transaction's
     account1, amount1, account2, amount2 for pre-filling the add form.
     """
-    output = run_hledger("print", "--output-format", "json")
-    try:
-        txns = json.loads(output)
-    except json.JSONDecodeError:
-        return {"match": None}
-
-    q = description.strip().lower()
-    for txn in reversed(txns):
-        if txn.get("tdescription", "").strip().lower() == q:
-            postings = txn.get("tpostings", [])
-            if len(postings) >= 2:
-                return {"match": {
-                    "account1": postings[0].get("paccount", ""),
-                    "amount1": extract_amount(postings[0]),
-                    "account2": postings[1].get("paccount", ""),
-                    "amount2": extract_amount(postings[1]),
-                }}
-    return {"match": None}
+    return {"match": match_by_description(description)}
 
 
 @router.post("/sync")

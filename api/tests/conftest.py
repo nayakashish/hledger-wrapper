@@ -99,7 +99,7 @@ def fake_hledger(env, monkeypatch):
     monkeypatch.setattr("app.hledger.run_hledger_file", fake_file)
     monkeypatch.setattr("app.routers.reports.run_hledger", fake)
     monkeypatch.setattr("app.routers.reports.run_hledger_file", fake_file)
-    monkeypatch.setattr("app.routers.journal.run_hledger", fake)
+    monkeypatch.setattr("app.prediction.run_hledger", fake)
     monkeypatch.setattr("app.routers.envelopes.run_hledger", fake)
     monkeypatch.setattr("app.routers.inbox.run_hledger", fake)
     monkeypatch.setattr("app.routers.inbox.run_hledger_file", fake_file)

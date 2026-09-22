@@ -750,6 +750,9 @@ body.is-offline header {
 .step-option.primary { border-color: var(--teal); box-shadow: inset 2px 0 0 var(--teal); }
 .step-option.primary:hover { border-color: var(--teal); background: #eef6f5; }
 
+/* A muted aside under a step's options. */
+.step-hint { font-size: 11px; font-weight: 300; color: var(--text-muted); margin-top: -12px; }
+
 /* The accounts a preset resolved to, under its name. */
 .preset-accounts {
   display: block;

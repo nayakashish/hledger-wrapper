@@ -249,6 +249,14 @@ export default function App() {
 		};
 	}, [refreshInboxCount]);
 
+	// Presets resolve from journal history, so the add sheet opening is both
+	// when a fresh answer matters and the first moment anything needs them.
+	// loadAll only runs on sync, which left the very first open (nothing cached
+	// yet) showing an empty picker.
+	useEffect(() => {
+		if (addSheetOpen) void fetchPresets();
+	}, [addSheetOpen, fetchPresets]);
+
 	const loadEnvelopes = useCallback(async () => {
 		try {
 			const data = await (

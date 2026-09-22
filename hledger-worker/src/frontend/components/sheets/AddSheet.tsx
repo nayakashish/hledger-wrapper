@@ -274,8 +274,10 @@ function PresetStep({
 	onPick: (p: Preset) => void;
 }) {
 	if (presets.length === 0) {
-		// /api/presets unreachable or a journal with nothing to infer from:
-		// fall straight through to the flow that needs no prefill at all.
+		// The catalog is fixed server-side and always has entries, so an empty
+		// list means /api/presets did not answer — say so rather than looking
+		// like a journal with nothing in it, and fall through to the flow that
+		// needs no prefill at all.
 		return (
 			<>
 				<div className="step-label">What kind of transaction?</div>
@@ -286,6 +288,9 @@ function PresetStep({
 					>
 						Enter it manually
 					</button>
+				</div>
+				<div className="step-hint">
+					Presets need <code>/api/presets</code>, which did not respond.
 				</div>
 			</>
 		);

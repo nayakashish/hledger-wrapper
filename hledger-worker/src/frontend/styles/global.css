@@ -2232,14 +2232,19 @@ body.is-offline header {
 }
 
 /* ── Versions (Settings root, footer) ── */
-/* Reference information rather than a setting, so it sits under everything
-   else with a rule separating it from the rows above. */
+/* Reference information rather than a setting, so it sits at the foot of the
+   page instead of trailing the last row. The settings root becomes a flex
+   column purely so the footer can claim the leftover space; the drill-in
+   sections keep normal block layout. */
+.settings-body { display: flex; flex-direction: column; }
+.settings-body .version-footer { margin-top: auto; }
+
 .version-footer {
-  margin-top: 36px;
-  padding-top: 4px;
+  margin-top: 32px;
+  padding-top: 18px;
   border-top: 1px solid var(--border);
 }
-.version-footer .settings-field-label { margin-top: 16px; }
+.version-footer .settings-field-label { margin-top: 0; }
 
 .version-row {
   display: flex;

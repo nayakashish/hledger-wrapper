@@ -13,4 +13,5 @@ the documents below go deeper.
 | [deploy.md](deploy.md) | End-to-end setup guide: home server (FastAPI + hledger), Cloudflare Tunnel, Cloudflare Access, the Worker, and local development. |
 | [envelopes.md](envelopes.md) | The virtual envelope budgeting system — model, reconciliation, the scan/assign lifecycle, splitting, and the full API. |
 | [transaction-inbox.md](transaction-inbox.md) | Semi-automated transaction capture from bank-alert emails — the email pipeline, suggestion engine, and dedup. |
+| [add-presets.md](add-presets.md) | Add-transaction presets — the preset set, how each resolves its accounts from journal history, and the `presets.json` fallback. |
 | [CHANGELOG.md](CHANGELOG.md) | Per-version changelog. |

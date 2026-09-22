@@ -8,6 +8,7 @@ import type {
 	PendingTxn,
 	DetailContent,
 	BalanceRow,
+	Preset,
 } from './types';
 import { formatSyncTime, currentMonth } from './utils/format';
 import { loadRawEndpoint, apiGet, apiPost } from './utils/api';
@@ -105,6 +106,17 @@ export default function App() {
 			return [];
 		}
 	});
+	// Add-transaction presets, resolved server-side against this journal's
+	// history. Cached like the account/description lists so the add sheet opens
+	// instantly, and cleared on a journal switch for the same reason they are.
+	const [presetsList, setPresetsList] = useState<Preset[]>(() => {
+		try {
+			const c = localStorage.getItem('hledger_presets');
+			return c ? (JSON.parse(c) as Preset[]) : [];
+		} catch {
+			return [];
+		}
+	});
 	// Last journal name these caches are known to belong to. Compared against
 	// the server's active_journal (piggybacked on /api/inbox/count) to detect
 	// a switch made on another device.
@@ -176,6 +188,17 @@ export default function App() {
 			localStorage.setItem('hledger_descriptions', JSON.stringify(list));
 		} catch {
 			// fail silently
+		}
+	}, []);
+
+	const fetchPresets = useCallback(async () => {
+		try {
+			const json = await apiGet<{ presets?: Preset[] }>('/api/presets');
+			const list = json.presets || [];
+			setPresetsList(list);
+			localStorage.setItem('hledger_presets', JSON.stringify(list));
+		} catch {
+			// fail silently — the picker falls back to the manual flow
 		}
 	}, []);
 
@@ -259,8 +282,9 @@ export default function App() {
 		await loadEnvelopes();
 		await fetchAccounts();
 		await fetchDescriptions();
+		await fetchPresets();
 		await refreshInboxCount();
-	}, [loadEnvelopes, fetchAccounts, fetchDescriptions, refreshInboxCount]);
+	}, [loadEnvelopes, fetchAccounts, fetchDescriptions, fetchPresets, refreshInboxCount]);
 
 	const cacheRef = useRef(cache);
 	const envDataRef = useRef(envData);
@@ -337,6 +361,7 @@ export default function App() {
 			localStorage.removeItem(ENV_CACHE_KEY);
 			localStorage.removeItem('hledger_accounts');
 			localStorage.removeItem('hledger_descriptions');
+			localStorage.removeItem('hledger_presets');
 			localStorage.setItem(JOURNAL_TAG_KEY, journalName);
 		} catch {
 			// ignore
@@ -408,6 +433,7 @@ export default function App() {
 				onSuccess={handleAddSuccess}
 				accountsList={accountsList}
 				descriptionsList={descriptionsList}
+				presets={presetsList}
 				showToast={showToast}
 			/>
 

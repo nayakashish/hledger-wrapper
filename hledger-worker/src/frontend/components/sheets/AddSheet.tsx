@@ -1,14 +1,18 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { ChevronLeftIcon, CloseIcon } from '../Icons';
 import EntryPreview from '../EntryPreview';
-import type { AddFormState, PredictedPosting } from '../../types';
+import type { AddFormState, PredictedPosting, Preset } from '../../types';
 
-const STEPS = ['date', 'description', 'account1', 'amount1', 'account2', 'amount2', 'preview'] as const;
-type Step = typeof STEPS[number];
+// The free-form flow, unchanged: what every entry used to walk through.
+const STANDARD_STEPS = ['date', 'description', 'account1', 'amount1', 'account2', 'amount2', 'preview'] as const;
+
+type Step = 'preset' | 'party' | typeof STANDARD_STEPS[number];
 
 const STEP_TITLES: Record<Step, string> = {
+	preset: 'Add',
 	date: 'Date',
+	party: 'Who',
 	description: 'Description',
 	account1: 'Account 1',
 	amount1: 'Amount',
@@ -17,12 +21,41 @@ const STEP_TITLES: Record<Step, string> = {
 	preview: 'Preview',
 };
 
+/**
+ * The steps a preset walks. A preset's debit side is `account1` and its credit
+ * side `account2`, which is the order the form already stores them in — so a
+ * preset only prefills and skips, it never reshapes the entry.
+ *
+ * This vocabulary is deliberately closed. A preset that wants a step of its
+ * own is a design decision, not a patch: one bespoke step type per preset is
+ * how this component turns back into the pile of conditionals the fixed
+ * seven-step constant was better than.
+ */
+function stepsFor(preset: Preset | null): Step[] {
+	if (!preset || preset.free_form) return ['preset', ...STANDARD_STEPS];
+	return [
+		'preset',
+		'date',
+		...(preset.asks_party ? ['party' as Step] : []),
+		...(preset.debit?.pick ? ['account1' as Step] : []),
+		...(preset.credit?.pick ? ['account2' as Step] : []),
+		'amount1',
+		'preview',
+	];
+}
+
+/** Fill a preset's title template, e.g. "e-transfer to {name}". */
+function fillTitle(title: string | undefined, party: string): string {
+	return (title ?? '').replace('{name}', party.trim());
+}
+
 interface Props {
 	isOpen: boolean;
 	onClose: () => void;
 	onSuccess: () => Promise<void>;
 	accountsList: string[];
 	descriptionsList: string[];
+	presets: Preset[];
 	showToast: (msg: string, duration?: number) => void;
 }
 
@@ -32,9 +65,11 @@ export default function AddSheet({
 	onSuccess,
 	accountsList,
 	descriptionsList,
+	presets,
 	showToast,
 }: Props) {
 	const [stepIdx, setStepIdx] = useState(0);
+	const [preset, setPreset] = useState<Preset | null>(null);
 	const [form, setForm] = useState<AddFormState>({});
 	const [submitting, setSubmitting] = useState(false);
 	const [submitError, setSubmitError] = useState('');
@@ -44,6 +79,7 @@ export default function AddSheet({
 	useEffect(() => {
 		if (isOpen) {
 			setStepIdx(0);
+			setPreset(null);
 			setForm({});
 			setSubmitting(false);
 			setSubmitError('');
@@ -52,8 +88,16 @@ export default function AddSheet({
 
 	if (!isOpen) return null;
 
-	const step = STEPS[stepIdx];
-	const progress = ((stepIdx + 1) / STEPS.length) * 100;
+	const steps = stepsFor(preset);
+	const step = steps[stepIdx];
+	const progress = ((stepIdx + 1) / steps.length) * 100;
+
+	// An account step borrows its title from the preset's own wording, so a
+	// transfer says "To"/"From" rather than "Account 1"/"Account 2".
+	const title =
+		step === 'account1' && preset?.debit ? preset.debit.label :
+		step === 'account2' && preset?.credit ? preset.credit.label :
+		STEP_TITLES[step];
 
 	const goBack = () => {
 		if (stepIdx === 0) { onClose(); return; }
@@ -64,6 +108,17 @@ export default function AddSheet({
 
 	const updateForm = (patch: Partial<AddFormState>) =>
 		setForm(prev => ({ ...prev, ...patch }));
+
+	const choosePreset = (picked: Preset) => {
+		setPreset(picked);
+		setForm(picked.free_form ? {} : {
+			_preset: picked.id,
+			description: picked.title ?? '',
+			account1: picked.debit?.account ?? '',
+			account2: picked.credit?.account ?? '',
+		});
+		setStepIdx(1);
+	};
 
 	const handleSubmit = async (rawEntry: string) => {
 		setSubmitting(true);
@@ -98,7 +153,7 @@ export default function AddSheet({
 					>
 						<ChevronLeftIcon />
 					</button>
-					<span className="add-title">{STEP_TITLES[step]}</span>
+					<span className="add-title">{title}</span>
 					<button className="add-close" onClick={onClose} aria-label="Close">
 						<CloseIcon />
 					</button>
@@ -108,6 +163,19 @@ export default function AddSheet({
 				</div>
 				<div className="add-body">
 					{submitError && <div className="error-msg">{submitError}</div>}
+					{step === 'preset' && (
+						<PresetStep presets={presets} onPick={choosePreset} />
+					)}
+					{step === 'party' && (
+						<PartyStep
+							label={preset?.id === 'receive-etransfer' ? 'Who sent it?' : 'Who is it going to?'}
+							value={form.party}
+							onNext={party => {
+								updateForm({ party, description: fillTitle(preset?.title, party) });
+								goNext();
+							}}
+						/>
+					)}
 					{step === 'date' && (
 						<DateStep
 							value={form.date}
@@ -138,7 +206,12 @@ export default function AddSheet({
 					{(step === 'account1' || step === 'account2') && (
 						<AccountStep
 							key={step}
-							which={step === 'account1' ? 1 : 2}
+							label={
+								step === 'account1'
+									? (preset?.debit?.label ?? 'Account 1')
+									: (preset?.credit?.label ?? 'Account 2')
+							}
+							filter={step === 'account1' ? preset?.debit?.prefixes : preset?.credit?.prefixes}
 							value={form[step] ?? (form._predicted?.[step] ?? '')}
 							accountsList={accountsList}
 							onChange={val => updateForm({ [step]: val })}
@@ -178,6 +251,107 @@ export default function AddSheet({
 				</div>
 			</div>
 		</div>
+	);
+}
+
+// ── Step: Preset picker ───────────────────────────────────────────────────────
+
+/** The resolved accounts, for the muted line under a preset's name. Only the
+ * sides the journal actually answered for — a side you pick every time has
+ * nothing useful to show here. */
+function resolvedAccounts(preset: Preset): string {
+	return [preset.debit, preset.credit]
+		.filter(leg => leg && !leg.pick && leg.account)
+		.map(leg => leg!.account)
+		.join('  ·  ');
+}
+
+function PresetStep({
+	presets,
+	onPick,
+}: {
+	presets: Preset[];
+	onPick: (p: Preset) => void;
+}) {
+	if (presets.length === 0) {
+		// /api/presets unreachable or a journal with nothing to infer from:
+		// fall straight through to the flow that needs no prefill at all.
+		return (
+			<>
+				<div className="step-label">What kind of transaction?</div>
+				<div className="step-options">
+					<button
+						className="step-option primary"
+						onClick={() => onPick({ id: 'standard', label: 'Something else…', free_form: true, primary: true })}
+					>
+						Enter it manually
+					</button>
+				</div>
+			</>
+		);
+	}
+
+	return (
+		<>
+			<div className="step-label">What kind of transaction?</div>
+			<div className="step-options">
+				{presets.map(p => {
+					const accounts = p.free_form ? '' : resolvedAccounts(p);
+					return (
+						<button
+							key={p.id}
+							className={`step-option${p.primary ? ' primary' : ''}`}
+							onClick={() => onPick(p)}
+						>
+							{p.label}
+							{accounts && <span className="preset-accounts">{accounts}</span>}
+						</button>
+					);
+				})}
+			</div>
+		</>
+	);
+}
+
+// ── Step: Party (the other person, for e-transfers) ───────────────────────────
+
+function PartyStep({
+	label,
+	value,
+	onNext,
+}: {
+	label: string;
+	value?: string;
+	onNext: (party: string) => void;
+}) {
+	const [text, setText] = useState(value || '');
+	const inputRef = useRef<HTMLInputElement>(null);
+
+	useEffect(() => {
+		setTimeout(() => inputRef.current?.focus(), 50);
+	}, []);
+
+	const advance = () => { if (text.trim()) onNext(text.trim()); };
+
+	return (
+		<>
+			<div className="step-label">{label}</div>
+			<input
+				ref={inputRef}
+				type="text"
+				className="step-input"
+				placeholder="Name"
+				value={text}
+				autoComplete="off"
+				autoCorrect="off"
+				spellCheck={false}
+				onChange={e => setText(e.target.value)}
+				onKeyDown={e => { if (e.key === 'Enter') advance(); }}
+			/>
+			<button className="step-next" disabled={!text.trim()} onClick={advance}>
+				Continue
+			</button>
+		</>
 	);
 }
 
@@ -323,21 +497,36 @@ function DescriptionStep({
 // ── Step: Account ─────────────────────────────────────────────────────────────
 
 function AccountStep({
-	which,
+	label,
+	filter,
 	value,
 	accountsList,
 	onChange,
 	onNext,
 }: {
-	which: 1 | 2;
+	label: string;
+	/** "|"-separated account prefixes from the preset; unset means all accounts. */
+	filter?: string;
 	value: string;
 	accountsList: string[];
 	onChange: (v: string) => void;
 	onNext: (v: string) => void;
 }) {
 	const [text, setText] = useState(value || '');
-	const [suggestions, setSuggestions] = useState<string[]>([]);
 	const inputRef = useRef<HTMLInputElement>(null);
+
+	// A preset narrows the list to its own prefixes, so "Category" offers
+	// expense accounts and nothing else.
+	const candidates = useMemo(() => {
+		if (!filter) return accountsList;
+		const prefixes = filter.split('|').filter(Boolean);
+		return accountsList.filter(a => prefixes.some(pre => a.startsWith(pre)));
+	}, [accountsList, filter]);
+
+	// With a filter, the choices are worth showing before you type — that is
+	// what makes a picked leg one tap instead of a typing exercise.
+	const initial = filter ? candidates.slice(0, 8) : [];
+	const [suggestions, setSuggestions] = useState<string[]>(initial);
 
 	useEffect(() => {
 		setTimeout(() => inputRef.current?.focus(), 50);
@@ -346,9 +535,9 @@ function AccountStep({
 	const handleInput = (val: string) => {
 		setText(val);
 		onChange(val);
-		if (!val.trim() || accountsList.length === 0) { setSuggestions([]); return; }
+		if (!val.trim()) { setSuggestions(filter ? candidates.slice(0, 8) : []); return; }
 		const q = val.toLowerCase();
-		setSuggestions(accountsList.filter(a => a.toLowerCase().includes(q)).slice(0, 8));
+		setSuggestions(candidates.filter(a => a.toLowerCase().includes(q)).slice(0, 8));
 	};
 
 	const selectSuggestion = (s: string) => {
@@ -359,7 +548,7 @@ function AccountStep({
 
 	return (
 		<>
-			<div className="step-label">Account {which}</div>
+			<div className="step-label">{label}</div>
 			<div className="autocomplete-wrap">
 				<input
 					ref={inputRef}

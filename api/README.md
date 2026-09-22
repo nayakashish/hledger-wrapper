@@ -19,13 +19,17 @@ api/
 │   ├── git_ops.py            # run_git + git_transaction() atomic wrapper
 │   ├── storage.py             # generic load_json / save_json
 │   ├── models.py               # pydantic request models
+│   ├── prediction.py            # journal-history lookup: by description, by shape
+│   ├── presets.py                # add-transaction preset catalog + resolution
 │   └── routers/
-│       ├── health.py            # /health
-│       ├── reports.py            # /balance /is /monthly /monthly-detail
-│       │                         #   /transactions /search /accounts /daily-totals
-│       ├── journal.py             # /add /descriptions /lookup /sync
-│       ├── envelopes.py            # /envelopes and /envelopes/*
-│       └── inbox.py                 # /inbox and /inbox/*
+│       ├── health.py              # /health
+│       ├── reports.py              # /balance /is /monthly /monthly-detail
+│       │                           #   /transactions /search /accounts /daily-totals
+│       ├── journal.py               # /add /descriptions /lookup /sync
+│       ├── journals.py               # /journals and /journals/select*
+│       ├── presets.py                 # /presets
+│       ├── envelopes.py                # /envelopes and /envelopes/*
+│       └── inbox.py                     # /inbox and /inbox/*
 ├── requirements.txt
 ├── requirements-dev.txt    # pytest, httpx, pytest-cov
 └── tests/                    # pytest suite — see below

@@ -14,17 +14,17 @@ def test_presets_requires_auth(client):
 
 def test_pay_card_resolves_accounts_and_title_from_history(client, auth, fake_hledger):
     fake_hledger.set_txns([
-        make_txn("2026-09-06", "CIBC MC Payment", [
-            ("liabilities:creditcard:CIBC", 45.01),
-            ("assets:TD:chequing", -45.01),
+        make_txn("2026-09-06", "Monthly Card Payment", [
+            ("liabilities:creditcard:main", 45.01),
+            ("assets:chequing", -45.01),
         ]),
     ])
     card = _by_id(client.get("/presets", headers=auth))["pay-card"]
-    assert card["debit"]["account"] == "liabilities:creditcard:CIBC"
-    assert card["credit"]["account"] == "assets:TD:chequing"
-    # The wording carries "MC", which no account name contains — the only way
-    # to get it is to reuse the description.
-    assert card["title"] == "CIBC MC Payment"
+    assert card["debit"]["account"] == "liabilities:creditcard:main"
+    assert card["credit"]["account"] == "assets:chequing"
+    # The wording carries "Monthly", which no account name contains — the
+    # only way to get it is to reuse the description.
+    assert card["title"] == "Monthly Card Payment"
     assert card["source"] == "shape"
 
 
@@ -33,11 +33,11 @@ def test_receive_etransfer_hint_beats_a_more_recent_paycheque(client, auth, fake
     the paycheque is the more recent of the two."""
     fake_hledger.set_txns([
         make_txn("2026-08-11", "Name e-transfer", [
-            ("assets:TD:chequing", 11.25),
+            ("assets:chequing", 11.25),
             ("income:reimbursements", -11.25),
         ]),
         make_txn("2026-08-30", "Payroll", [
-            ("assets:TD:chequing", 2000.00),
+            ("assets:chequing", 2000.00),
             ("income:job", -2000.00),
         ]),
     ])
@@ -49,12 +49,12 @@ def test_receive_etransfer_hint_beats_a_more_recent_paycheque(client, auth, fake
 def test_etransfer_titles_are_templates_not_history(client, auth, fake_hledger):
     fake_hledger.set_txns([
         make_txn("2026-08-11", "Name e-transfer", [
-            ("assets:TD:chequing", 11.25),
+            ("assets:chequing", 11.25),
             ("income:reimbursements", -11.25),
         ]),
         make_txn("2026-07-21", "Transfer to Name", [
             ("expenses:entertainment:wfriends", 13.39),
-            ("assets:TD:chequing", -13.39),
+            ("assets:chequing", -13.39),
         ]),
     ])
     presets = _by_id(client.get("/presets", headers=auth))
@@ -68,8 +68,8 @@ def test_shape_match_ignores_wrong_sign(client, auth, fake_hledger):
     and must not be mistaken for a payment."""
     fake_hledger.set_txns([
         make_txn("2026-09-06", "Refund", [
-            ("assets:TD:chequing", 45.01),
-            ("liabilities:creditcard:CIBC", -45.01),
+            ("assets:chequing", 45.01),
+            ("liabilities:creditcard:main", -45.01),
         ]),
     ])
     card = _by_id(client.get("/presets", headers=auth))["pay-card"]
@@ -80,16 +80,16 @@ def test_shape_match_ignores_wrong_sign(client, auth, fake_hledger):
 def test_falls_back_to_stored_when_journal_has_no_history(client, auth, fake_hledger, env, monkeypatch):
     stored = env["tmp_path"] / "presets.json"
     stored.write_text(json.dumps({"resolved": {"pay-card": {
-        "debit": "liabilities:creditcard:CIBC",
-        "credit": "assets:TD:chequing",
-        "title": "CIBC MC Payment",
+        "debit": "liabilities:creditcard:main",
+        "credit": "assets:chequing",
+        "title": "Monthly Card Payment",
     }}}))
     monkeypatch.setenv("PRESETS_DATA_FILE", str(stored))
     fake_hledger.set_txns([])
 
     card = _by_id(client.get("/presets", headers=auth))["pay-card"]
-    assert card["debit"]["account"] == "liabilities:creditcard:CIBC"
-    assert card["title"] == "CIBC MC Payment"
+    assert card["debit"]["account"] == "liabilities:creditcard:main"
+    assert card["title"] == "Monthly Card Payment"
     assert card["source"] == "remembered"
 
 

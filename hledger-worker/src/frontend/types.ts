@@ -106,8 +106,34 @@ export interface AddFormState {
 	amount1?: number;
 	account2?: string;
 	amount2?: number;
+	party?: string;          // the other person, for the e-transfer presets
+	_preset?: string;
 	_predicted?: PredictedPosting | null;
 	_amount2edited?: boolean;
+}
+
+/** One side of a preset's two postings, as /api/presets returns it.
+ * `account` is what the journal resolved to; `pick` means the form asks and
+ * `prefixes` ("|"-separated) filters the choices. */
+export interface PresetLeg {
+	prefixes: string;
+	label: string;
+	pick: boolean;
+	account: string;
+}
+
+/** A named transaction shape. `debit` takes the positive amount, `credit` the
+ * negative one — the order the add form already stores them in. */
+export interface Preset {
+	id: string;
+	label: string;
+	free_form: boolean;
+	primary: boolean;
+	asks_party?: boolean;
+	title?: string;
+	debit?: PresetLeg | null;
+	credit?: PresetLeg | null;
+	source?: string;
 }
 
 export interface PredictedPosting {

@@ -745,6 +745,20 @@ body.is-offline header {
 
 .step-option:hover, .step-option.selected { border-color: var(--accent); background: #f0efe9; }
 
+/* The common path in the preset picker. Teal, not the accent ink, so it reads
+   as "start here" rather than as already-selected. */
+.step-option.primary { border-color: var(--teal); box-shadow: inset 2px 0 0 var(--teal); }
+.step-option.primary:hover { border-color: var(--teal); background: #eef6f5; }
+
+/* The accounts a preset resolved to, under its name. */
+.preset-accounts {
+  display: block;
+  font-size: 11px;
+  font-weight: 300;
+  color: var(--text-muted);
+  margin-top: 3px;
+}
+
 .step-input {
   font-family: 'Montserrat', sans-serif;
   font-size: 15px;

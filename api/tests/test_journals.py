@@ -148,9 +148,9 @@ def journal_history(monkeypatch):
     JOURNAL_DIR would override journals_env's."""
     from conftest import make_txn
 
-    txns = [make_txn("2026-09-06", "CIBC MC Payment", [
-        ("liabilities:creditcard:CIBC", 45.01),
-        ("assets:TD:chequing", -45.01),
+    txns = [make_txn("2026-09-06", "Monthly Card Payment", [
+        ("liabilities:creditcard:main", 45.01),
+        ("assets:chequing", -45.01),
     ])]
     calls: list[tuple] = []
 
@@ -179,9 +179,9 @@ def test_select_carries_presets_into_a_fresh_journal(client, auth, journals_env,
 
     stored = json.loads((journals_env["root"] / "2027" / "presets.json").read_text())
     assert stored["resolved"]["pay-card"] == {
-        "debit": "liabilities:creditcard:CIBC",
-        "credit": "assets:TD:chequing",
-        "title": "CIBC MC Payment",
+        "debit": "liabilities:creditcard:main",
+        "credit": "assets:chequing",
+        "title": "Monthly Card Payment",
     }
     assert [c[0] for c in journal_history["git_calls"]] == ["rev-parse", "add", "commit", "push"]
 

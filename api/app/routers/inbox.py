@@ -61,17 +61,47 @@ def _save_inbox_data(data: dict, path: str | None = None) -> None:
     save_json(path, data)
 
 
+# A trailing store or terminal code: "#48", "W593", "C00188", "STORE 1234".
+# It must contain digits and sit at the very end, so a merchant whose name
+# genuinely ends in a word is never truncated. The optional leading letters
+# cover the lettered terminal codes gas stations use.
+_STORE_CODE_RE = re.compile(r"[\s#-]+[A-Z]{0,3}\d{2,}[A-Z\d-]*$", re.IGNORECASE)
+
+
+def _strip_store_code(s: str) -> str:
+    """Drop a trailing store/terminal code, which varies between branches of
+    the same merchant and is the part a rule must not depend on."""
+    stripped = _STORE_CODE_RE.sub("", s).strip()
+    return stripped or s.strip()
+
+
 def _clean_merchant(raw: str) -> str:
-    """Strip payment-processor prefixes and trailing store numbers from a
-    bank merchant descriptor, e.g. 'TST-The Samosa Factory' -> 'The Samosa Factory'."""
+    """Strip payment-processor prefixes and the trailing store code from a
+    bank merchant descriptor, e.g. 'TST-The Samosa Factory' -> 'The Samosa
+    Factory', 'COSTCO GAS W543' -> 'COSTCO GAS'."""
     s = raw.strip()
     upper = s.upper()
     for prefix in _MERCHANT_PREFIXES:
         if upper.startswith(prefix):
             s = s[len(prefix):].strip()
             break
-    s = re.sub(r"[#\s][\d-]{3,}$", "", s).strip()
-    return s or raw.strip()
+    return _strip_store_code(s) or raw.strip()
+
+
+def _rule_matches(pattern: str, merchant_raw: str) -> bool:
+    """Whether a saved rule applies to a merchant descriptor.
+
+    Plain containment first, then again with the store code removed from both
+    sides — the same merchant reads as "COSTCO GAS W593" at one branch and
+    "COSTCO GAS W543" at another, so a rule saved at one would otherwise never
+    fire at the other. Comparing the stripped forms also repairs rules already
+    saved with a store code in them, which is most of them.
+    """
+    if not pattern:
+        return False
+    if pattern.upper() in merchant_raw.upper():
+        return True
+    return _strip_store_code(pattern).upper() in _strip_store_code(merchant_raw).upper()
 
 
 def _merchant_tokens(s: str) -> set:
@@ -152,10 +182,9 @@ def _suggest_inbox_posting(merchant_raw: str, amount: float, card_last4: str, da
     confidence = "low"
     matched_on = "fallback"
 
-    upper = merchant_raw.upper()
     rule = next(
         (r for r in data.get("merchant_rules", [])
-         if r.get("pattern") and r["pattern"].upper() in upper),
+         if _rule_matches(r.get("pattern", ""), merchant_raw)),
         None,
     )
     if rule:
@@ -304,17 +333,37 @@ def inbox_ingest(body: InboxIngest, token: str = Security(verify_token)):
 
 @router.get("/inbox")
 def get_inbox(token: str = Security(verify_token)):
-    """Pending items, newest first, each with a live journal match check."""
+    """Pending items, newest first, each with a live journal match check and a
+    freshly evaluated suggestion.
+
+    The suggestion is re-derived rather than served from the store because it
+    is derived data: it depends on the merchant rules and the journal, both of
+    which change after an item is staged. Saving a merchant rule used to leave
+    every already-pending item stuck on the guess made at ingest time, with no
+    way to refresh it short of deleting and re-forwarding the alert. Nothing
+    is lost by recomputing — an item carries no edits of its own, since those
+    are made in the review sheet at post time.
+    """
     with _inbox_lock:
         data = _load_inbox_data()
         items = [dict(i) for i in data["items"]]
     txns = _journal_txns() if items else []
     for item in items:
-        item["journal_match"] = (
-            _find_journal_match(txns, item.get("amount", 0), item.get("txn_date", ""))
-            if item.get("parsed", True)
-            else None
-        )
+        if item.get("parsed", True):
+            merchant_raw = item.get("merchant_raw", "")
+            item["merchant_clean"] = _clean_merchant(merchant_raw)
+            item["suggestion"] = _suggest_inbox_posting(
+                merchant_raw,
+                item.get("amount", 0),
+                item.get("card_last4", ""),
+                data,
+                txns,
+            )
+            item["journal_match"] = _find_journal_match(
+                txns, item.get("amount", 0), item.get("txn_date", "")
+            )
+        else:
+            item["journal_match"] = None
     items.sort(key=lambda i: i.get("received_at", ""), reverse=True)
     return {"items": items, "pending": len(items)}
 

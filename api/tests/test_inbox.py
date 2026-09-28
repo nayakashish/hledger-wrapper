@@ -361,3 +361,76 @@ def test_ingest_seeds_missing_inbox_json_for_resolved_target(client, auth, fake_
     assert resp.status_code == 200
     data = json.loads((multi_journal_env["paths"]["2027"] / "inbox.json").read_text())
     assert len(data["items"]) == 1
+
+
+# ── Merchant rules across store codes ─────────────────────────────────────────
+
+def _inbox_with_rule(pattern, account="expenses:jetta:gas:costco", description="Jetta Gas"):
+    return {
+        "items": [], "seen_message_ids": [], "card_map": {"1234": "liabilities:creditcard:main"},
+        "merchant_rules": [{"pattern": pattern, "account": account, "description": description}],
+    }
+
+
+@pytest.mark.parametrize("pattern,merchant", [
+    # The store code differs between branches of the same merchant, which is
+    # exactly what a rule must not depend on.
+    ("COSTCO GAS W593", "COSTCO GAS W543"),
+    ("STAPLES #48", "STAPLES #12"),
+    ("SHELL C00188", "SHELL C00042"),
+    # A rule saved before this fix still carries the code; one saved after
+    # does not. Both have to fire.
+    ("COSTCO GAS", "COSTCO GAS W543"),
+])
+def test_rule_matches_across_store_codes(client, auth, fake_hledger, fake_git, seed_inbox, pattern, merchant):
+    seed_inbox(_inbox_with_rule(pattern))
+    resp = client.post("/inbox/ingest", headers=auth, json={
+        "amount": 61.20, "merchant": merchant, "card_last4": "1234", "txn_date": "2026-09-20",
+        "email_message_id": "m1",
+    })
+    assert resp.status_code == 200
+    item = client.get("/inbox", headers=auth).json()["items"][0]
+    assert item["suggestion"]["account1"] == "expenses:jetta:gas:costco"
+    assert item["suggestion"]["confidence"] == "high"
+    assert item["suggestion"]["matched_on"] == "rule"
+
+
+def test_rule_does_not_leak_between_different_merchants(client, auth, fake_hledger, fake_git, seed_inbox):
+    seed_inbox(_inbox_with_rule("COSTCO GAS W593"))
+    client.post("/inbox/ingest", headers=auth, json={
+        "amount": 61.20, "merchant": "SHELL C00188", "card_last4": "1234", "txn_date": "2026-09-20",
+        "email_message_id": "m1",
+    })
+    item = client.get("/inbox", headers=auth).json()["items"][0]
+    assert item["suggestion"]["matched_on"] == "fallback"
+
+
+def test_pending_items_pick_up_a_rule_saved_afterwards(client, auth, fake_hledger, fake_git, seed_inbox):
+    """The reason a wrong rule used to be unfixable: the suggestion was frozen
+    at ingest time, so correcting the rule changed nothing already staged."""
+    seed_inbox({"items": [], "seen_message_ids": [], "merchant_rules": [],
+                "card_map": {"1234": "liabilities:creditcard:main"}})
+    client.post("/inbox/ingest", headers=auth, json={
+        "amount": 61.20, "merchant": "COSTCO GAS W543", "card_last4": "1234",
+        "txn_date": "2026-09-20", "email_message_id": "m1",
+    })
+    before = client.get("/inbox", headers=auth).json()["items"][0]
+    assert before["suggestion"]["confidence"] == "low"
+
+    client.post("/inbox/rule", headers=auth, json={
+        "pattern": "COSTCO GAS", "account": "expenses:jetta:gas:costco", "description": "Jetta Gas",
+    })
+
+    after = client.get("/inbox", headers=auth).json()["items"][0]
+    assert after["suggestion"]["account1"] == "expenses:jetta:gas:costco"
+    assert after["suggestion"]["description"] == "Jetta Gas"
+    assert after["suggestion"]["confidence"] == "high"
+
+
+def test_merchant_clean_strips_lettered_store_codes(client, auth, fake_hledger, fake_git, seed_inbox):
+    seed_inbox({"items": [], "seen_message_ids": [], "merchant_rules": [], "card_map": {}})
+    client.post("/inbox/ingest", headers=auth, json={
+        "amount": 61.20, "merchant": "COSTCO GAS W543", "card_last4": "1234",
+        "txn_date": "2026-09-20", "email_message_id": "m1",
+    })
+    assert client.get("/inbox", headers=auth).json()["items"][0]["merchant_clean"] == "COSTCO GAS"

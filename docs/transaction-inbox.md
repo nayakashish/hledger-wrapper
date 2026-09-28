@@ -83,6 +83,13 @@ If those digits are not in the map, the account becomes
 `liabilities:cc:unknown`, and the whole suggestion drops to low confidence, no
 matter how well the merchant matched. The fix is one more line in `card_map`.
 
+The suggestion is **re-derived every time the inbox is read**, not stored at
+ingest time. It depends on the merchant rules and on the journal, and both
+change after an item is staged — so fixing a rule, adding a card, or posting a
+similar transaction updates everything already pending the next time the inbox
+loads. Nothing is lost by recomputing: an item carries no edits of its own,
+because edits are made in the review sheet at post time.
+
 ### account1 — the expense side (which category)
 
 There are three tiers. The first match wins.
@@ -97,6 +104,15 @@ There are three tiers. The first match wins.
    ]
    ```
 
+   **The store code is ignored on both sides.** The same merchant reads as
+   `COSTCO GAS W593` at one branch and `COSTCO GAS W543` at another, so if
+   plain containment fails the server retries with the trailing store or
+   terminal code removed from the pattern and the merchant alike — `#48`,
+   `W593`, `C00188`. A rule saved at one branch therefore fires at every
+   branch, and a rule already saved with a code in it keeps working. Only a
+   trailing group containing digits is dropped, so a merchant whose name ends
+   in a word (or in `7-ELEVEN`) is never truncated.
+
    Rules always beat history. They come from two places: the "Remember merchant"
    checkbox on the review screen, which saves the posted title and category as a
    rule, or a manual edit of `inbox.json`. Edit the file by hand to add a
@@ -106,7 +122,8 @@ There are three tiers. The first match wins.
 
 2. **History match.** The server first cleans the merchant descriptor. It
    removes processor prefixes such as `TST-`, `SQ *`, and `PAYPAL *`, and it
-   drops trailing store numbers, so `CAFE #1234` becomes `CAFE`. It then
+   drops the trailing store code, so `CAFE #1234` becomes `CAFE` and
+   `COSTCO GAS W543` becomes `COSTCO GAS`. It then
    compares the result with every past description in the journal:
    - **Exact match**, without regard to case: the cleaned merchant equals a past
      description. The server takes the most recent of those transactions.

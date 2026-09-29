@@ -146,22 +146,37 @@ class Alert:
 # entry here and in the Worker together when a new bank/template shows up.
 # ---------------------------------------------------------------------------
 
-# "...your CIBC Costco Mastercard ending in 1234 for $22.94 at TST-The Samosa
-#  Factory." — non-greedy merchant stops at the first period, same as the Worker.
-CIBC_RE = re.compile(r"ending in (\d{4}) for \$([\d,]+\.\d{2}) at (.+?)\.", re.IGNORECASE)
+# One bank words its alerts several ways and the fields do not keep their
+# order between them, so each shape records which group holds what.
+#
+#   purchase:      "...your CIBC Costco Mastercard ending in 1234 for $22.94
+#                   at TST-The Samosa Factory."
+#   preauthorized: "...a preauthorized payment of $15.70 to Audible CA on your
+#                   CIBC Costco Mastercard ending in 0481."
+#
+# The merchant is non-greedy in both, and the preauthorized card digits are
+# held to the same sentence so a later "ending in" cannot be picked up.
+CIBC_PATTERNS = [
+    (re.compile(r"ending in (\d{4}) for \$([\d,]+\.\d{2}) at (.+?)\.", re.IGNORECASE),
+     {"card": 1, "amount": 2, "merchant": 3}),
+    (re.compile(r"payment of \$([\d,]+\.\d{2}) to (.+?) on your [^.]*?ending in (\d{4})", re.IGNORECASE),
+     {"amount": 1, "merchant": 2, "card": 3}),
+]
 
 
 def parse_cibc(text: str) -> Alert | None:
     flat = re.sub(r"\s+", " ", text)
-    m = CIBC_RE.search(flat)
-    if not m:
-        return None
-    return Alert(
-        amount=float(m.group(2).replace(",", "")),
-        merchant=m.group(3).strip(),
-        card_last4=m.group(1),
-        bank="cibc",
-    )
+    for pattern, g in CIBC_PATTERNS:
+        m = pattern.search(flat)
+        if not m:
+            continue
+        return Alert(
+            amount=float(m.group(g["amount"]).replace(",", "")),
+            merchant=m.group(g["merchant"]).strip(),
+            card_last4=m.group(g["card"]),
+            bank="cibc",
+        )
+    return None
 
 
 BANK_PARSERS = [

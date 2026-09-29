@@ -123,22 +123,50 @@ interface BankParser {
 	parse: (subject: string, body: string) => ParsedAlert | null;
 }
 
+// One bank can word its alerts several ways, and the fields do not keep their
+// order between them — so each shape carries which group holds what rather
+// than relying on a fixed 1/2/3.
+interface AlertPattern {
+	re: RegExp;
+	amount: number;
+	merchant: number;
+	card: number;
+}
+
+const CIBC_PATTERNS: AlertPattern[] = [
+	// Purchase:
+	//   "... your <card> ending in 0000 for $00.00 at MERCHANT NAME."
+	{
+		re: /ending in (\d{4}) for \$([\d,]+\.\d{2}) at (.+?)\.(?:\s|$)/i,
+		card: 1, amount: 2, merchant: 3,
+	},
+	// Preauthorized payment (subscriptions and the like):
+	//   "... a preauthorized payment of $00.00 to MERCHANT on your <card> ending in 0000."
+	// The merchant is non-greedy up to " on your ", and the card digits are
+	// held to the same sentence so a later "ending in" cannot be picked up.
+	{
+		re: /payment of \$([\d,]+\.\d{2}) to (.+?) on your [^.]*?ending in (\d{4})/i,
+		amount: 1, merchant: 2, card: 3,
+	},
+];
+
 const BANK_PARSERS: BankParser[] = [
 	{
 		bank: 'cibc',
 		fromMatch: /@(?:[a-z0-9-]+\.)*cibc\.(?:com|ca)$/i,
-		// Alert body shape:
-		//   "... your <card name> ending in 0000 for $00.00 at MERCHANT NAME."
 		parse: (_subject, body) => {
 			const flat = body.replace(/\s+/g, ' ');
-			const m = flat.match(/ending in (\d{4}) for \$([\d,]+\.\d{2}) at (.+?)\.(?:\s|$)/);
-			if (!m) return null;
-			return {
-				amount: parseFloat(m[2].replace(/,/g, '')),
-				merchant: m[3].trim(),
-				card_last4: m[1],
-				bank: 'cibc',
-			};
+			for (const p of CIBC_PATTERNS) {
+				const m = flat.match(p.re);
+				if (!m) continue;
+				return {
+					amount: parseFloat(m[p.amount].replace(/,/g, '')),
+					merchant: m[p.merchant].trim(),
+					card_last4: m[p.card],
+					bank: 'cibc',
+				};
+			}
+			return null;
 		},
 	},
 ];

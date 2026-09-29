@@ -275,9 +275,12 @@ each one is one tap to dismiss. It can never write to the journal.
 - **The alert is in Gmail, but nothing is in the inbox.** Check the Email
   Routing activity log, then run `wrangler tail hledger-worker`. If the item was
   suppressed with `reason: journal`, that is dedup working, not a failure.
-- **The item shows the subject line and low confidence.** The bank changed its
-  email template. Update the parser regex in `src/index.ts` (`BANK_PARSERS`).
-  The item stays usable through Edit until you do.
+- **The item shows the subject line and low confidence.** The bank used a
+  template no pattern matches. Add a shape to `CIBC_PATTERNS` in
+  `src/index.ts`, and the matching one in `api/ingest_alerts.py` — the two are
+  kept in step deliberately. Each shape records which capture group holds the
+  amount, merchant, and card, because the fields do not keep their order
+  between templates. The item stays usable through Edit until you do.
 - **The Email Routing log shows ingest delivery failures.** The home server or
   the tunnel is down. The alert is still in Gmail, so forward it again when the
   server is back.
@@ -291,8 +294,9 @@ each one is one tap to dismiss. It can never write to the journal.
 
 ## Known Limitations and Future Ideas
 
-- The parser handles purchase alerts only. A refund or credit alert has not been
-  seen yet, and would arrive unparsed.
+- The parser handles purchases and preauthorized payments (subscriptions and
+  the like). A refund or credit alert has not been seen yet, and would arrive
+  unparsed.
 - Alert amounts are authorizations. Tips and fuel settle at a different amount,
   which arrives as a separate item. Dismiss the old one.
 - Dismiss is immediate and permanent. An undo across the whole app is a separate

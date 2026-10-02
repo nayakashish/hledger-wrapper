@@ -173,8 +173,15 @@ Worker does not go through the browser login.
 
 ## 4. Cloudflare Worker — secrets
 
+Create your Worker config from the template first. `wrangler.jsonc` is
+gitignored, so your own domain and email stay out of the repo:
+
 ```bash
 cd hledger-worker
+cp wrangler.jsonc.example wrangler.jsonc
+# edit wrangler.jsonc: set routes[0].pattern / zone_name to your domain,
+# or delete the routes block to deploy to workers.dev
+
 npm install
 
 wrangler secret put API_BASE_URL

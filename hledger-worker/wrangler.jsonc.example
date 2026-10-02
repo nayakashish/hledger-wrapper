@@ -1,3 +1,6 @@
+// Template for wrangler.jsonc. Copy it and fill in your own values:
+//   cp wrangler.jsonc.example wrangler.jsonc
+// wrangler.jsonc is gitignored so the real email and domain never get committed.
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"name": "hledger-worker",
@@ -18,12 +21,12 @@
 	"vars": {
 		// Gmail forwarding-confirmation emails get forwarded here (must be a
 		// verified destination address in Email Routing)
-		"FORWARD_VERIFICATION_EMAIL": "a.samuel.nayak@gmail.com"
+		"FORWARD_VERIFICATION_EMAIL": "you@example.com"
 	},
 	"routes": [
 		{
-			"pattern": "hledger.nayakashish.cc",
-			"zone_name": "nayakashish.cc",
+			"pattern": "hledger.example.com",
+			"zone_name": "example.com",
 			"custom_domain": true,
 			"enabled": true,
 			"previews_enabled": false

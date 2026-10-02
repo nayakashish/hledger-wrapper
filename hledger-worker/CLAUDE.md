@@ -36,7 +36,7 @@ hledger-worker/
 ├── CLAUDE.md              ← you are here
 ├── index.html             ← Vite root (mounts React at #root)
 ├── vite.config.ts         ← Vite + Cloudflare Vite plugin
-├── wrangler.jsonc         ← Worker config + vars + Assets binding
+├── wrangler.jsonc         ← Worker config + vars + Assets binding (gitignored; copy from wrangler.jsonc.example)
 ├── tsconfig.json          ← TypeScript config
 ├── package.json
 ├── public/                ← static assets copied as-is to dist/client

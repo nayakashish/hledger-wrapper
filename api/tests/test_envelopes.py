@@ -347,3 +347,110 @@ def test_delete_clean_removes_envelope(client, auth, fake_git, seed_envelopes):
     data = client.get("/envelopes", headers=auth).json()
     assert "food" not in data["balances"]
     assert all(e["id"] != "food" for e in data["envelopes"])
+
+
+# --- reconcile: explain the gap -----------------------------------------------
+
+def _two_envelopes(**overrides):
+    return base_env_data(
+        envelopes=[
+            {"id": "chequing", "name": "Chequing", "parent": None, "sort_order": 1},
+            {"id": "food", "name": "Food", "parent": None, "sort_order": 2},
+        ],
+        **overrides,
+    )
+
+
+def _hist(txn, envelope, amount, type_="expense"):
+    return {"date": txn["tdate"], "type": type_, "envelope": envelope, "amount": amount, "note": txn["tdescription"], "txn_id": _txn_id(txn)}
+
+
+def _reconcile(client, auth):
+    resp = client.get("/envelopes/reconcile", headers=auth)
+    assert resp.status_code == 200
+    body = resp.json()
+    # The parts always add up to the gap.
+    parts = sum(i["gap"] for i in body["items"]) + body["reviewed"] + body["unlinked_adjustments"] + body["store_mismatch"]
+    assert round(parts, 2) == body["gap"]
+    return body
+
+
+def test_reconcile_explains_each_kind_of_gap(client, auth, fake_hledger, seed_envelopes):
+    opening = make_txn("2026-01-01", "Opening", [("assets:chequing", 100), ("equity:opening", -100)])
+    lunch = make_txn("2026-01-02", "Lunch", [("expenses:food", 21.71), ("liabilities:card", -21.71)])
+    parking = make_txn("2026-01-03", "Parking", [("expenses:car", 6.45), ("liabilities:card", -6.45)])
+    interest = make_txn("2026-01-04", "Interest", [("assets:chequing", 0.07), ("income:interest", -0.07)])
+    deleted = make_txn("2026-01-05", "Deleted later", [("expenses:misc", 12), ("liabilities:card", -12)])
+    fake_hledger.set_txns([opening, lunch, parking, interest])
+    seed_envelopes(_two_envelopes(
+        balances={"chequing": 100 - 6.45 - 12 - 21.71, "food": -21.71},
+        matched_hledger_txns=[_txn_id(opening), _txn_id(lunch), _txn_id(parking)],
+        history=[
+            {"date": "2026-01-01", "type": "adjustment", "envelope": "chequing", "amount": 100, "note": "Start"},
+            _hist(lunch, "chequing", -21.71), _hist(lunch, "food", -21.71),
+            _hist(deleted, "chequing", -12),
+        ],
+    ))
+    body = _reconcile(client, auth)
+    kinds = {i["description"]: (i["kind"], i["gap"]) for i in body["items"]}
+    assert kinds == {
+        "Opening": ("dismissed", -100.0),
+        "Lunch": ("assigned_twice", -21.71),
+        "Parking": ("dismissed", 6.45),
+        "Interest": ("unscanned", -0.07),
+        "Deleted later": ("not_in_journal", -12.0),
+    }
+    assert body["unlinked_adjustments"] == 100.0
+
+
+def test_reconcile_counts_history_written_under_old_ids(client, auth, fake_hledger, seed_envelopes):
+    lunch = make_txn("2026-01-02", "Lunch", [("expenses:food", 5), ("liabilities:card", -5)], tindex=7)
+    fake_hledger.set_txns([lunch])
+    seed_envelopes(_two_envelopes(
+        balances={"chequing": -5, "food": 0},
+        matched_hledger_txns=[_txn_id(lunch)],
+        history=[{"date": "2026-01-02", "type": "expense", "envelope": "chequing", "amount": -5, "note": "Lunch", "txn_id": "2026-01-02|Lunch|7"}],
+    ))
+    body = _reconcile(client, auth)
+    assert body["items"] == [] and body["gap"] == 0
+
+
+def test_reconcile_linked_adjustment_closes_the_item(client, auth, fake_hledger, fake_git, seed_envelopes):
+    lunch = make_txn("2026-01-02", "Lunch", [("expenses:food", 5), ("liabilities:card", -5)])
+    fake_hledger.set_txns([lunch])
+    seed_envelopes(_two_envelopes(
+        balances={"chequing": -10, "food": 0},
+        matched_hledger_txns=[_txn_id(lunch)],
+        history=[_hist(lunch, "chequing", -5), _hist(lunch, "chequing", -5)],
+    ))
+    item = _reconcile(client, auth)["items"][0]
+    client.post("/envelopes/adjust", headers=auth, json={"envelope": item["envelope"], "amount": -item["gap"], "txn_id": item["txn_id"]})
+    body = _reconcile(client, auth)
+    assert body["items"] == [] and body["gap"] == 0
+
+
+def test_reconcile_ack_hides_until_the_gap_changes(client, auth, fake_hledger, fake_git, seed_envelopes):
+    lunch = make_txn("2026-01-02", "Lunch", [("expenses:food", 5), ("liabilities:card", -5)])
+    fake_hledger.set_txns([lunch])
+    seed_envelopes(_two_envelopes(
+        balances={"chequing": -10, "food": 0},
+        matched_hledger_txns=[_txn_id(lunch)],
+        history=[_hist(lunch, "chequing", -5), _hist(lunch, "chequing", -5)],
+    ))
+    key = _reconcile(client, auth)["items"][0]["key"]
+    assert client.post("/envelopes/reconcile/ack", headers=auth, json={"keys": [key]}).status_code == 200
+    body = _reconcile(client, auth)
+    assert body["items"] == [] and body["reviewed"] == -5.0
+
+    # Assigned a third time: the gap changes, so the item is back.
+    data = client.get("/envelopes", headers=auth).json()
+    data["history"].append(_hist(lunch, "chequing", -5))
+    data["balances"]["chequing"] = -15
+    seed_envelopes(data)
+    assert [i["gap"] for i in _reconcile(client, auth)["items"]] == [-10.0]
+
+
+def test_reconcile_ack_rejects_unknown_keys(client, auth, fake_hledger, seed_envelopes):
+    seed_envelopes(_two_envelopes())
+    resp = client.post("/envelopes/reconcile/ack", headers=auth, json={"keys": ["2026-01-01|Nope"]})
+    assert resp.status_code == 400

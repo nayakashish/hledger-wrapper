@@ -17,6 +17,12 @@ Notable changes to the project are documented here. I track versions to have a g
   transactions back as new, which is how they got assigned twice. Ids are now
   a fingerprint of the entry's date, description, and postings. Existing
   stores migrate on the first scan.
+- **Explain the gap.** Tapping the "vs hledger" indicator lists the
+  transactions behind the difference: assigned twice, amount differs,
+  dismissed but moved money, no longer in the journal, not scanned, or
+  pending. Fix posts an adjustment tied to the transaction so the item
+  closes, and Mark reviewed hides an item until its gap changes.
+  Adjustments accept an optional `txn_id`.
 
 ## [1.9] - 2026-09-21
 

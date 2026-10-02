@@ -430,6 +430,7 @@ export default function App() {
 					onAssignClick={txn => setAssignTxn(txn)}
 					onScan={scanTransactions}
 					onNewEnv={() => setDetailContent({ kind: 'new-envelope' })}
+					onReconcileClick={() => setDetailContent({ kind: 'reconcile' })}
 				/>
 			</div>
 

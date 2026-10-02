@@ -10,7 +10,7 @@ from ..auth import verify_token
 from ..config import get_settings
 from ..git_ops import git_transaction
 from ..hledger import run_hledger
-from ..models import Assignment, EnvAdjust, EnvCreate, EnvTransfer
+from ..models import Assignment, EnvAdjust, EnvCreate, EnvTransfer, ReconcileAck
 from ..storage import load_json, save_json
 
 router = APIRouter()
@@ -406,7 +406,10 @@ def envelope_adjust(body: EnvAdjust, token: str = Security(verify_token)):
     today = date.today().isoformat()
     cur = data["balances"].get(body.envelope, 0.0)
     data["balances"][body.envelope] = round(cur + body.amount, 2)
-    data["history"].append({"date": today, "type": "adjustment", "envelope": body.envelope, "amount": body.amount, "note": body.note or "Manual adjustment"})
+    entry = {"date": today, "type": "adjustment", "envelope": body.envelope, "amount": body.amount, "note": body.note or "Manual adjustment"}
+    if body.txn_id:
+        entry["txn_id"] = body.txn_id
+    data["history"].append(entry)
 
     settings = get_settings()
     with git_transaction([settings.envelope_data_file], f"envelopes: adjust {body.envelope} {body.amount:+.2f}"):
@@ -459,3 +462,139 @@ def delete_envelope(envelope_id: str, token: str = Security(verify_token)):
         _save_env_data(data)
 
     return {"status": "ok"}
+
+
+# --- Reconciliation: explain the gap ------------------------------------------
+
+def _day_desc(txn_id: str) -> str:
+    """`date|description` part of any transaction id, old or new scheme.
+    Both schemes end in one `|`-separated segment (position or hash)."""
+    return txn_id.rsplit("|", 1)[0]
+
+
+def _classify(expected: float, recorded: float, n_journal: int, statuses: set[str]) -> str:
+    if n_journal == 0:
+        return "not_in_journal"
+    if "pending" in statuses:
+        return "pending"
+    if "unscanned" in statuses:
+        return "unscanned"
+    if recorded == 0:
+        return "dismissed"
+    if expected != 0 and abs(recorded - 2 * expected) < 0.005:
+        return "assigned_twice"
+    return "amount_differs"
+
+
+def _reconcile(data: dict, txns: list[dict]) -> dict:
+    """Break `envelope total − (assets + liabilities)` into the transactions
+    that cause it.
+
+    Every journal transaction should move the envelopes by exactly its
+    liquid delta. Transactions are grouped by date and description, which
+    both id schemes share, so history written under old ids still counts.
+    For each group, recorded − expected is that group's share of the gap.
+    Adjustments and transfers with no txn_id are reported as one line, and
+    the parts always add up to the gap exactly."""
+    ids = _txn_ids(txns)
+    matched = set(data.get("matched_hledger_txns", []))
+    pending = {p["txn_id"] for p in data.get("pending", [])}
+
+    groups: dict[str, dict] = {}
+
+    def group(key: str) -> dict:
+        return groups.setdefault(key, {"expected": 0.0, "recorded": 0.0, "n_journal": 0, "statuses": set(), "txn_id": None, "envelopes": []})
+
+    for txn, tid in zip(txns, ids):
+        g = group(_day_desc(tid))
+        g["expected"] += _liquid_delta(txn)
+        g["n_journal"] += 1
+        g["txn_id"] = g["txn_id"] or tid
+        g["statuses"].add("pending" if tid in pending else "matched" if tid in matched else "unscanned")
+
+    unlinked = 0.0
+    for h in data.get("history", []):
+        amt = float(h.get("amount", 0))
+        if h.get("txn_id"):
+            g = group(_day_desc(h["txn_id"]))
+            g["recorded"] += amt
+            g["txn_id"] = g["txn_id"] or h["txn_id"]
+            g["envelopes"].append(h.get("envelope"))
+        else:
+            unlinked += amt
+
+    env_ids = {e["id"] for e in data.get("envelopes", [])}
+    balances = data.get("balances", {})
+    envelope_total = round(sum(balances.get(e, 0.0) for e in env_ids), 2)
+    hledger_total = round(sum(_liquid_delta(t) for t in txns), 2)
+    history_total = round(sum(float(h.get("amount", 0)) for h in data.get("history", [])), 2)
+    acks = data.get("reconcile_ack", {})
+
+    items, reviewed = [], 0.0
+    for key, g in groups.items():
+        diff = round(g["recorded"] - g["expected"], 2)
+        if abs(diff) < 0.005:
+            continue
+        if acks.get(key) == diff:
+            reviewed += diff
+            continue
+        date_, _, desc = key.partition("|")
+        items.append({
+            "key": key,
+            "date": date_,
+            "description": desc,
+            "kind": _classify(round(g["expected"], 2), round(g["recorded"], 2), g["n_journal"], g["statuses"]),
+            "journal": round(g["expected"], 2),
+            "envelopes": round(g["recorded"], 2),
+            "gap": diff,
+            "txn_id": g["txn_id"],
+            # Most recent envelope touched, the usual place to correct a
+            # duplicate or a wrong amount.
+            "envelope": g["envelopes"][-1] if g["envelopes"] else None,
+        })
+    items.sort(key=lambda i: i["date"], reverse=True)
+
+    return {
+        "gap": round(envelope_total - hledger_total, 2),
+        "envelope_total": envelope_total,
+        "hledger_total": hledger_total,
+        "items": items,
+        "reviewed": round(reviewed, 2),
+        "unlinked_adjustments": round(unlinked, 2),
+        # Balances that history doesn't explain: a hand-edited store, or
+        # money in a balance key that isn't an envelope.
+        "store_mismatch": round(envelope_total - history_total, 2),
+    }
+
+
+def _journal_txns() -> list[dict]:
+    raw = run_hledger("print", "--output-format", "json")
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=500, detail="Could not parse hledger output")
+
+
+@router.get("/envelopes/reconcile")
+def reconcile(token: str = Security(verify_token)):
+    """Explain the difference between the envelope total and hledger."""
+    return _reconcile(_load_env_data(), _journal_txns())
+
+
+@router.post("/envelopes/reconcile/ack")
+def reconcile_ack(body: ReconcileAck, token: str = Security(verify_token)):
+    """Mark items as reviewed at their current gap. An item reappears if its
+    gap later changes, e.g. the same transaction is assigned again."""
+    data = _load_env_data()
+    current = {i["key"]: i["gap"] for i in _reconcile(data, _journal_txns())["items"]}
+    unknown = [k for k in body.keys if k not in current]
+    if unknown:
+        raise HTTPException(status_code=400, detail=f"not an open item: {unknown[0]}")
+    acks = data.setdefault("reconcile_ack", {})
+    for k in body.keys:
+        acks[k] = current[k]
+
+    settings = get_settings()
+    with git_transaction([settings.envelope_data_file], f"envelopes: mark {len(body.keys)} reconcile item(s) reviewed"):
+        _save_env_data(data)
+    return {"status": "ok", "reviewed": len(body.keys)}

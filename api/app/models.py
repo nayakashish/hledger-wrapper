@@ -34,6 +34,14 @@ class EnvAdjust(BaseModel):
     envelope: str
     amount: float
     note: str | None = None
+    # Links the adjustment to a journal transaction, so the reconciliation
+    # view counts it against that transaction instead of as a loose fix.
+    txn_id: str | None = None
+
+
+class ReconcileAck(BaseModel):
+    # Item keys from GET /envelopes/reconcile to mark as reviewed.
+    keys: list[str]
 
 
 class EnvCreate(BaseModel):

@@ -3,6 +3,7 @@ import { extractAmount, fmtAmount, amountClass } from '../../utils/format';
 import { useSheetSwipe } from '../../hooks/useSheetSwipe';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { apiPost, apiDelete } from '../../utils/api';
+import ReconcileBody from './ReconcileBody';
 import type { DetailContent, EnvelopeData, Transaction, Envelope } from '../../types';
 
 interface Props {
@@ -51,6 +52,9 @@ export default function DetailSheet({ content, envData, onClose, onEnvAction, sh
 	} else if (content?.kind === 'new-envelope') {
 		title = 'New envelope';
 		subtitle = '';
+	} else if (content?.kind === 'reconcile') {
+		title = 'Envelopes vs hledger';
+		subtitle = 'What makes up the difference';
 	}
 
 	return (
@@ -78,6 +82,9 @@ export default function DetailSheet({ content, envData, onClose, onEnvAction, sh
 							onAction={onEnvAction}
 							showToast={showToast}
 						/>
+					)}
+					{content?.kind === 'reconcile' && envData && (
+						<ReconcileBody envData={envData} onAction={onEnvAction} showToast={showToast} />
 					)}
 					{content?.kind === 'new-envelope' && envData && (
 						<NewEnvBody
@@ -431,7 +438,9 @@ function CorrectionForm({
 	const txnEntries = allHistory.filter(h => h.txn_id === txnId);
 	const isIncome = txnEntries[0]?.type === 'income_allocation';
 	const currentSplits: Record<string, number> = {};
-	txnEntries.forEach(h => { currentSplits[h.envelope] = h.amount; });
+	// Summed, not assigned: a transaction can have several entries per
+	// envelope (a duplicate, then the adjustment that fixed it).
+	txnEntries.forEach(h => { currentSplits[h.envelope] = (currentSplits[h.envelope] || 0) + h.amount; });
 	const totalAllocated = txnEntries.reduce((s, h) => s + h.amount, 0);
 	const desc = txnEntries[0]?.note || (isIncome ? 'Income' : 'Expense');
 	const date = txnEntries[0]?.date || '';

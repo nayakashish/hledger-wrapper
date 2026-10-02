@@ -151,8 +151,8 @@ class Alert:
 #
 #   purchase:      "...your CIBC Costco Mastercard ending in 1234 for $22.94
 #                   at TST-The Samosa Factory."
-#   preauthorized: "...a preauthorized payment of $15.70 to Audible CA on your
-#                   CIBC Costco Mastercard ending in 0481."
+#   preauthorized: "...a preauthorized payment of $9.99 to Example Streaming on your
+#                   CIBC Costco Mastercard ending in 0123."
 #
 # The merchant is non-greedy in both, and the preauthorized card digits are
 # held to the same sentence so a later "ending in" cannot be picked up.

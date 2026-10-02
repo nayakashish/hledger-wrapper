@@ -17,3 +17,6 @@ htmlcov/
 
 # Scratch / working notes (gitignored, not committed)
 temp/
+
+# Worker config holds personal vars and routes; the template is wrangler.jsonc.example
+hledger-worker/wrangler.jsonc

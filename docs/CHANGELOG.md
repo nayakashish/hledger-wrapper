@@ -2,6 +2,16 @@
 
 Notable changes to the project are documented here. I track versions to have a good return point if I dislike a feature I've added or want to revert to another state. So versioning is not very strict. Follows major.minor, incrementing minor for new features/changes. 
 
+## [Unreleased]
+
+- **Envelope scan measures what actually left or arrived.** A pending item's
+  amount is now the transaction's net change to assets plus liabilities, the
+  same figure the "vs hledger" indicator compares against. Transactions with
+  more than one expense posting are no longer under-counted, a refund is
+  offered as money back into its expense's envelope instead of a second
+  expense, and moves between your own accounts are skipped instead of waiting
+  to be dismissed.
+
 ## [1.9] - 2026-09-21
 
 Add-transaction presets — the add button opens on a list of common

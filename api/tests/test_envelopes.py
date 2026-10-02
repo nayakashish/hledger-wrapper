@@ -60,6 +60,33 @@ def test_scan_zero_amount_skipped(client, auth, fake_hledger, seed_envelopes):
     assert resp.json()["added"] == 0
 
 
+def test_scan_amount_is_net_change_to_accounts(client, auth, fake_hledger, fake_git, seed_envelopes):
+    # Two expense postings: the pending amount is the whole $131 that left
+    # chequing, not the first posting's $45.
+    seed_envelopes(base_env_data())
+    fake_hledger.set_txns([make_txn("2026-01-05", "Two things", [("expenses:hobby", 45), ("expenses:car:gas", 86), ("assets:chequing", -131)])])
+    client.post("/envelopes/scan", headers=auth)
+    pending = client.get("/envelopes", headers=auth).json()["pending"][0]
+    assert (pending["type"], pending["amount"]) == ("expense", 131.0)
+
+
+def test_scan_refund_is_inflow_with_suggestion(client, auth, fake_hledger, fake_git, seed_envelopes):
+    seed_envelopes(base_env_data(
+        envelopes=[{"id": "groceries", "name": "Groceries", "parent": "everyday", "sort_order": 1}],
+    ))
+    fake_hledger.set_txns([make_txn("2026-01-05", "Returned", [("expenses:food:groceries", -20), ("assets:chequing", 20)])])
+    client.post("/envelopes/scan", headers=auth)
+    pending = client.get("/envelopes", headers=auth).json()["pending"][0]
+    assert (pending["type"], pending["amount"], pending["suggested_envelope"]) == ("income", 20.0, "groceries")
+
+
+def test_scan_skips_transfers_between_own_accounts(client, auth, fake_hledger, seed_envelopes):
+    seed_envelopes(base_env_data())
+    fake_hledger.set_txns([make_txn("2026-01-05", "Card payment", [("liabilities:card", 200), ("assets:chequing", -200)])])
+    resp = client.post("/envelopes/scan", headers=auth)
+    assert resp.json()["added"] == 0
+
+
 def test_scan_commits_and_pushes_new_pending(client, auth, fake_hledger, fake_git, seed_envelopes):
     seed_envelopes(base_env_data())
     fake_hledger.set_txns([make_txn("2026-01-05", "Coffee", [("expenses:food:diningout", 5), ("assets:chequing", -5)])])

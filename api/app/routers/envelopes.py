@@ -62,27 +62,31 @@ def _extract_amount(posting: dict) -> float:
     return float(q or 0)
 
 
-def _is_income(txn: dict) -> bool:
-    for p in txn.get("tpostings", []):
-        if p.get("paccount", "").startswith("income"):
-            return True
-    return False
-
-
 def _txn_id(txn: dict) -> str:
     return f"{txn.get('tdate','')}|{txn.get('tdescription','')}|{txn.get('tindex', txn.get('tdate',''))}"
 
 
-def _main_amount(txn: dict) -> float:
-    """Return the primary non-income, non-asset posting amount (positive = expense)."""
+def _liquid_delta(txn: dict) -> float:
+    """Net change the transaction makes to assets + liabilities, signed.
+
+    This is the same quantity the reconciliation indicator compares against
+    (envelope total vs assets + liabilities), so measuring it here means a
+    fully assigned scan can never drift from that indicator. Positive is
+    money in, negative is money out, and zero is a move between your own
+    accounts (a card payment, savings to chequing) that envelopes don't care
+    about."""
+    total = 0.0
     for p in txn.get("tpostings", []):
         acct = p.get("paccount", "")
-        if acct.startswith("expenses") or acct.startswith("income"):
-            amt = _extract_amount(p)
-            return abs(amt)
-    # fallback: first posting
-    postings = txn.get("tpostings", [])
-    return abs(_extract_amount(postings[0])) if postings else 0.0
+        if acct.startswith("assets") or acct.startswith("liabilities"):
+            total += _extract_amount(p)
+    return round(total, 2)
+
+
+def _is_refund(txn: dict) -> bool:
+    """Money coming back against an expense account, with no income posting."""
+    accts = [p.get("paccount", "") for p in txn.get("tpostings", [])]
+    return any(a.startswith("expenses") for a in accts) and not any(a.startswith("income") for a in accts)
 
 
 def _validate_splits_sum(splits: list, target_amount: float) -> None:
@@ -155,19 +159,22 @@ def scan_transactions(token: str = Security(verify_token)):
         if tid in already_matched or tid in pending_ids:
             continue
 
-        is_income = _is_income(txn)
-        amt = _main_amount(txn)
-        if amt == 0:
+        delta = _liquid_delta(txn)
+        if delta == 0:
             continue
+        is_inflow = delta > 0
+        amt = abs(delta)
 
-        suggestion = None if is_income else _suggest_envelope(txn, envelopes)
+        # Income gets no suggestion (you decide how to divide it). An
+        # outflow, or a refund, belongs to its expense account's envelope.
+        suggestion = _suggest_envelope(txn, envelopes) if (not is_inflow or _is_refund(txn)) else None
 
         pending_entry = {
             "txn_id": tid,
             "date": txn.get("tdate", ""),
             "description": txn.get("tdescription", ""),
             "amount": amt,
-            "type": "income" if is_income else "expense",
+            "type": "income" if is_inflow else "expense",
             "suggested_envelope": suggestion,
             "accounts": [p.get("paccount", "") for p in txn.get("tpostings", [])],
         }

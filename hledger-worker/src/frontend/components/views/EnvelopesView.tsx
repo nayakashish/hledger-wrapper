@@ -116,7 +116,7 @@ function EnvelopesContent({
 								<span className="pending-desc">
 									{txn.description}
 									{isIncome ? (
-										<span className="pending-badge income">income</span>
+										<span className="pending-badge income">{txn.suggested_envelope ? 'refund' : 'income'}</span>
 									) : txn.suggested_envelope ? (
 										<span className="pending-badge suggested">suggested</span>
 									) : (

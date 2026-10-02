@@ -26,7 +26,7 @@ export default function AssignSheet({ txn, envData, onClose, onSuccess, showToas
 			<div className="assign-sheet-inner">
 				<div className="assign-header">
 					<span className="assign-title">
-						{txn.type === 'income' ? 'Allocate income' : 'Assign expense'}
+						{txn.type === 'income' ? (txn.suggested_envelope ? 'Assign refund' : 'Allocate income') : 'Assign expense'}
 					</span>
 					<button className="assign-close" onClick={onClose} aria-label="Close">
 						<CloseIcon />
@@ -381,7 +381,18 @@ function IncomeSplit({
 	const tithePct = defaults.tithe_pct ?? 0.10;
 	const savingsPct = defaults.savings ?? 0.40;
 
+	// A refund arrives with the envelope of the expense it reverses, and
+	// goes back there in full rather than through the income defaults.
+	const isRefund = !!txn.suggested_envelope;
+
 	const initAmounts = () => {
+		if (isRefund) {
+			const init: Record<string, string> = {};
+			envData.envelopes.forEach(e => {
+				init[e.id] = e.id === txn.suggested_envelope ? txn.amount.toFixed(2) : '';
+			});
+			return init;
+		}
 		const tithe = Math.round(txn.amount * tithePct * 100) / 100;
 		const savings = Math.round(txn.amount * savingsPct * 100) / 100;
 		const chequing = Math.round((txn.amount - tithe - savings) * 100) / 100;
@@ -397,7 +408,7 @@ function IncomeSplit({
 	const handleSubmit = async (splits: { envelope_id: string; amount: number }[]) => {
 		try {
 			await apiPost('/api/envelopes/assign', { txn_id: txn.txn_id, splits });
-			showToast('Income allocated');
+			showToast(isRefund ? 'Refund assigned' : 'Income allocated');
 			onClose();
 			await onSuccess();
 		} catch (e) {
@@ -422,10 +433,10 @@ function IncomeSplit({
 			txn={txn}
 			envData={envData}
 			initAmounts={initAmounts}
-			showDefaultsButton
+			showDefaultsButton={!isRefund}
 			onResetDefaults={initAmounts}
-			helperText="Split this income across envelopes."
-			submitLabel="Allocate income"
+			helperText={isRefund ? 'Money back on an expense. It returns to that envelope.' : 'Split this income across envelopes.'}
+			submitLabel={isRefund ? 'Assign refund' : 'Allocate income'}
 			onSubmit={handleSubmit}
 			onDismiss={handleDismiss}
 			showToast={showToast}

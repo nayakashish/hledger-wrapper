@@ -123,13 +123,30 @@ sequenceDiagram
 `hledger print`. For each transaction that is not already in `pending` or in
 `matched_hledger_txns`, the server does this:
 
-1. It classifies the transaction as **income** if any posting goes to an
-   `income:*` account. If not, the transaction is an **expense**.
-2. It calculates the primary amount, which is the magnitude of the first
-   `expenses:*` or `income:*` posting. If that amount is zero, the transaction
-   is a transfer between asset accounts, and the server skips it.
-3. For an expense, it calculates a **suggested envelope**. Income gets no
-   suggestion, because you decide how to divide it.
+1. It measures the transaction's **net change to assets plus liabilities**,
+   signed. This is the same quantity the reconciliation indicator uses, so a
+   transaction assigned at this amount can never open a gap.
+2. If that change is zero, nothing left or arrived. The transaction moved money
+   between your own accounts (a card payment, savings to chequing), and the
+   server skips it.
+3. A positive change is money in, and becomes an **income** item. A negative
+   change is money out, and becomes an **expense** item. The pending amount is
+   the size of the change.
+4. An expense gets a **suggested envelope**. Income gets no suggestion, because
+   you decide how to divide it, except a **refund**: money in against an
+   `expenses:*` account with no `income:*` posting. A refund is suggested back
+   to that expense's envelope, and the assign sheet fills it in full.
+
+Some examples of what that means:
+
+| Journal entry | Pending item |
+|---|---|
+| `expenses:food` $5, `liabilities:card` −$5 | expense, $5 |
+| `expenses:hobby` $45, `expenses:car:gas` $86, `assets:chequing` −$131 | expense, $131 |
+| `income:salary` −$1,000, `expenses:tax` $200, `assets:chequing` $800 | income, $800 |
+| `expenses:shopping` −$20, `assets:chequing` $20 | refund, $20 |
+| `liabilities:card` $200, `assets:chequing` −$200 | skipped |
+| `liabilities:card` −$12, `equity:adjustments` $12 | expense, $12 |
 
 Each remaining transaction goes into `pending` with its date, description,
 amount, type, suggested envelope, and posting accounts. Scan is idempotent: it

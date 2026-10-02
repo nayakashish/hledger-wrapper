@@ -2,7 +2,10 @@
 
 Notable changes to the project are documented here. I track versions to have a good return point if I dislike a feature I've added or want to revert to another state. So versioning is not very strict. Follows major.minor, incrementing minor for new features/changes. 
 
-## [Unreleased]
+## [1.10] - 2026-10-01
+
+Envelope reconciliation: the envelope total stops drifting away from hledger,
+and when it does differ, the app shows which transactions make up the gap.
 
 - **Envelope scan measures what actually left or arrived.** A pending item's
   amount is now the transaction's net change to assets plus liabilities, the

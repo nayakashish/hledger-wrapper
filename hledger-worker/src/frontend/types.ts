@@ -147,7 +147,38 @@ export interface PredictedPosting {
 export type DetailContent =
 	| { kind: 'transaction'; txn: Transaction }
 	| { kind: 'envelope'; envId: string }
-	| { kind: 'new-envelope' };
+	| { kind: 'new-envelope' }
+	| { kind: 'reconcile' };
+
+export type ReconcileKind =
+	| 'assigned_twice'
+	| 'amount_differs'
+	| 'dismissed'
+	| 'not_in_journal'
+	| 'unscanned'
+	| 'pending';
+
+export interface ReconcileItem {
+	key: string;
+	date: string;
+	description: string;
+	kind: ReconcileKind;
+	journal: number;
+	envelopes: number;
+	gap: number;
+	txn_id: string | null;
+	envelope: string | null;
+}
+
+export interface ReconcileData {
+	gap: number;
+	envelope_total: number;
+	hledger_total: number;
+	items: ReconcileItem[];
+	reviewed: number;
+	unlinked_adjustments: number;
+	store_mismatch: number;
+}
 
 export interface InboxSuggestion {
 	description: string;

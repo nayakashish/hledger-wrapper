@@ -54,6 +54,7 @@ shape:
   "pending": [],
   "history": [],
   "matched_hledger_txns": [],
+  "txn_id_version": 2,
   "income_split_default": { "tithe_pct": 0.10, "savings": 0.40 }
 }
 ```
@@ -65,6 +66,8 @@ shape:
 | `pending` | Transactions read from the journal that have no envelope yet. |
 | `history` | An append-only log of every balance change: assignments, income allocations, transfers, and adjustments. |
 | `matched_hledger_txns` | The ids of journal transactions that are already assigned or dismissed. A new scan does not show them again. |
+| `reconcile_ack` | Reconciliation items you marked reviewed, with the gap at the time. See [Explain the gap](#explain-the-gap). |
+| `txn_id_version` | Which transaction-id scheme the ids use. See [Transaction ids](#transaction-ids). |
 | `income_split_default` | Optional default percentages for the income allocation form. |
 
 The balances are the stored truth. The history explains how each balance reached
@@ -88,6 +91,45 @@ This is intentional. The envelope layer is permitted to be wrong, and the app
 shows the error instead of forcing the two records to share state. To drive the
 difference back to zero, assign the pending transactions and correct the rest
 with manual adjustments.
+
+### Explain the gap
+
+Tap the indicator to open **Envelopes vs hledger**, which lists the
+transactions that make up the difference. It comes from
+`GET /envelopes/reconcile`.
+
+Every journal transaction should move the envelopes by exactly its net change
+to assets plus liabilities (see [Scan](#scan)). The server compares that with
+what `history` recorded for the transaction, grouping by date and description
+so that history written under older transaction ids still counts. Each
+mismatch is listed with one of these types:
+
+| Type | Meaning |
+|---|---|
+| Duplicate | The transaction was assigned to envelopes twice. |
+| Amount mismatch | The assigned amount differs from the journal, usually because the entry was edited after it was assigned. |
+| Dismissed | The transaction changes your balances, but it was dismissed. |
+| Removed from journal | Envelopes hold an assignment for a transaction that was deleted or renamed. |
+| Not scanned | Added to the journal since the last scan. |
+| Pending | Scanned, but not yet assigned. |
+
+Each item offers two actions:
+
+- **Fix** records an adjustment with the item's `txn_id`, prefilled with the
+  opposite of the gap and the envelope the transaction last touched. Because
+  the adjustment is linked to the transaction, the item clears.
+- **Mark reviewed** stores the item's current gap in `reconcile_ack`
+  (`POST /envelopes/reconcile/ack`). The item is hidden until its gap changes,
+  so a transaction assigned twice again comes back.
+
+The API response also reports the parts of the gap that are not tied to a
+transaction (`reviewed`, `unlinked_adjustments`, `store_mismatch`), so the
+items plus those three always equal the gap. The sheet shows only the items.
+A **How to use** link at the bottom of the sheet explains the types and
+actions.
+
+Use **Mark all reviewed** once to set a baseline when you first open the list,
+after closing the gap by hand.
 
 ## Lifecycle
 
@@ -123,17 +165,57 @@ sequenceDiagram
 `hledger print`. For each transaction that is not already in `pending` or in
 `matched_hledger_txns`, the server does this:
 
-1. It classifies the transaction as **income** if any posting goes to an
-   `income:*` account. If not, the transaction is an **expense**.
-2. It calculates the primary amount, which is the magnitude of the first
-   `expenses:*` or `income:*` posting. If that amount is zero, the transaction
-   is a transfer between asset accounts, and the server skips it.
-3. For an expense, it calculates a **suggested envelope**. Income gets no
-   suggestion, because you decide how to divide it.
+1. It measures the transaction's **net change to assets plus liabilities**,
+   signed. This is the same quantity the reconciliation indicator uses, so a
+   transaction assigned at this amount can never open a gap.
+2. If that change is zero, nothing left or arrived. The transaction moved money
+   between your own accounts (a card payment, savings to chequing), and the
+   server skips it.
+3. A positive change is money in, and becomes an **income** item. A negative
+   change is money out, and becomes an **expense** item. The pending amount is
+   the size of the change.
+4. An expense gets a **suggested envelope**. Income gets no suggestion, because
+   you decide how to divide it, except a **refund**: money in against an
+   `expenses:*` account with no `income:*` posting. A refund is suggested back
+   to that expense's envelope, and the assign sheet fills it in full.
+
+Some examples of what that means:
+
+| Journal entry | Pending item |
+|---|---|
+| `expenses:food` $5, `liabilities:card` −$5 | expense, $5 |
+| `expenses:hobby` $45, `expenses:car:gas` $86, `assets:chequing` −$131 | expense, $131 |
+| `income:salary` −$1,000, `expenses:tax` $200, `assets:chequing` $800 | income, $800 |
+| `expenses:shopping` −$20, `assets:chequing` $20 | refund, $20 |
+| `liabilities:card` $200, `assets:chequing` −$200 | skipped |
+| `liabilities:card` −$12, `equity:adjustments` $12 | expense, $12 |
 
 Each remaining transaction goes into `pending` with its date, description,
 amount, type, suggested envelope, and posting accounts. Scan is idempotent: it
 only ever adds transactions that the envelope layer has not seen.
+
+### Transaction ids
+
+Every journal transaction gets an id of the form `date|description|hash`, for
+example `2026-09-24|Parking|3f2a9c01b7`. The hash is a fingerprint of the
+date, the description, and every posting's account and amount. The id is what
+`pending`, `matched_hledger_txns`, and `history` use to refer to a transaction.
+
+- **Moving an entry doesn't change its id.** Inserting a back-dated entry,
+  deleting one, reordering the file, or editing a comment leaves every other
+  id as it was, so nothing already handled comes back as new.
+- **Changing an entry's money does.** If you edit the amount or an account of
+  a transaction you already assigned, the edited version appears as new and
+  the old id stays in history pointing at the old amount.
+- **Identical twins are numbered.** Two entries with the same date,
+  description, and postings get `…|hash` and `…|hash#2`.
+
+Stores written before this scheme (no `txn_id_version`) used
+`date|description|position-in-file`. The first scan after upgrading migrates
+them once: matched and pending ids are moved to the new form, and an entry
+whose old id went stale because of an insert is still recognised by its date
+and description. History keeps its old ids as labels. The migration is
+committed with the scan, and its message says so.
 
 ### Expense suggestion
 
@@ -292,7 +374,9 @@ through the Worker proxy as `/api/envelopes/...`.
 | `/envelopes/assign` | POST | `{ txn_id, envelope_id \| splits, note? }` | Assign a pending transaction to one or more envelopes |
 | `/envelopes/dismiss` | POST | `{ txn_id }` | Drop a pending transaction without moving money |
 | `/envelopes/transfer` | POST | `{ from_envelope, to_envelope, amount, note? }` | Move money between envelopes |
-| `/envelopes/adjust` | POST | `{ envelope, amount, note? }` | Signed manual balance adjustment |
+| `/envelopes/adjust` | POST | `{ envelope, amount, note?, txn_id? }` | Signed manual balance adjustment, optionally tied to a transaction |
+| `/envelopes/reconcile` | GET | — | The transactions that make up the envelope vs hledger difference |
+| `/envelopes/reconcile/ack` | POST | `{ keys }` | Mark reconciliation items reviewed at their current gap |
 | `/envelopes/create` | POST | `{ name, parent? }` | Create an envelope |
 | `/envelopes/<id>` | DELETE | — | Delete an envelope (zero balance, non-system only) |
 
@@ -302,9 +386,9 @@ changed.
 
 ## Known limitations
 
-- **Reconciliation runs in one direction.** The app shows the difference but
-  does not correct it. You close the gap with an adjustment or with the missing
-  assignment.
+- **Reconciliation runs in one direction.** The app shows the difference and
+  explains it, but never changes balances on its own. You close each item with
+  Fix, an assignment, or a scan.
 - **The expense suggestion is a heuristic.** It depends on account naming and on
   a small built-in hint map. An unusual account structure falls back to
   `chequing`, and you correct it when you assign.

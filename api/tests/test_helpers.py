@@ -2,10 +2,12 @@
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.hledger import extract_amount
-from app.routers.envelopes import _is_income, _main_amount, _suggest_envelope, _txn_id
+from app.routers.envelopes import _is_refund, _liquid_delta, _suggest_envelope, _txn_id, _txn_ids
 from app.routers.inbox import (
     _clean_merchant,
     _find_journal_match,
@@ -155,29 +157,49 @@ def test_find_journal_match_zero_amount_never_matches():
 
 # --- envelope helpers -------------------------------------------------------
 
-def test_is_income_true():
-    txn = make_txn("2026-01-01", "Paycheck", [("income:salary", -100), ("assets:chequing", 100)])
-    assert _is_income(txn) is True
-
-
-def test_is_income_false():
-    txn = make_txn("2026-01-01", "Coffee", [("expenses:food:diningout", 5), ("assets:chequing", -5)])
-    assert _is_income(txn) is False
-
-
-def test_txn_id_stable_for_same_txn():
+def test_txn_id_ignores_position_and_comments():
     txn = make_txn("2026-01-01", "Coffee", [("expenses:food:diningout", 5), ("assets:chequing", -5)], tindex=3)
-    assert _txn_id(txn) == "2026-01-01|Coffee|3"
+    moved = {**txn, "tindex": 40, "tcomment": "added a note"}
+    assert _txn_id(txn) == _txn_id(moved)
+    assert _txn_id(txn).startswith("2026-01-01|Coffee|")
 
 
-def test_main_amount_prefers_expense_posting():
+def test_txn_id_changes_when_the_money_changes():
     txn = make_txn("2026-01-01", "Coffee", [("expenses:food:diningout", 5), ("assets:chequing", -5)])
-    assert _main_amount(txn) == 5.0
+    edited = make_txn("2026-01-01", "Coffee", [("expenses:food:diningout", 6), ("assets:chequing", -6)])
+    assert _txn_id(txn) != _txn_id(edited)
 
 
-def test_main_amount_fallback_to_first_posting():
-    txn = make_txn("2026-01-01", "Transfer", [("assets:savings", 100), ("assets:chequing", -100)])
-    assert _main_amount(txn) == 100.0
+def test_txn_ids_number_identical_twins():
+    twin = make_txn("2026-01-01", "Bus", [("expenses:transit", 3), ("assets:chequing", -3)])
+    first, second = _txn_ids([twin, dict(twin)])
+    assert second == first + "#2"
+
+
+@pytest.mark.parametrize("postings, expected", [
+    # plain expense on a card
+    ([("expenses:food:diningout", 5), ("liabilities:card", -5)], -5.0),
+    # two expense postings: both count, not just the first
+    ([("expenses:hobby", 45), ("expenses:car:gas", 86), ("assets:chequing", -131)], -131.0),
+    # paycheque with a deduction: only what reached the account counts
+    ([("income:salary", -1000), ("expenses:tax", 200), ("assets:chequing", 800)], 800.0),
+    # refund: money back against an expense account
+    ([("expenses:shopping", -20), ("assets:chequing", 20)], 20.0),
+    # card payment / savings to chequing: nothing left or arrived
+    ([("liabilities:card", 200), ("assets:chequing", -200)], 0.0),
+    ([("assets:savings", -100), ("assets:chequing", 100)], 0.0),
+    # correction against equity still moves real money
+    ([("liabilities:card", -12), ("equity:adjustments", 12)], -12.0),
+])
+def test_liquid_delta(postings, expected):
+    assert _liquid_delta(make_txn("2026-01-01", "T", postings)) == expected
+
+
+def test_is_refund_only_without_income_posting():
+    refund = make_txn("2026-01-01", "Refund", [("expenses:shopping", -20), ("assets:chequing", 20)])
+    pay = make_txn("2026-01-01", "Pay", [("income:salary", -1000), ("expenses:tax", 200), ("assets:chequing", 800)])
+    assert _is_refund(refund) is True
+    assert _is_refund(pay) is False
 
 
 def test_suggest_envelope_direct_hint():

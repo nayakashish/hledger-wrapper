@@ -2284,3 +2284,66 @@ body.is-offline header {
 }
 
 .version-mismatch { color: var(--negative); }
+
+/* ── Envelopes vs hledger (reconcile sheet) ── */
+.recon-summary { margin-bottom: 18px; }
+.recon-summary-sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+.recon-section-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-size: 10px; font-weight: 600; letter-spacing: 0.8px; text-transform: uppercase;
+  color: var(--text-muted); margin-bottom: 8px;
+}
+
+.recon-item { padding: 12px 0; border-bottom: 1px solid var(--border); }
+.recon-item-top { display: flex; justify-content: space-between; gap: 12px; }
+.recon-item-main { min-width: 0; flex: 1; }
+.recon-item-desc { font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.recon-item-meta { display: flex; align-items: center; gap: 8px; margin-top: 4px; font-size: 11px; color: var(--text-muted); }
+.recon-item-amt { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+.recon-item-actions { display: flex; gap: 8px; margin-top: 10px; }
+
+.recon-badge {
+  display: inline-block; font-size: 10px; font-weight: 600; letter-spacing: 0.4px;
+  text-transform: uppercase; border-radius: 3px; padding: 2px 6px; white-space: nowrap;
+}
+.recon-badge.assigned_twice { background: #fdecea; color: #b42318; }
+.recon-badge.not_in_journal { background: #fdecea; color: #b42318; }
+.recon-badge.amount_differs { background: #fef3e2; color: #b54708; }
+.recon-badge.dismissed      { background: #f4ebff; color: #6941c6; }
+.recon-badge.pending        { background: #e0f2fe; color: #026aa2; }
+.recon-badge.unscanned      { background: #e0f2fe; color: #026aa2; }
+
+.recon-btn {
+  font-family: 'Montserrat', sans-serif; font-size: 11px; font-weight: 600;
+  letter-spacing: 0.3px; text-transform: uppercase;
+  background: var(--bg); color: var(--text); border: 1px solid var(--border);
+  border-radius: 4px; padding: 6px 12px; cursor: pointer;
+}
+.recon-btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+.recon-link {
+  font-family: inherit; font-size: 11px; font-weight: 600; letter-spacing: 0.3px;
+  background: none; border: none; padding: 0; color: var(--text); cursor: pointer;
+  text-transform: none; text-decoration: underline;
+}
+
+.recon-help-link {
+  display: flex; align-items: center; gap: 6px; margin: 20px auto 0;
+  font-family: inherit; font-size: 12px; color: var(--text-muted);
+  background: none; border: none; cursor: pointer;
+}
+.recon-help-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 16px; height: 16px; border-radius: 50%; border: 1px solid var(--text-muted);
+  font-size: 10px; font-weight: 700;
+}
+
+.recon-help h3 { font-size: 12px; font-weight: 600; margin: 18px 0 6px; }
+.recon-help p, .recon-help dd, .recon-help li { font-size: 12px; line-height: 1.5; color: var(--text); }
+.recon-help p { margin: 0 0 8px; }
+.recon-help dl { margin: 0; }
+.recon-help dt { margin-top: 10px; }
+.recon-help dd { margin: 4px 0 0; }
+.recon-help ul { margin: 0; padding-left: 18px; }
+.recon-help li { margin-bottom: 6px; }

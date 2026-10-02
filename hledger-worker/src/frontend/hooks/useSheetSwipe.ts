@@ -15,18 +15,24 @@ export function useSheetSwipe(
 		let startY = 0;
 		let dragging = false;
 		let currentY = 0;
+		// Decided once per gesture: a drag may close the sheet if it began on
+		// the handle/header, or in the body while the body was scrolled to the
+		// top. Re-checking scrollTop mid-gesture missed drags whenever iOS had
+		// already nudged it off zero (sub-pixel layout, rubber-banding).
+		let canDrag = false;
 
 		function onTouchStart(e: TouchEvent) {
 			startY = e.touches[0].clientY;
 			dragging = false;
 			currentY = 0;
+			canDrag = !body!.contains(e.target as Node) || body!.scrollTop < 1;
 			sheet!.style.transition = 'none';
 		}
 
 		function onTouchMove(e: TouchEvent) {
 			const dy = e.touches[0].clientY - startY;
 			currentY = dy;
-			if (dy > 0 && body!.scrollTop <= 0) {
+			if (canDrag && dy > 0 && (dragging || body!.scrollTop < 1 || !body!.contains(e.target as Node))) {
 				dragging = true;
 				e.preventDefault();
 				sheet!.style.transform = `translateY(${Math.max(0, dy)}px)`;

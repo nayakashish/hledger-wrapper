@@ -11,6 +11,7 @@ interface Props {
 	onAssignClick: (txn: PendingTxn) => void;
 	onScan: () => void;
 	onNewEnv: () => void;
+	onReconcileClick: () => void;
 }
 
 export default function EnvelopesView({
@@ -21,6 +22,7 @@ export default function EnvelopesView({
 	onAssignClick,
 	onScan,
 	onNewEnv,
+	onReconcileClick,
 }: Props) {
 	return (
 		<div className={`view${isActive ? ' active' : ''}`} id="view-envelopes">
@@ -36,6 +38,7 @@ export default function EnvelopesView({
 					onAssignClick={onAssignClick}
 					onScan={onScan}
 					onNewEnv={onNewEnv}
+					onReconcileClick={onReconcileClick}
 				/>
 			)}
 		</div>
@@ -49,6 +52,7 @@ function EnvelopesContent({
 	onAssignClick,
 	onScan,
 	onNewEnv,
+	onReconcileClick,
 }: {
 	data: EnvelopeData;
 	balanceData: BalanceRow[][] | null;
@@ -56,6 +60,7 @@ function EnvelopesContent({
 	onAssignClick: (txn: PendingTxn) => void;
 	onScan: () => void;
 	onNewEnv: () => void;
+	onReconcileClick: () => void;
 }) {
 	const { envelopes, balances, pending } = data;
 
@@ -116,7 +121,7 @@ function EnvelopesContent({
 								<span className="pending-desc">
 									{txn.description}
 									{isIncome ? (
-										<span className="pending-badge income">income</span>
+										<span className="pending-badge income">{txn.suggested_envelope ? 'refund' : 'income'}</span>
 									) : txn.suggested_envelope ? (
 										<span className="pending-badge suggested">suggested</span>
 									) : (
@@ -149,7 +154,10 @@ function EnvelopesContent({
 						<MaskedAmount value={allEnvTotal} />
 					</div>
 					{diff !== null && (
-						<div style={{ fontSize: 10, fontWeight: 500, letterSpacing: '0.3px', color: inSync ? 'var(--positive)' : 'var(--negative)' }}>
+						<div
+							onClick={onReconcileClick}
+							style={{ fontSize: 10, fontWeight: 500, letterSpacing: '0.3px', color: inSync ? 'var(--positive)' : 'var(--negative)', cursor: 'pointer', textDecoration: 'underline dotted' }}
+						>
 							{inSync
 								? 'in sync'
 								: `${diff > 0 ? '+' : ''}${fmtAmount(diff, '$')} vs hledger`}

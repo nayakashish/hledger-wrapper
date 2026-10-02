@@ -2,6 +2,34 @@
 
 Notable changes to the project are documented here. I track versions to have a good return point if I dislike a feature I've added or want to revert to another state. So versioning is not very strict. Follows major.minor, incrementing minor for new features/changes. 
 
+## [1.10] - 2026-10-01
+
+Envelope reconciliation: the envelope total stops drifting away from hledger,
+and when it does differ, the app shows which transactions make up the gap.
+
+- **Envelope scan measures what actually left or arrived.** A pending item's
+  amount is now the transaction's net change to assets plus liabilities, the
+  same figure the "vs hledger" indicator compares against. Transactions with
+  more than one expense posting are no longer under-counted, a refund is
+  offered as money back into its expense's envelope instead of a second
+  expense, and moves between your own accounts are skipped instead of waiting
+  to be dismissed.
+- **Envelope transaction ids no longer depend on where an entry sits in the
+  journal.** The id was `date|description|position`, so inserting a
+  back-dated entry shifted every later id and brought already-assigned
+  transactions back as new, which is how they got assigned twice. Ids are now
+  a fingerprint of the entry's date, description, and postings. Existing
+  stores migrate on the first scan.
+- **Explain the gap.** Tapping the "vs hledger" indicator lists the
+  transactions behind the difference, each typed as a duplicate, amount
+  mismatch, dismissed, removed from journal, not scanned, or pending. Fix
+  records an adjustment linked to the transaction so the item clears, and
+  Mark reviewed hides an item until its gap changes. A How to use page in the
+  sheet explains each type. Adjustments accept an optional `txn_id`.
+- **Swipe to close is more reliable on bottom sheets.** A downward drag now
+  counts whenever it starts on the header, or in the body while it is
+  scrolled to the top.
+
 ## [1.9] - 2026-09-21
 
 Add-transaction presets — the add button opens on a list of common

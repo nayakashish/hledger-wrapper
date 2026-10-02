@@ -21,11 +21,14 @@ and when it does differ, the app shows which transactions make up the gap.
   a fingerprint of the entry's date, description, and postings. Existing
   stores migrate on the first scan.
 - **Explain the gap.** Tapping the "vs hledger" indicator lists the
-  transactions behind the difference: assigned twice, amount differs,
-  dismissed but moved money, no longer in the journal, not scanned, or
-  pending. Fix posts an adjustment tied to the transaction so the item
-  closes, and Mark reviewed hides an item until its gap changes.
-  Adjustments accept an optional `txn_id`.
+  transactions behind the difference, each typed as a duplicate, amount
+  mismatch, dismissed, removed from journal, not scanned, or pending. Fix
+  records an adjustment linked to the transaction so the item clears, and
+  Mark reviewed hides an item until its gap changes. A How to use page in the
+  sheet explains each type. Adjustments accept an optional `txn_id`.
+- **Swipe to close is more reliable on bottom sheets.** A downward drag now
+  counts whenever it starts on the header, or in the body while it is
+  scrolled to the top.
 
 ## [1.9] - 2026-09-21
 

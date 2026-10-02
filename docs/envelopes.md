@@ -102,30 +102,31 @@ Every journal transaction should move the envelopes by exactly its net change
 to assets plus liabilities (see [Scan](#scan)). The server compares that with
 what `history` recorded for the transaction, grouping by date and description
 so that history written under older transaction ids still counts. Each
-mismatch is listed with one of these labels:
+mismatch is listed with one of these types:
 
-| Label | Meaning |
+| Type | Meaning |
 |---|---|
-| Assigned twice | The envelopes recorded twice the journal amount. |
-| Amount differs | The envelopes recorded a different amount, usually because the journal entry was edited after assignment. |
-| Dismissed | Dismissed, but it moved real money. |
-| Not in journal | Assigned, then deleted or edited in the journal. |
-| Not scanned | New in the journal. Scan and assign it. |
-| Pending | Waiting in Pending. Assign it. |
-
-Below the list, three lines account for the rest of the total: items marked
-reviewed, adjustments not tied to a transaction, and any balance the history
-doesn't explain (a hand-edited store). The listed gaps plus these three lines
-always equal the difference exactly.
+| Duplicate | The transaction was assigned to envelopes twice. |
+| Amount mismatch | The assigned amount differs from the journal, usually because the entry was edited after it was assigned. |
+| Dismissed | The transaction changes your balances, but it was dismissed. |
+| Removed from journal | Envelopes hold an assignment for a transaction that was deleted or renamed. |
+| Not scanned | Added to the journal since the last scan. |
+| Pending | Scanned, but not yet assigned. |
 
 Each item offers two actions:
 
-- **Fix** posts an adjustment with the item's `txn_id`, prefilled with the
+- **Fix** records an adjustment with the item's `txn_id`, prefilled with the
   opposite of the gap and the envelope the transaction last touched. Because
-  the adjustment is tied to the transaction, the item closes.
+  the adjustment is linked to the transaction, the item clears.
 - **Mark reviewed** stores the item's current gap in `reconcile_ack`
   (`POST /envelopes/reconcile/ack`). The item is hidden until its gap changes,
   so a transaction assigned twice again comes back.
+
+The API response also reports the parts of the gap that are not tied to a
+transaction (`reviewed`, `unlinked_adjustments`, `store_mismatch`), so the
+items plus those three always equal the gap. The sheet shows only the items.
+A **How to use** link at the bottom of the sheet explains the types and
+actions.
 
 Use **Mark all reviewed** once to set a baseline when you first open the list,
 after closing the gap by hand.

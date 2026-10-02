@@ -179,36 +179,33 @@ function ReconcileHelp({ onBack }: { onBack: () => void }) {
 
 			<h3>What this shows</h3>
 			<p>
-				Your envelopes should add up to the balance of your assets and liabilities in hledger. This sheet
-				lists each transaction where the two disagree, and by how much.
+				Your envelopes should always add up to what hledger says you have. When they don't, this list
+				shows which transactions are off.
 			</p>
-			<p>
-				The amount at the top is the gap: the envelope total minus the hledger balance. A negative gap means
-				the envelopes hold less than your accounts.
-			</p>
+			<p>The number at the top is the difference. Negative means your envelopes are short.</p>
 
 			<h3>Item types</h3>
 			<dl>
 				<dt><span className="recon-badge assigned_twice">Duplicate</span></dt>
-				<dd>The transaction was assigned to envelopes twice.</dd>
+				<dd>Assigned to envelopes twice.</dd>
 				<dt><span className="recon-badge amount_differs">Amount mismatch</span></dt>
-				<dd>The assigned amount differs from the journal, usually because the entry was edited after it was assigned.</dd>
+				<dd>Edited in the journal after you assigned it.</dd>
 				<dt><span className="recon-badge dismissed">Dismissed</span></dt>
-				<dd>The transaction changes your balances, but it was dismissed, so no envelope reflects it.</dd>
+				<dd>Dismissed, but it changed your balance.</dd>
 				<dt><span className="recon-badge not_in_journal">Removed from journal</span></dt>
-				<dd>Envelopes still hold an assignment for a transaction that was deleted or renamed in the journal.</dd>
+				<dd>Deleted or renamed in the journal after you assigned it.</dd>
 				<dt><span className="recon-badge unscanned">Not scanned</span></dt>
-				<dd>Added to the journal since the last scan.</dd>
+				<dd>New since your last scan.</dd>
 				<dt><span className="recon-badge pending">Pending</span></dt>
-				<dd>Scanned, but not yet assigned.</dd>
+				<dd>Scanned and waiting to be assigned.</dd>
 			</dl>
 
-			<h3>Resolving items</h3>
+			<h3>Fixing items</h3>
 			<ul>
-				<li><b>Fix</b> records an adjustment linked to the transaction, prefilled with the amount that closes the gap. The item then clears.</li>
-				<li><b>Mark reviewed</b> hides an item while its amount stays the same. It returns if the amount changes.</li>
-				<li><b>Not scanned</b> and <b>Pending</b> items clear once you tap Scan Txns and assign them.</li>
-				<li><b>Mark all reviewed</b> accepts everything currently listed. Use it once, after the envelopes are in sync, so that only new discrepancies appear from then on.</li>
+				<li><b>Fix</b> adds an adjustment that balances the item out.</li>
+				<li><b>Mark reviewed</b> hides the item. It comes back if its amount changes.</li>
+				<li>For <b>Not scanned</b> or <b>Pending</b>, tap Scan Txns and assign it.</li>
+				<li>Once you're in sync, <b>Mark all reviewed</b> clears the list so only new issues show up.</li>
 			</ul>
 		</div>
 	);

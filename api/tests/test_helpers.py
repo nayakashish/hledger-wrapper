@@ -7,7 +7,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.hledger import extract_amount
-from app.routers.envelopes import _is_refund, _liquid_delta, _suggest_envelope, _txn_id
+from app.routers.envelopes import _is_refund, _liquid_delta, _suggest_envelope, _txn_id, _txn_ids
 from app.routers.inbox import (
     _clean_merchant,
     _find_journal_match,
@@ -157,9 +157,23 @@ def test_find_journal_match_zero_amount_never_matches():
 
 # --- envelope helpers -------------------------------------------------------
 
-def test_txn_id_stable_for_same_txn():
+def test_txn_id_ignores_position_and_comments():
     txn = make_txn("2026-01-01", "Coffee", [("expenses:food:diningout", 5), ("assets:chequing", -5)], tindex=3)
-    assert _txn_id(txn) == "2026-01-01|Coffee|3"
+    moved = {**txn, "tindex": 40, "tcomment": "added a note"}
+    assert _txn_id(txn) == _txn_id(moved)
+    assert _txn_id(txn).startswith("2026-01-01|Coffee|")
+
+
+def test_txn_id_changes_when_the_money_changes():
+    txn = make_txn("2026-01-01", "Coffee", [("expenses:food:diningout", 5), ("assets:chequing", -5)])
+    edited = make_txn("2026-01-01", "Coffee", [("expenses:food:diningout", 6), ("assets:chequing", -6)])
+    assert _txn_id(txn) != _txn_id(edited)
+
+
+def test_txn_ids_number_identical_twins():
+    twin = make_txn("2026-01-01", "Bus", [("expenses:transit", 3), ("assets:chequing", -3)])
+    first, second = _txn_ids([twin, dict(twin)])
+    assert second == first + "#2"
 
 
 @pytest.mark.parametrize("postings, expected", [

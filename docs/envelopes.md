@@ -54,6 +54,7 @@ shape:
   "pending": [],
   "history": [],
   "matched_hledger_txns": [],
+  "txn_id_version": 2,
   "income_split_default": { "tithe_pct": 0.10, "savings": 0.40 }
 }
 ```
@@ -65,6 +66,7 @@ shape:
 | `pending` | Transactions read from the journal that have no envelope yet. |
 | `history` | An append-only log of every balance change: assignments, income allocations, transfers, and adjustments. |
 | `matched_hledger_txns` | The ids of journal transactions that are already assigned or dismissed. A new scan does not show them again. |
+| `txn_id_version` | Which transaction-id scheme the ids use. See [Transaction ids](#transaction-ids). |
 | `income_split_default` | Optional default percentages for the income allocation form. |
 
 The balances are the stored truth. The history explains how each balance reached
@@ -151,6 +153,29 @@ Some examples of what that means:
 Each remaining transaction goes into `pending` with its date, description,
 amount, type, suggested envelope, and posting accounts. Scan is idempotent: it
 only ever adds transactions that the envelope layer has not seen.
+
+### Transaction ids
+
+Every journal transaction gets an id of the form `date|description|hash`, for
+example `2026-09-24|Parking|3f2a9c01b7`. The hash is a fingerprint of the
+date, the description, and every posting's account and amount. The id is what
+`pending`, `matched_hledger_txns`, and `history` use to refer to a transaction.
+
+- **Moving an entry doesn't change its id.** Inserting a back-dated entry,
+  deleting one, reordering the file, or editing a comment leaves every other
+  id as it was, so nothing already handled comes back as new.
+- **Changing an entry's money does.** If you edit the amount or an account of
+  a transaction you already assigned, the edited version appears as new and
+  the old id stays in history pointing at the old amount.
+- **Identical twins are numbered.** Two entries with the same date,
+  description, and postings get `…|hash` and `…|hash#2`.
+
+Stores written before this scheme (no `txn_id_version`) used
+`date|description|position-in-file`. The first scan after upgrading migrates
+them once: matched and pending ids are moved to the new form, and an entry
+whose old id went stale because of an insert is still recognised by its date
+and description. History keeps its old ids as labels. The migration is
+committed with the scan, and its message says so.
 
 ### Expense suggestion
 

@@ -1,5 +1,7 @@
+import hashlib
 import json
 import os
+from collections import Counter
 from datetime import date
 
 from fastapi import APIRouter, HTTPException, Security
@@ -12,6 +14,10 @@ from ..models import Assignment, EnvAdjust, EnvCreate, EnvTransfer
 from ..storage import load_json, save_json
 
 router = APIRouter()
+
+# Version of the transaction-id scheme stored in envelopes.json. 1 (absent)
+# was date|description|tindex; 2 is a content fingerprint. See _txn_ids.
+TXN_ID_VERSION = 2
 
 # Direct account-prefix -> envelope-id hints, checked before the by-name match.
 ACCOUNT_HINTS = {
@@ -34,7 +40,7 @@ ACCOUNT_HINTS = {
 def _default_env_data() -> dict:
     """Empty envelope store — used to seed a newly selected journal's
     envelopes.json so the envelope endpoints work against it immediately."""
-    return {"envelopes": [], "pending": [], "matched_hledger_txns": [], "balances": {}, "history": []}
+    return {"envelopes": [], "pending": [], "matched_hledger_txns": [], "balances": {}, "history": [], "txn_id_version": TXN_ID_VERSION}
 
 
 def _load_env_data() -> dict:
@@ -62,8 +68,78 @@ def _extract_amount(posting: dict) -> float:
     return float(q or 0)
 
 
-def _txn_id(txn: dict) -> str:
+def _legacy_txn_id(txn: dict) -> str:
+    """The version-1 id, kept only to migrate stores that still use it.
+    tindex is the entry's position in the file, so inserting or deleting any
+    earlier entry changed the id of everything after it."""
     return f"{txn.get('tdate','')}|{txn.get('tdescription','')}|{txn.get('tindex', txn.get('tdate',''))}"
+
+
+def _content_hash(txn: dict) -> str:
+    """Fingerprint of what the transaction is: date, description, and every
+    posting's account and amount. Comments and the entry's position in the
+    file are left out, so moving or annotating an entry keeps its id while
+    changing its money gives it a new one."""
+    postings = []
+    for p in txn.get("tpostings", []):
+        for a in p.get("pamount", []) or [{}]:
+            q = a.get("aquantity", 0)
+            qty = float(q.get("decimalMantissa", 0)) / (10 ** q.get("decimalPlaces", 0)) if isinstance(q, dict) else float(q or 0)
+            postings.append(f"{p.get('paccount', '')}={a.get('acommodity', '')}{qty:.6f}")
+    parts = [txn.get("tdate", ""), txn.get("tdescription", ""), *sorted(postings)]
+    return hashlib.sha1("\n".join(parts).encode()).hexdigest()[:10]
+
+
+def _txn_ids(txns: list[dict]) -> list[str]:
+    """Stable ids for a whole journal, in hledger print order.
+
+    `date|description|hash`, readable in git messages and history. Genuinely
+    identical entries (same date, description and postings) share a hash, so
+    the n-th copy gets a `#n` suffix."""
+    seen: Counter = Counter()
+    ids = []
+    for t in txns:
+        h = _content_hash(t)
+        seen[h] += 1
+        base = f"{t.get('tdate', '')}|{t.get('tdescription', '')}|{h}"
+        ids.append(base if seen[h] == 1 else f"{base}#{seen[h]}")
+    return ids
+
+
+def _txn_id(txn: dict) -> str:
+    """Id of a single transaction, for callers without the whole journal.
+    Only safe when the transaction has no identical twin."""
+    return _txn_ids([txn])[0]
+
+
+def _migrate_txn_ids(data: dict, txns: list[dict], ids: list[str]) -> bool:
+    """Move a version-1 store onto content ids, once. Returns True if it ran.
+
+    Every current journal entry whose old id was matched becomes matched under
+    its new id, and pending items are renamed in place. An entry whose old id
+    went stale because an insert shifted it after the last scan is matched by
+    date and description instead, as long as the store had at least as many
+    matched ids for that date and description as the journal has entries.
+    History keeps its old ids as labels; nothing reads them as keys."""
+    if data.get("txn_id_version") == TXN_ID_VERSION:
+        return False
+    matched = set(data.get("matched_hledger_txns", []))
+    pending_by_old = {p["txn_id"]: p for p in data.get("pending", [])}
+    matched_per_day_desc = Counter(m.rsplit("|", 1)[0] for m in matched)
+    journal_per_day_desc = Counter(f"{t.get('tdate', '')}|{t.get('tdescription', '')}" for t in txns)
+
+    new_matched = set()
+    for txn, new_id in zip(txns, ids):
+        old_id = _legacy_txn_id(txn)
+        day_desc = old_id.rsplit("|", 1)[0]
+        if old_id in pending_by_old:
+            pending_by_old[old_id]["txn_id"] = new_id
+        elif old_id in matched or matched_per_day_desc[day_desc] >= journal_per_day_desc[day_desc]:
+            new_matched.add(new_id)
+
+    data["matched_hledger_txns"] = sorted(new_matched)
+    data["txn_id_version"] = TXN_ID_VERSION
+    return True
 
 
 def _liquid_delta(txn: dict) -> float:
@@ -143,8 +219,6 @@ def scan_transactions(token: str = Security(verify_token)):
     Already-matched or already-pending txns are skipped.
     """
     data = _load_env_data()
-    already_matched = set(data.get("matched_hledger_txns", []))
-    pending_ids = {p["txn_id"] for p in data.get("pending", [])}
     envelopes = data.get("envelopes", [])
 
     raw = run_hledger("print", "--output-format", "json")
@@ -153,9 +227,13 @@ def scan_transactions(token: str = Security(verify_token)):
     except json.JSONDecodeError:
         raise HTTPException(status_code=500, detail="Could not parse hledger output")
 
+    ids = _txn_ids(txns)
+    migrated = _migrate_txn_ids(data, txns, ids)
+    already_matched = set(data.get("matched_hledger_txns", []))
+    pending_ids = {p["txn_id"] for p in data.get("pending", [])}
+
     added = []
-    for txn in reversed(txns):  # most recent first
-        tid = _txn_id(txn)
+    for txn, tid in reversed(list(zip(txns, ids))):  # most recent first
         if tid in already_matched or tid in pending_ids:
             continue
 
@@ -182,12 +260,15 @@ def scan_transactions(token: str = Security(verify_token)):
         pending_ids.add(tid)
         added.append(pending_entry)
 
-    if not added:
+    if not added and not migrated:
         # Nothing changed — skip the commit so git has nothing to complain about.
         return {"status": "ok", "added": 0, "pending_total": len(data["pending"])}
 
+    message = f"envelopes: scan {len(added)} new pending"
+    if migrated:
+        message += f" (migrated to txn id v{TXN_ID_VERSION})"
     settings = get_settings()
-    with git_transaction([settings.envelope_data_file], f"envelopes: scan {len(added)} new pending"):
+    with git_transaction([settings.envelope_data_file], message):
         _save_env_data(data)
 
     return {"status": "ok", "added": len(added), "pending_total": len(data["pending"])}

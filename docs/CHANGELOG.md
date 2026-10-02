@@ -11,6 +11,12 @@ Notable changes to the project are documented here. I track versions to have a g
   offered as money back into its expense's envelope instead of a second
   expense, and moves between your own accounts are skipped instead of waiting
   to be dismissed.
+- **Envelope transaction ids no longer depend on where an entry sits in the
+  journal.** The id was `date|description|position`, so inserting a
+  back-dated entry shifted every later id and brought already-assigned
+  transactions back as new, which is how they got assigned twice. Ids are now
+  a fingerprint of the entry's date, description, and postings. Existing
+  stores migrate on the first scan.
 
 ## [1.9] - 2026-09-21
 

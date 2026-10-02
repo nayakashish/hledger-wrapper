@@ -1,5 +1,7 @@
 from conftest import make_txn
 
+from app.routers.envelopes import TXN_ID_VERSION, _txn_id
+
 
 def base_env_data(**overrides):
     data = {
@@ -8,6 +10,7 @@ def base_env_data(**overrides):
         "pending": [],
         "matched_hledger_txns": [],
         "history": [],
+        "txn_id_version": TXN_ID_VERSION,
     }
     data.update(overrides)
     return data
@@ -28,9 +31,10 @@ def test_get_envelopes_missing_data_file_503(client, auth, env):
 
 
 def test_scan_adds_new_pending_and_skips_matched(client, auth, fake_hledger, fake_git, seed_envelopes):
-    seed_envelopes(base_env_data(matched_hledger_txns=["2026-01-01|Old|1"]))
+    old = make_txn("2026-01-01", "Old", [("expenses:misc", 5), ("assets:chequing", -5)], tindex=1)
+    seed_envelopes(base_env_data(matched_hledger_txns=[_txn_id(old)]))
     fake_hledger.set_txns([
-        make_txn("2026-01-01", "Old", [("expenses:misc", 5), ("assets:chequing", -5)], tindex=1),
+        old,
         make_txn("2026-01-05", "Coffee", [("expenses:food:diningout", 5), ("assets:chequing", -5)], tindex=2),
     ])
     resp = client.post("/envelopes/scan", headers=auth)
@@ -38,8 +42,9 @@ def test_scan_adds_new_pending_and_skips_matched(client, auth, fake_hledger, fak
 
 
 def test_scan_skips_already_pending(client, auth, fake_hledger, seed_envelopes):
-    seed_envelopes(base_env_data(pending=[{"txn_id": "2026-01-05|Coffee|2", "date": "2026-01-05", "description": "Coffee", "amount": 5.0, "type": "expense", "suggested_envelope": None, "accounts": []}]))
-    fake_hledger.set_txns([make_txn("2026-01-05", "Coffee", [("expenses:food:diningout", 5), ("assets:chequing", -5)], tindex=2)])
+    coffee = make_txn("2026-01-05", "Coffee", [("expenses:food:diningout", 5), ("assets:chequing", -5)], tindex=2)
+    seed_envelopes(base_env_data(pending=[{"txn_id": _txn_id(coffee), "date": "2026-01-05", "description": "Coffee", "amount": 5.0, "type": "expense", "suggested_envelope": None, "accounts": []}]))
+    fake_hledger.set_txns([coffee])
     resp = client.post("/envelopes/scan", headers=auth)
     assert resp.json()["added"] == 0
 
@@ -87,6 +92,63 @@ def test_scan_skips_transfers_between_own_accounts(client, auth, fake_hledger, s
     assert resp.json()["added"] == 0
 
 
+def test_scan_ignores_entries_inserted_earlier_in_the_file(client, auth, fake_hledger, fake_git, seed_envelopes):
+    # The bug behind double assignments: a back-dated entry inserted above
+    # an assigned one shifted its position, and it came back as new.
+    parking = make_txn("2026-09-24", "Parking", [("expenses:car:parking", 6.45), ("liabilities:card", -6.45)], tindex=296)
+    seed_envelopes(base_env_data(matched_hledger_txns=[_txn_id(parking)]))
+    inserted = make_txn("2026-09-24", "Gas", [("expenses:car:gas", 30), ("liabilities:card", -30)], tindex=296)
+    shifted = {**parking, "tindex": 297}
+    fake_hledger.set_txns([inserted, shifted])
+    client.post("/envelopes/scan", headers=auth)
+    pending = client.get("/envelopes", headers=auth).json()["pending"]
+    assert [p["description"] for p in pending] == ["Gas"]
+
+
+# --- migration from tindex ids (version 1) ---------------------------------
+
+def _v1_store(**overrides):
+    data = base_env_data(**overrides)
+    del data["txn_id_version"]
+    return data
+
+
+def test_migration_carries_matched_and_pending_over(client, auth, fake_hledger, fake_git, seed_envelopes):
+    done = make_txn("2026-01-01", "Done", [("expenses:misc", 5), ("assets:chequing", -5)], tindex=1)
+    waiting = make_txn("2026-01-02", "Waiting", [("expenses:misc", 7), ("assets:chequing", -7)], tindex=2)
+    seed_envelopes(_v1_store(
+        matched_hledger_txns=["2026-01-01|Done|1"],
+        pending=[{"txn_id": "2026-01-02|Waiting|2", "date": "2026-01-02", "description": "Waiting", "amount": 7.0, "type": "expense", "suggested_envelope": None, "accounts": []}],
+    ))
+    fake_hledger.set_txns([done, waiting])
+    resp = client.post("/envelopes/scan", headers=auth)
+    assert resp.json()["added"] == 0
+    data = client.get("/envelopes", headers=auth).json()
+    assert data["matched_hledger_txns"] == [_txn_id(done)]
+    assert [p["txn_id"] for p in data["pending"]] == [_txn_id(waiting)]
+    assert data["txn_id_version"] == TXN_ID_VERSION
+    assert "migrated" in [c for c in fake_git.calls if c[0] == "commit"][0][2]
+
+
+def test_migration_matches_entries_shifted_since_the_last_scan(client, auth, fake_hledger, fake_git, seed_envelopes):
+    # Matched as |296, but an insert since then moved it to |297. Its date
+    # and description are fully covered by matched ids, so it stays handled.
+    seed_envelopes(_v1_store(matched_hledger_txns=["2026-09-24|Parking|296"]))
+    fake_hledger.set_txns([make_txn("2026-09-24", "Parking", [("expenses:car:parking", 6.45), ("liabilities:card", -6.45)], tindex=297)])
+    resp = client.post("/envelopes/scan", headers=auth)
+    assert resp.json()["added"] == 0
+
+
+def test_migration_leaves_genuinely_new_entries_pending(client, auth, fake_hledger, fake_git, seed_envelopes):
+    seed_envelopes(_v1_store(matched_hledger_txns=["2026-01-01|Done|1"]))
+    fake_hledger.set_txns([
+        make_txn("2026-01-01", "Done", [("expenses:misc", 5), ("assets:chequing", -5)], tindex=1),
+        make_txn("2026-01-03", "New", [("expenses:misc", 9), ("assets:chequing", -9)], tindex=2),
+    ])
+    resp = client.post("/envelopes/scan", headers=auth)
+    assert resp.json()["added"] == 1
+
+
 def test_scan_commits_and_pushes_new_pending(client, auth, fake_hledger, fake_git, seed_envelopes):
     seed_envelopes(base_env_data())
     fake_hledger.set_txns([make_txn("2026-01-05", "Coffee", [("expenses:food:diningout", 5), ("assets:chequing", -5)])])
@@ -97,8 +159,9 @@ def test_scan_commits_and_pushes_new_pending(client, auth, fake_hledger, fake_gi
 
 
 def test_scan_no_new_txns_makes_no_commit(client, auth, fake_hledger, fake_git, seed_envelopes):
-    seed_envelopes(base_env_data(matched_hledger_txns=["2026-01-05|Coffee|1"]))
-    fake_hledger.set_txns([make_txn("2026-01-05", "Coffee", [("expenses:food:diningout", 5), ("assets:chequing", -5)])])
+    coffee = make_txn("2026-01-05", "Coffee", [("expenses:food:diningout", 5), ("assets:chequing", -5)])
+    seed_envelopes(base_env_data(matched_hledger_txns=[_txn_id(coffee)]))
+    fake_hledger.set_txns([coffee])
     resp = client.post("/envelopes/scan", headers=auth)
     assert resp.json()["added"] == 0
     assert fake_git.calls == []

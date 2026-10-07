@@ -408,6 +408,7 @@ export default function App() {
 					isActive={activeView === 'dashboard'}
 					monthly={cache.monthly ?? null}
 					syncKey={syncKey}
+					onTxnClick={txn => setDetailContent({ kind: 'transaction', txn })}
 				/>
 				<ReportsView
 					balance={cache.balance ?? null}

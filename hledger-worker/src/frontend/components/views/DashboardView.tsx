@@ -15,6 +15,7 @@ interface Props {
 	isActive: boolean;
 	monthly: MonthlyData | null;
 	syncKey: number;
+	onTxnClick: (txn: Transaction) => void;
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -184,11 +185,13 @@ function DayDetail({
 	txns,
 	loading,
 	onClose,
+	onTxnClick,
 }: {
 	date: string;
 	txns: Transaction[];
 	loading: boolean;
 	onClose: () => void;
+	onTxnClick: (txn: Transaction) => void;
 }) {
 	const label = new Date(date + 'T00:00:00').toLocaleDateString('en-CA', {
 		weekday: 'short', month: 'short', day: 'numeric',
@@ -212,7 +215,7 @@ function DayDetail({
 					const postings = txn.tpostings || [];
 					const { val, commodity } = extractAmount(postings[0]?.pamount);
 					return (
-						<div key={i} className="drilldown-txn">
+						<div key={i} className="drilldown-txn" onClick={() => onTxnClick(txn)}>
 							<div className="txn-top">
 								<span className="txn-desc">{desc}</span>
 								<span className={`txn-amount ${amountClass(val)}`}>
@@ -760,7 +763,7 @@ function EndOfMonthRecap({
 
 // ── Main dashboard ────────────────────────────────────────────────────────────
 
-export default function DashboardView({ isActive, monthly, syncKey }: Props) {
+export default function DashboardView({ isActive, monthly, syncKey, onTxnClick }: Props) {
 	const [dailyTotals, setDailyTotals] = useState<DailyTotal[] | null>(null);
 	const [dailyError, setDailyError] = useState(false);
 	const [selectedDay, setSelectedDay] = useState<string | null>(null);
@@ -855,6 +858,7 @@ export default function DashboardView({ isActive, monthly, syncKey }: Props) {
 							txns={dayTxns}
 							loading={dayLoading && !txnsByMonth[selectedDay.slice(0, 7)]}
 							onClose={() => setSelectedDay(null)}
+							onTxnClick={onTxnClick}
 						/>
 					)}
 				</>

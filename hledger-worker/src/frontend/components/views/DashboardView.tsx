@@ -214,13 +214,18 @@ function DayDetail({
 					const desc = txn.tdescription || txn.tpayee || '—';
 					const postings = txn.tpostings || [];
 					const { val, commodity } = extractAmount(postings[0]?.pamount);
+					const isIncome = postings.some(p => (p.paccount || '').startsWith('income'));
 					return (
 						<div key={i} className="drilldown-txn" onClick={() => onTxnClick(txn)}>
 							<div className="txn-top">
 								<span className="txn-desc">{desc}</span>
-								<span className={`txn-amount ${amountClass(val)}`}>
-									{fmtAmount(val, commodity)}
-								</span>
+								{isIncome ? (
+									<MaskedAmount value={val} commodity={commodity} className={`txn-amount ${amountClass(val)}`} />
+								) : (
+									<span className={`txn-amount ${amountClass(val)}`}>
+										{fmtAmount(val, commodity)}
+									</span>
+								)}
 							</div>
 							<div className="txn-meta">
 								{postings.map(p => p.paccount).filter(Boolean).join(' · ')}

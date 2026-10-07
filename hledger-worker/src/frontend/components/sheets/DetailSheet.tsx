@@ -3,6 +3,7 @@ import { extractAmount, fmtAmount, amountClass } from '../../utils/format';
 import { useSheetSwipe } from '../../hooks/useSheetSwipe';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { apiPost, apiDelete } from '../../utils/api';
+import { usePrivacy } from '../../context/PrivacyContext';
 import ReconcileBody from './ReconcileBody';
 import type { DetailContent, EnvelopeData, Transaction, Envelope } from '../../types';
 
@@ -103,8 +104,13 @@ export default function DetailSheet({ content, envData, onClose, onEnvAction, sh
 // ── Transaction detail body ───────────────────────────────────────────────────
 
 function TxnDetailBody({ txn }: { txn: Transaction }) {
+	const { privacyMode } = usePrivacy();
 	const postings = txn.tpostings || [];
 	const tcomment = (txn.tcomment || '').trim();
+	// Mask every amount on an income entry, not just the income posting —
+	// the balancing posting carries the same figure.
+	const masked = privacyMode && postings.some(p => (p.paccount || '').startsWith('income'));
+	const showAmount = (val: number, commodity: string) => masked ? '••••' : fmtAmount(val, commodity);
 
 	const rawLines: string[] = [`${txn.tdate || ''} ${txn.tdescription || ''}`];
 	if (tcomment) rawLines.push(`    ; ${tcomment}`);
@@ -112,7 +118,7 @@ function TxnDetailBody({ txn }: { txn: Transaction }) {
 		const acct = p.paccount || '';
 		const { val, commodity } = extractAmount(p.pamount);
 		const hasAmt = p.pamount && p.pamount.length > 0;
-		const amtStr = hasAmt ? `    ${fmtAmount(val, commodity)}` : '';
+		const amtStr = hasAmt ? `    ${showAmount(val, commodity)}` : '';
 		const pc = (p.pcomment || '').trim();
 		rawLines.push(`    ${acct}${amtStr}`);
 		if (pc) rawLines.push(`        ; ${pc}`);
@@ -140,7 +146,7 @@ function TxnDetailBody({ txn }: { txn: Transaction }) {
 								{comment && <div className="posting-comment">; {comment}</div>}
 							</div>
 							<div className={`posting-amount ${amountClass(val)}`}>
-								{hasAmt ? fmtAmount(val, commodity) : ''}
+								{hasAmt ? showAmount(val, commodity) : ''}
 							</div>
 						</div>
 					);

@@ -1,0 +1,38 @@
+/**
+ * Worker config. Committed so Workers Builds (CD from GitHub) deploys with it.
+ * Keep it generic: no email addresses, no domains.
+ *
+ * - The custom domain is attached in the dashboard (Workers & Pages →
+ *   hledger-worker → Settings → Domains & Routes), not here. Wrangler leaves
+ *   dashboard-managed domains alone when `routes` is absent.
+ * - workers_dev / preview_urls are off so the Worker is only reachable on that
+ *   domain. A *.workers.dev URL would bypass any Access login on it, and the
+ *   Worker injects the API credentials itself.
+ *
+ * Secrets (set via wrangler CLI, never committed):
+ *   wrangler secret put API_BASE_URL
+ *   wrangler secret put BEARER_TOKEN
+ *   wrangler secret put CF_ACCESS_CLIENT_ID
+ *   wrangler secret put CF_ACCESS_CLIENT_SECRET
+ *   wrangler secret put FORWARD_VERIFICATION_EMAIL
+ */
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "hledger-worker",
+	"main": "src/index.ts",
+	"compatibility_date": "2026-03-01",
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
+	"workers_dev": false,
+	"preview_urls": false,
+	"observability": {
+		"enabled": true,
+		"redact_query_string": false
+	},
+	"assets": {
+		"directory": "./dist/client",
+		"binding": "ASSETS",
+		"not_found_handling": "single-page-application"
+	}
+}

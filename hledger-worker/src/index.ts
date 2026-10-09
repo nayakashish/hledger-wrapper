@@ -13,8 +13,6 @@
  *   BEARER_TOKEN            - the token your FastAPI validates
  *   CF_ACCESS_CLIENT_ID     - Cloudflare Access service token ID
  *   CF_ACCESS_CLIENT_SECRET - Cloudflare Access service token secret
- *
- * Vars (wrangler.jsonc):
  *   FORWARD_VERIFICATION_EMAIL - the owner's own address: where Gmail's
  *                                forwarding-confirmation emails get sent,
  *                                and the trusted sender for manual forwards

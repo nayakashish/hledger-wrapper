@@ -173,15 +173,13 @@ Worker does not go through the browser login.
 
 ## 4. Cloudflare Worker — secrets
 
-Create your Worker config from the template first. `wrangler.jsonc` is
-gitignored, so your own domain and email stay out of the repo:
+`wrangler.jsonc` is committed and generic: it holds no email address and no
+domain, so Workers Builds (continuous deployment from GitHub) can deploy with
+it. Everything personal is a secret, and the domain is attached in the
+dashboard (step 5).
 
 ```bash
 cd hledger-worker
-cp wrangler.jsonc.example wrangler.jsonc
-# edit wrangler.jsonc: set routes[0].pattern / zone_name to your domain,
-# or delete the routes block to deploy to workers.dev
-
 npm install
 
 wrangler secret put API_BASE_URL
@@ -195,11 +193,12 @@ wrangler secret put CF_ACCESS_CLIENT_ID
 
 wrangler secret put CF_ACCESS_CLIENT_SECRET
 # → Client Secret from step 3
+
+wrangler secret put FORWARD_VERIFICATION_EMAIL
+# → your own address (Transaction Inbox only)
 ```
 
-If you use the Transaction Inbox, also set `FORWARD_VERIFICATION_EMAIL` in the
-`vars` block of `wrangler.jsonc`. Use your own address, and make sure it is a
-verified destination in Email Routing. The email handler forwards Gmail's
+`FORWARD_VERIFICATION_EMAIL` must be a verified destination in Email Routing. The email handler forwards Gmail's
 forwarding-confirmation message to it, and it accepts mail from it as a manual
 forward.
 
@@ -213,15 +212,24 @@ npm run deploy
 # runs: vite build && wrangler deploy
 ```
 
-By default the Worker is deployed to
-`<worker-name>.<your-subdomain>.workers.dev`. For a custom domain, add a Worker
-Route in the Cloudflare dashboard.
+`wrangler.jsonc` turns off the `workers.dev` and preview URLs, because they
+would bypass any Access login on your domain. Attach your domain in the
+dashboard: **Workers & Pages → hledger-worker → Settings → Domains & Routes →
+Add → Custom domain**. Wrangler leaves it alone on later deploys.
+
+### Continuous deployment (optional)
+
+To deploy on every push, connect the repo under **Settings → Build** with
+root directory `hledger-worker`. Builds use the committed `wrangler.jsonc` and
+keep the secrets you set above. Never gitignore `wrangler.jsonc` while builds
+are connected: without it the build deploys a Worker with no secrets and no
+assets.
 
 ---
 
 ## 6. Check the whole path
 
-1. Open the Worker URL in a browser.
+1. Open your domain in a browser.
 2. Confirm that the React app loads.
 3. Tap **Sync**. The button spins, then shows a timestamp.
 4. Open the Reports tab and tap **Balance**. Your account tree appears.
@@ -245,6 +253,7 @@ API_BASE_URL=https://api.yourdomain.com
 BEARER_TOKEN=your-token
 CF_ACCESS_CLIENT_ID=your-client-id
 CF_ACCESS_CLIENT_SECRET=your-client-secret
+FORWARD_VERIFICATION_EMAIL=you@example.com
 ```
 
 After you change the bindings in `wrangler.jsonc`:

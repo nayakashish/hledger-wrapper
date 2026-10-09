@@ -25,8 +25,6 @@ Cloudflare Worker (hledger-worker)
 - `BEARER_TOKEN` — FastAPI auth token
 - `CF_ACCESS_CLIENT_ID` — Cloudflare Access service token ID
 - `CF_ACCESS_CLIENT_SECRET` — Cloudflare Access service token secret
-
-**Vars** (in `wrangler.jsonc`, not secret):
 - `FORWARD_VERIFICATION_EMAIL` — the owner's own address: where the email handler forwards Gmail's forwarding-confirmation emails, and the trusted sender for manually forwarded alerts.
 
 ## Project Layout
@@ -36,7 +34,7 @@ hledger-worker/
 ├── CLAUDE.md              ← you are here
 ├── index.html             ← Vite root (mounts React at #root)
 ├── vite.config.ts         ← Vite + Cloudflare Vite plugin
-├── wrangler.jsonc         ← Worker config + vars + Assets binding (gitignored; copy from wrangler.jsonc.example)
+├── wrangler.jsonc         ← Worker config + Assets binding (committed and generic: no emails, no domains; custom domain lives in the dashboard)
 ├── tsconfig.json          ← TypeScript config
 ├── package.json
 ├── public/                ← static assets copied as-is to dist/client

@@ -3,7 +3,7 @@ import {
 	BarChart, Bar,
 	XAxis, YAxis, Tooltip, ResponsiveContainer,
 } from 'recharts';
-import { extractAmount, fmtAmount, amountClass } from '../../utils/format';
+import { extractAmount, fmtAmount, amountClass, localDate } from '../../utils/format';
 import { usePrivacy } from '../../context/PrivacyContext';
 import { loadRawEndpoint } from '../../utils/api';
 import MaskedAmount from '../MaskedAmount';
@@ -113,7 +113,7 @@ function Heatmap({
 	const startOfYear = new Date(today.getFullYear(), 0, 1);
 	const days: { date: string; val: number }[] = [];
 	for (let d = new Date(startOfYear); d <= today; d.setDate(d.getDate() + 1)) {
-		const ds = d.toISOString().slice(0, 10);
+		const ds = localDate(d);
 		const entry = byDate.get(ds);
 		days.push({ date: ds, val: entry ? entry.count : 0 });
 	}

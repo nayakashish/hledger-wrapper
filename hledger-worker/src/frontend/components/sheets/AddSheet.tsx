@@ -3,6 +3,7 @@ import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { ChevronLeftIcon, CloseIcon } from '../Icons';
 import EntryPreview from '../EntryPreview';
 import type { AddFormState, PredictedPosting, Preset } from '../../types';
+import { localDate } from '../../utils/format';
 
 // The free-form flow, unchanged: what every entry used to walk through.
 const STANDARD_STEPS = ['date', 'description', 'account1', 'amount1', 'account2', 'amount2', 'preview'] as const;
@@ -422,7 +423,7 @@ function DateStep({
 	const today = new Date();
 	const yesterday = new Date(today);
 	yesterday.setDate(today.getDate() - 1);
-	const fmt = (d: Date) => d.toISOString().slice(0, 10);
+	const fmt = localDate;
 	const fmtLabel = (d: Date) =>
 		d.toLocaleDateString('en-CA', { weekday: 'long', month: 'long', day: 'numeric' });
 

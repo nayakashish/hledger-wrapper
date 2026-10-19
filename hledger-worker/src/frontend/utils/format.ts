@@ -24,6 +24,11 @@ export function amountClass(num: number): string {
 	return 'amount-neutral';
 }
 
+/** YYYY-MM-DD in the device's local time zone (toISOString() is UTC). */
+export function localDate(d: Date = new Date()): string {
+	return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
 export function currentMonth(): string {
 	const now = new Date();
 	return now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');

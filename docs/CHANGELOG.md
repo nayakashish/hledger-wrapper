@@ -10,6 +10,10 @@ Notable changes to the project are documented here. I track versions to have a g
   same local-date helper.
 - **Heatmap day transactions open in the detail sheet**, and the day list
   masks income amounts in privacy mode.
+- **Logs no longer record query strings.** `/lookup?description=…` and
+  `/search?q=…` carry payees and search terms. The Worker's observability
+  logs now redact the query string, and the API's access log keeps the
+  method, path and status but drops everything after the `?`.
 
 ## [1.10] - 2026-10-01
 

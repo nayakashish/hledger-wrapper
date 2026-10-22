@@ -14,6 +14,19 @@ Notable changes to the project are documented here. I track versions to have a g
   `/search?q=…` carry payees and search terms. The Worker's observability
   logs now redact the query string, and the API's access log keeps the
   method, path and status but drops everything after the `?`.
+- **The add form's account list no longer covers Continue.** A pre-filled
+  account step opened its list of choices on top of the Continue button, so
+  a single tap couldn't advance. A filled-in step
+  now shows its answer with Continue free; tapping the field opens the
+  choices, picking one moves to the next step, and the list closes when the
+  field loses focus. The description step's list closes on blur too.
+- **`api/update-server.sh` updates the API on the server in one command.**
+  Run it on the server after a merge: it fast-forwards `main`, installs
+  requirements only if they changed, restarts the service only if something
+  under `api/` changed, and polls
+  `/health`. On failure it prints recent service logs and the command to go
+  back to the previous commit. It refuses to run off `main` or with local
+  changes.
 
 ## [1.10] - 2026-10-01
 

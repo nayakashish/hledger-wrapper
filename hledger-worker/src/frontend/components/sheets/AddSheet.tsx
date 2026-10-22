@@ -519,6 +519,7 @@ function DescriptionStep({
 					placeholder="e.g. Groceries, Rent, Salary"
 					value={text}
 					onChange={e => handleInput(e.target.value)}
+					onBlur={() => { setTimeout(() => setSuggestions([]), 0); }}
 					onKeyDown={e => { if (e.key === 'Enter' && text.trim()) void advance(text); }}
 				/>
 				{suggestions.length > 0 && (
@@ -576,8 +577,10 @@ function AccountStep({
 	}, [accountsList, filter]);
 
 	// With a filter, the choices are worth showing before you type — that is
-	// what makes a picked leg one tap instead of a typing exercise.
-	const initial = filter ? candidates.slice(0, 8) : [];
+	// what makes a picked leg one tap instead of a typing exercise. A field
+	// that is already filled in shows its answer instead: an open list would
+	// sit on top of Continue.
+	const initial = filter && !value ? candidates.slice(0, 8) : [];
 	const [suggestions, setSuggestions] = useState<string[]>(initial);
 
 	// A preset's account step already lists its choices, and raising the
@@ -585,18 +588,38 @@ function AccountStep({
 	// and typing is the only way through.
 	useAutoFocus(inputRef, false, !filter);
 
+	const matching = (val: string) => {
+		const q = val.toLowerCase();
+		return candidates.filter(a => a.toLowerCase().includes(q)).slice(0, 8);
+	};
+
 	const handleInput = (val: string) => {
 		setText(val);
 		onChange(val);
 		if (!val.trim()) { setSuggestions(filter ? candidates.slice(0, 8) : []); return; }
-		const q = val.toLowerCase();
-		setSuggestions(candidates.filter(a => a.toLowerCase().includes(q)).slice(0, 8));
+		setSuggestions(matching(val));
 	};
 
+	// Tapping a preset's field reopens its choices. Text that already names a
+	// candidate is the current answer, not a query, so show the alternatives
+	// rather than a list holding only itself.
+	const openList = () => {
+		if (!filter) return;
+		const t = text.trim();
+		setSuggestions(!t || candidates.includes(t) ? candidates.slice(0, 8) : matching(t));
+	};
+
+	// Deferred a tick so a pick still lands; items also keep focus with
+	// preventDefault, so picking never blurs in the first place.
+	const closeList = () => { setTimeout(() => setSuggestions([]), 0); };
+
+	// On a preset step the list is the choice, so picking an account answers
+	// the step.
 	const selectSuggestion = (s: string) => {
 		setText(s);
 		onChange(s);
 		setSuggestions([]);
+		onNext(s);
 	};
 
 	return (
@@ -614,6 +637,8 @@ function AccountStep({
 					autoCorrect="off"
 					spellCheck={false}
 					onChange={e => handleInput(e.target.value)}
+					onFocus={openList}
+					onBlur={closeList}
 					onKeyDown={e => {
 						if (e.key === 'Enter' && text.trim()) { setSuggestions([]); onNext(text.trim()); }
 					}}
@@ -622,7 +647,7 @@ function AccountStep({
 					<button
 						className="input-clear-btn"
 						aria-label="Clear"
-						onPointerDown={e => { e.preventDefault(); setText(''); onChange(''); setSuggestions([]); inputRef.current?.focus(); }}
+						onPointerDown={e => { e.preventDefault(); handleInput(''); inputRef.current?.focus(); }}
 					>
 						<CloseIcon size={14} />
 					</button>

@@ -4,6 +4,13 @@ Notable changes to the project are documented here. I track versions to have a g
 
 ## [Unreleased]
 
+- perf: **Faster startup.** The JS needed for first paint drops from 672 kB
+  to 296 kB (201 kB to 91 kB gzipped). The dashboard charts load in their own
+  chunk after the heatmap and summary, React sits in a vendor chunk that
+  survives app-code deploys, and the service worker serves the content-hashed
+  files from its cache without a network round trip. The HTML stays
+  network-first, so a deploy is still picked up on the next open. The font
+  origins are preconnected.
 - fix: **"Today" in the add sheet is today's local date.** The date was built
   with `toISOString()`, which is UTC, so in the evening "Today" saved
   tomorrow's date and "Yesterday" saved today. The heatmap's day keys use the

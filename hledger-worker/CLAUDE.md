@@ -39,7 +39,8 @@ hledger-worker/
 ├── package.json
 ├── public/                ← static assets copied as-is to dist/client
 │   ├── manifest.json      ← PWA manifest
-│   ├── sw.js              ← service worker
+│   ├── sw.js              ← service worker: network-first HTML, cache-first hashed /assets/*
+│   ├── _headers           ← Workers Assets headers: /assets/* immutable for a year
 │   └── *.png              ← app icons
 └── src/
     ├── index.ts           ← Worker entry (API proxy + email handler)
@@ -69,6 +70,7 @@ hledger-worker/
             ├── Banners.tsx
             ├── views/
             │   ├── DashboardView.tsx
+            │   ├── DashboardCharts.tsx  (recharts charts, lazy-loaded by DashboardView)
             │   ├── ReportsView.tsx  (wraps BalanceView + MonthlyView + CoAView)
             │   ├── BalanceView.tsx
             │   ├── MonthlyView.tsx

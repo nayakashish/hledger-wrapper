@@ -4,23 +4,27 @@ Notable changes to the project are documented here. I track versions to have a g
 
 ## [Unreleased]
 
-- **"Today" in the add sheet is today's local date.** The date was built
+- fix: **"Today" in the add sheet is today's local date.** The date was built
   with `toISOString()`, which is UTC, so in the evening "Today" saved
   tomorrow's date and "Yesterday" saved today. The heatmap's day keys use the
   same local-date helper.
-- **Heatmap day transactions open in the detail sheet**, and the day list
+- feat: **Heatmap day transactions open in the detail sheet**, and the day list
   masks income amounts in privacy mode.
-- **Logs no longer record query strings.** `/lookup?description=…` and
+- fix: **Logs no longer record query strings.** `/lookup?description=…` and
   `/search?q=…` carry payees and search terms. The Worker's observability
   logs now redact the query string, and the API's access log keeps the
   method, path and status but drops everything after the `?`.
-- **The add form's account list no longer covers Continue.** A pre-filled
+- fix: **The add form's account list no longer covers Continue.** A pre-filled
   account step opened its list of choices on top of the Continue button, so
   a single tap couldn't advance. A filled-in step
   now shows its answer with Continue free; tapping the field opens the
   choices, picking one moves to the next step, and the list closes when the
   field loses focus. The description step's list closes on blur too.
-- **`api/update-server.sh` updates the API on the server in one command.**
+- fix: **The add form's suggestion lists scroll again.** Items picked on the
+  first touch, so starting to scroll an account list picked the account
+  under your finger and moved on to the next step. Items now pick on a tap
+  only, and scrolling the list no longer drags the sheet behind it.
+- feat: **`api/update-server.sh` updates the API on the server in one command.**
   Run it on the server after a merge: it fast-forwards `main`, installs
   requirements only if they changed, restarts the service only if something
   under `api/` changed, and polls

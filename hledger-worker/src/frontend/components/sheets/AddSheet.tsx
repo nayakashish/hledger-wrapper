@@ -68,6 +68,30 @@ function useAutoFocus(ref: React.RefObject<HTMLInputElement | null>, select = fa
 	}, [ref, select, enabled]);
 }
 
+/**
+ * Blur handling for a suggestion list whose items pick on click.
+ *
+ * A touch on the list may be the start of a scroll, so items pick on `click`
+ * (which a scroll never produces) rather than `pointerdown`. While a finger
+ * is on the list, the input's blur must not close it, or the list vanishes
+ * before the click lands. `preventDefault` on `pointerdown` keeps focus in the
+ * input in the first place; the ref covers browsers that blur anyway.
+ * `pointercancel` is what iOS fires when the touch turns into a scroll.
+ */
+function useSuggestionListBlur(close: () => void) {
+	const picking = useRef(false);
+	const onBlur = () => { setTimeout(() => { if (!picking.current) close(); }, 0); };
+	// Cleared after a delay, not at once: a blur that follows the lift
+	// arrives before the click it belongs to.
+	const release = () => { setTimeout(() => { picking.current = false; }, 400); };
+	const listProps = {
+		onPointerDown: (e: React.PointerEvent) => { e.preventDefault(); picking.current = true; },
+		onPointerUp: release,
+		onPointerCancel: () => { picking.current = false; },
+	};
+	return { onBlur, listProps };
+}
+
 /** Fill a preset's title template, e.g. "e-transfer to {name}", and append an
  * optional note as an hledger inline comment — the same "  ; note" convention
  * the inbox review uses. */
@@ -492,6 +516,7 @@ function DescriptionStep({
 	const inputRef = useRef<HTMLInputElement>(null);
 
 	useAutoFocus(inputRef);
+	const listBlur = useSuggestionListBlur(() => setSuggestions([]));
 
 	const handleInput = (val: string) => {
 		setText(val);
@@ -519,16 +544,16 @@ function DescriptionStep({
 					placeholder="e.g. Groceries, Rent, Salary"
 					value={text}
 					onChange={e => handleInput(e.target.value)}
-					onBlur={() => { setTimeout(() => setSuggestions([]), 0); }}
+					onBlur={listBlur.onBlur}
 					onKeyDown={e => { if (e.key === 'Enter' && text.trim()) void advance(text); }}
 				/>
 				{suggestions.length > 0 && (
-					<div className="autocomplete-list">
+					<div className="autocomplete-list" {...listBlur.listProps}>
 						{suggestions.map(s => (
 							<div
 								key={s}
 								className="autocomplete-item"
-								onPointerDown={e => { e.preventDefault(); setText(s); setSuggestions([]); onChange(s); }}
+								onClick={() => { setText(s); setSuggestions([]); onChange(s); }}
 							>
 								{s}
 							</div>
@@ -609,9 +634,7 @@ function AccountStep({
 		setSuggestions(!t || candidates.includes(t) ? candidates.slice(0, 8) : matching(t));
 	};
 
-	// Deferred a tick so a pick still lands; items also keep focus with
-	// preventDefault, so picking never blurs in the first place.
-	const closeList = () => { setTimeout(() => setSuggestions([]), 0); };
+	const listBlur = useSuggestionListBlur(() => setSuggestions([]));
 
 	// On a preset step the list is the choice, so picking an account answers
 	// the step.
@@ -638,7 +661,7 @@ function AccountStep({
 					spellCheck={false}
 					onChange={e => handleInput(e.target.value)}
 					onFocus={openList}
-					onBlur={closeList}
+					onBlur={listBlur.onBlur}
 					onKeyDown={e => {
 						if (e.key === 'Enter' && text.trim()) { setSuggestions([]); onNext(text.trim()); }
 					}}
@@ -653,12 +676,12 @@ function AccountStep({
 					</button>
 				)}
 				{suggestions.length > 0 && (
-					<div className="autocomplete-list">
+					<div className="autocomplete-list" {...listBlur.listProps}>
 						{suggestions.map(s => (
 							<div
 								key={s}
 								className="autocomplete-item"
-								onPointerDown={e => { e.preventDefault(); selectSuggestion(s); }}
+								onClick={() => selectSuggestion(s)}
 							>
 								{s}
 							</div>

@@ -844,6 +844,8 @@ body.is-offline header {
   max-height: 220px;
   overflow-y: auto;
   overflow-x: hidden;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   z-index: 300;
   box-shadow: 0 4px 16px rgba(0,0,0,0.08);
 }

@@ -25,4 +25,20 @@ export default defineConfig({
 		react(),
 		cloudflare(),
 	],
+	environments: {
+		client: {
+			build: {
+				rollupOptions: {
+					output: {
+						// React gets its own chunk so an app-code deploy leaves its
+						// hash, and the phone's cached copy, unchanged. recharts is
+						// already split off by the dashboard's lazy import.
+						manualChunks(id) {
+							if (/[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/.test(id)) return 'react';
+						},
+					},
+				},
+			},
+		},
+	},
 });

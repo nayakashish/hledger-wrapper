@@ -12,6 +12,7 @@ interface Props {
 	onChange: () => Promise<void>;
 	accountsList: string[];
 	showToast: (msg: string, duration?: number) => void;
+	offerUndo: (msg: string, commit?: string, onUndone?: () => void) => void;
 }
 
 const CONFIDENCE_LABELS: Record<string, string> = {
@@ -50,7 +51,7 @@ function appendNote(entry: string, note: string): string {
 	return lines.join('\n');
 }
 
-export default function InboxSheet({ isOpen, onClose, onChange, accountsList, showToast }: Props) {
+export default function InboxSheet({ isOpen, onClose, onChange, accountsList, showToast, offerUndo }: Props) {
 	const [items, setItems] = useState<InboxItem[] | null>(null);
 	const [loading, setLoading] = useState(false);
 	const [selected, setSelected] = useState<InboxItem | null>(null);
@@ -90,15 +91,24 @@ export default function InboxSheet({ isOpen, onClose, onChange, accountsList, sh
 	const handlePost = async (item: InboxItem, rawEntry: string, rule: InboxRule | null) => {
 		setSubmitting(true);
 		try {
-			await apiPost('/api/inbox/post', { id: item.id, raw_entry: rawEntry });
-			showToast(rule ? 'Posted + merchant saved' : 'Posted to journal');
+			// The rule is saved before the post so the post stays the latest
+			// commit, which is the only one Undo can revert.
+			let ruleError = '';
 			if (rule) {
 				try {
 					await apiPost('/api/inbox/rule', rule);
 				} catch (e) {
-					showToast('Posted, but saving merchant rule failed: ' + (e instanceof Error ? e.message : String(e)), 4000);
+					ruleError = e instanceof Error ? e.message : String(e);
 				}
 			}
+			const posted = await apiPost<{ commit?: string }>('/api/inbox/post', { id: item.id, raw_entry: rawEntry });
+			offerUndo(
+				ruleError
+					? 'Posted, but saving merchant rule failed: ' + ruleError
+					: rule ? 'Posted + merchant saved' : 'Posted to journal',
+				posted.commit,
+				() => void loadItems(),
+			);
 			removeLocally(item.id);
 			await onChange();
 		} catch (e) {

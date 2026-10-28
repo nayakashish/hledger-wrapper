@@ -27,7 +27,7 @@ import DetailSheet from './components/sheets/DetailSheet';
 import AssignSheet from './components/sheets/AssignSheet';
 import InboxSheet from './components/sheets/InboxSheet';
 import SettingsSheet from './components/sheets/SettingsSheet';
-import Toast from './components/Toast';
+import Toast, { type ToastAction } from './components/Toast';
 
 const CACHE_KEY = 'hledger_cache';
 const SYNC_KEY = 'hledger_last_sync';
@@ -137,10 +137,12 @@ export default function App() {
 	// Toast
 	const [toastMsg, setToastMsg] = useState('');
 	const [toastVisible, setToastVisible] = useState(false);
+	const [toastAction, setToastAction] = useState<ToastAction | null>(null);
 	const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-	const showToast = useCallback((msg: string, duration = 2500) => {
+	const showToast = useCallback((msg: string, duration = 2500, action?: ToastAction) => {
 		setToastMsg(msg);
+		setToastAction(action ?? null);
 		setToastVisible(true);
 		if (toastTimer.current) clearTimeout(toastTimer.current);
 		toastTimer.current = setTimeout(() => setToastVisible(false), duration);
@@ -342,10 +344,33 @@ export default function App() {
 		}
 	}, [loadEnvelopes, showToast]);
 
-	const handleAddSuccess = useCallback(async () => {
-		showToast('Saved — syncing...');
+	// Toasts a save with Undo for 8 seconds. The server refuses the undo once
+	// anything else has been written, so the toast can't revert stale work.
+	const offerUndo = useCallback((msg: string, commit?: string, onUndone?: () => void) => {
+		if (!commit) {
+			showToast(msg);
+			return;
+		}
+		showToast(msg, 8000, {
+			label: 'Undo',
+			onClick: async () => {
+				setToastVisible(false);
+				try {
+					const r = await apiPost<{ inbox?: boolean }>('/api/undo', { commit });
+					showToast(r.inbox ? 'Removed, back in Inbox' : 'Removed');
+					onUndone?.();
+					await syncNow();
+				} catch (e) {
+					showToast("Can't undo: " + (e instanceof Error ? e.message : String(e)), 4000);
+				}
+			},
+		});
+	}, [showToast, syncNow]);
+
+	const handleAddSuccess = useCallback(async (commit?: string) => {
+		offerUndo('Saved', commit);
 		await syncNow();
-	}, [syncNow, showToast]);
+	}, [syncNow, offerUndo]);
 
 	const handleEnvAction = useCallback(async () => {
 		await loadEnvelopes();
@@ -435,7 +460,7 @@ export default function App() {
 				/>
 			</div>
 
-			<Toast message={toastMsg} visible={toastVisible} />
+			<Toast message={toastMsg} visible={toastVisible} action={toastAction} />
 
 			<AddSheet
 				isOpen={addSheetOpen}
@@ -469,6 +494,7 @@ export default function App() {
 				onChange={handleInboxChange}
 				accountsList={accountsList}
 				showToast={showToast}
+				offerUndo={offerUndo}
 			/>
 
 			<SettingsSheet

@@ -641,6 +641,20 @@ body.is-offline header {
 }
 
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.toast.show.has-action { pointer-events: auto; }
+
+.toast-action {
+  margin-left: 16px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: #fff;
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
 
 /* ── Add sheet ── */
 .add-sheet {

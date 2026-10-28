@@ -115,6 +115,7 @@ class FakeGit:
         self.calls: list[tuple] = []
         self.fail_on: str | None = None
         self.head = "deadbeefcafe"
+        self.messages: dict[str, str] = {}  # sha -> full commit message, for `log`
 
     def __call__(self, *args):
         self.calls.append(args)
@@ -124,6 +125,8 @@ class FakeGit:
             return self.head + "\n"
         if args and args[0] == "pull":
             return "Already up to date.\n"
+        if args and args[0] == "log":
+            return self.messages.get(args[-1], "")
         return ""
 
 

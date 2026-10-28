@@ -155,7 +155,7 @@ def test_scan_commits_and_pushes_new_pending(client, auth, fake_hledger, fake_gi
     resp = client.post("/envelopes/scan", headers=auth)
     assert resp.status_code == 200
     subcommands = [c[0] for c in fake_git.calls]
-    assert subcommands == ["rev-parse", "add", "commit", "push"]
+    assert subcommands == ["rev-parse", "add", "commit", "push", "rev-parse"]
 
 
 def test_scan_no_new_txns_makes_no_commit(client, auth, fake_hledger, fake_git, seed_envelopes):

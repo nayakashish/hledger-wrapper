@@ -33,7 +33,7 @@ def test_add_commits_and_pushes_in_order(client, auth, fake_hledger, fake_git, e
         json={"date": "2026-01-05", "description": "Coffee", "account1": "a", "amount1": 5, "account2": "b"},
     )
     subcommands = [c[0] for c in fake_git.calls]
-    assert subcommands == ["rev-parse", "add", "commit", "push"]
+    assert subcommands == ["rev-parse", "add", "commit", "push", "rev-parse"]
 
 
 def test_add_rolls_back_on_push_failure(client, auth, fake_hledger, fake_git, env):
@@ -110,3 +110,38 @@ def test_sync_returns_git_pull_output(client, auth, fake_git):
     assert resp.status_code == 200
     assert resp.json() == {"status": "ok", "detail": "Already up to date."}
     assert fake_git.calls == [("pull",)]
+
+
+def test_add_returns_the_commit(client, auth, fake_hledger, fake_git, env):
+    resp = client.post("/add", headers=auth, json={"raw_entry": "2026-01-05 Coffee\n    a    $5.00\n    b"})
+    assert resp.json()["commit"] == fake_git.head
+
+
+def test_undo_reverts_the_save(client, auth, fake_git):
+    sha = "a" * 40
+    fake_git.head = sha
+    fake_git.messages[sha] = "add: Coffee 2026-01-05\n\nSource: hledger-mobile-api\n"
+    resp = client.post("/undo", headers=auth, json={"commit": sha})
+    assert resp.status_code == 200
+    assert resp.json() == {"status": "ok", "inbox": False}
+    assert ("revert", "--no-commit", sha) in fake_git.calls
+
+
+def test_undo_of_inbox_post_reports_inbox(client, auth, fake_git):
+    sha = "b" * 40
+    fake_git.head = sha
+    fake_git.messages[sha] = "add: Samosa 2026-01-06 (inbox)\n\nSource: hledger-mobile-api\n"
+    resp = client.post("/undo", headers=auth, json={"commit": sha})
+    assert resp.json()["inbox"] is True
+
+
+def test_undo_after_another_write_409(client, auth, fake_git):
+    fake_git.head = "c" * 40
+    resp = client.post("/undo", headers=auth, json={"commit": "d" * 40})
+    assert resp.status_code == 409
+
+
+def test_undo_rejects_a_malformed_commit(client, auth, fake_git):
+    resp = client.post("/undo", headers=auth, json={"commit": "--hard"})
+    assert resp.status_code == 422
+    assert fake_git.calls == []

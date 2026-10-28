@@ -4,6 +4,10 @@ Notable changes to the project are documented here. I track versions to have a g
 
 ## [Unreleased]
 
+## [1.11] - 2026-10-28
+
+Faster startup, fixes to the add form, and query strings kept out of the logs.
+
 - perf: **Faster startup.** The JS needed for first paint drops from 672 kB
   to 296 kB (201 kB to 91 kB gzipped). The dashboard charts load in their own
   chunk after the heatmap and summary, React sits in a vendor chunk that

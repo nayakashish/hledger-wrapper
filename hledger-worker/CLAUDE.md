@@ -135,7 +135,8 @@ unchanged by that structure.
 | `/api/monthly` | GET | Monthly breakdown |
 | `/api/transactions` | GET | `?month=YYYY-MM` |
 | `/api/search` | GET | `?q=<query>` full-text search |
-| `/api/add` | POST | Append transaction to journal |
+| `/api/add` | POST | Append transaction to journal; returns the `commit` for `/api/undo` |
+| `/api/undo` | POST | `{commit}` reverts that save if it is still the latest commit, else 409; `inbox: true` when an inbox post went back to the inbox |
 | `/api/accounts` | GET | Chart of accounts — declared accounts from the CoA journal when `ACCOUNTS_FILE` is set in the server `.env`, else accounts used in the journal |
 | `/api/descriptions` | GET | List of recent descriptions |
 | `/api/lookup` | GET | `?description=<text>` predicted postings |
@@ -154,7 +155,7 @@ unchanged by that structure.
 | `/api/inbox` | GET | Pending inbox items + live journal match |
 | `/api/inbox/count` | GET | Pending count + `active_journal` (header icon; the latter doubles as the multi-device reconcile signal) |
 | `/api/inbox/ingest` | POST | Stage a bank alert (called by the email handler); targets `inbox_journal`, independent of the active journal |
-| `/api/inbox/post` | POST | Post an inbox item to the journal |
+| `/api/inbox/post` | POST | Post an inbox item to the journal; returns the `commit` for `/api/undo` |
 | `/api/inbox/dismiss` | POST | Delete an inbox item without posting |
 | `/api/inbox/rule` | POST | Save/replace a merchant rule ("Remember merchant") |
 

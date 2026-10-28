@@ -278,7 +278,8 @@ These are the server paths. The Worker proxies them as `/api/...`.
 | `GET` | `/transactions` | `?month=YYYY-MM` |
 | `GET` | `/search` | `?q=<query>` full-text |
 | `GET` | `/daily-totals` | `?from_date=YYYY-MM-DD` — YTD activity for heatmap |
-| `POST` | `/add` | Append transaction, commit, push |
+| `POST` | `/add` | Append transaction, commit, push; returns `commit` |
+| `POST` | `/undo` | `{commit}` reverts that save if nothing was written since |
 | `GET` | `/accounts` | Account list (autocomplete) |
 | `GET` | `/descriptions` | Recent descriptions (autocomplete) |
 | `GET` | `/lookup` | `?description=<text>` — predicted postings |

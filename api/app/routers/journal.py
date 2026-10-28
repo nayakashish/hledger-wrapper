@@ -2,9 +2,10 @@ from fastapi import APIRouter, HTTPException, Security
 
 from ..auth import verify_token
 from ..config import get_settings
-from ..git_ops import git_transaction, run_git
-from ..models import Transaction
+from ..git_ops import git_revert_head, git_transaction, run_git
+from ..models import Transaction, UndoBody
 from ..prediction import load_transactions, match_by_description
+from .inbox import _inbox_lock
 
 router = APIRouter()
 
@@ -33,14 +34,27 @@ def add_transaction(tx: Transaction, token: str = Security(verify_token)):
     date_label = tx.date or "unknown"
     commit_message = f"add: {desc_label} {date_label}"
 
-    with git_transaction([settings.journal_file], commit_message):
+    with git_transaction([settings.journal_file], commit_message) as commit:
         try:
             with open(settings.journal_file, "a") as f:
                 f.write(entry)
         except OSError as e:
             raise HTTPException(status_code=500, detail=f"Could not write to journal: {e}")
 
-    return {"status": "ok", "entry": entry.strip()}
+    return {"status": "ok", "entry": entry.strip(), "commit": commit.sha}
+
+
+@router.post("/undo")
+def undo(body: UndoBody, token: str = Security(verify_token)):
+    """
+    Revert the save that returned `commit`, as long as nothing has been
+    written since. An inbox post's commit holds the journal and inbox.json,
+    so its revert also puts the alert back in the inbox; the inbox lock
+    keeps an ingest from saving over that.
+    """
+    with _inbox_lock:
+        subject = git_revert_head(body.commit)
+    return {"status": "ok", "inbox": subject.endswith("(inbox)")}
 
 
 @router.get("/descriptions")

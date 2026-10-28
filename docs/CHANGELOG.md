@@ -4,6 +4,13 @@ Notable changes to the project are documented here. I track versions to have a g
 
 ## [Unreleased]
 
+- feat: **Undo the last save.** After saving a transaction or posting an
+  inbox item, the toast shows Undo for 8 seconds. Undo reverts that commit
+  on the server and pushes, and an inbox post goes back to the inbox. The
+  server refuses once anything else has been written, so Undo can never
+  remove later work. A merchant rule saved with an inbox post is now saved
+  before the post, so the post stays undoable.
+
 ## [1.11] - 2026-10-28
 
 Faster startup, fixes to the add form, and query strings kept out of the logs.

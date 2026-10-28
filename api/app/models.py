@@ -77,3 +77,8 @@ class InboxRuleBody(BaseModel):
 
 class JournalSelect(BaseModel):
     name: str
+
+
+class UndoBody(BaseModel):
+    # A full commit hash, as /add and /inbox/post return it
+    commit: str = Field(pattern=r"^[0-9a-f]{40,64}$")

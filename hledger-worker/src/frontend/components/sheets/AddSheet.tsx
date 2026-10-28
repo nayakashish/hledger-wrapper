@@ -104,7 +104,7 @@ function fillTitle(title: string | undefined, party: string, note = ''): string 
 interface Props {
 	isOpen: boolean;
 	onClose: () => void;
-	onSuccess: () => Promise<void>;
+	onSuccess: (commit?: string) => Promise<void>;
 	accountsList: string[];
 	descriptionsList: string[];
 	presets: Preset[];
@@ -185,8 +185,9 @@ export default function AddSheet({
 				const err = await r.json() as { detail?: string };
 				throw new Error(err.detail || String(r.status));
 			}
+			const saved = await r.json() as { commit?: string };
 			onClose();
-			await onSuccess();
+			await onSuccess(saved.commit);
 		} catch (e) {
 			setSubmitError('Failed to save: ' + (e instanceof Error ? e.message : String(e)));
 			setSubmitting(false);

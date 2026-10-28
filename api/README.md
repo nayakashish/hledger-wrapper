@@ -26,7 +26,7 @@ api/
 │       ├── health.py              # /health /version
 │       ├── reports.py              # /balance /is /monthly /monthly-detail
 │       │                           #   /transactions /search /accounts /daily-totals
-│       ├── journal.py               # /add /descriptions /lookup /sync
+│       ├── journal.py               # /add /undo /descriptions /lookup /sync
 │       ├── journals.py               # /journals and /journals/select*
 │       ├── presets.py                 # /presets
 │       ├── envelopes.py                # /envelopes and /envelopes/*
@@ -47,6 +47,11 @@ the file write and the `git add` / `commit` / `push` are one all-or-nothing
 unit. If the push fails or the process crashes mid-write, the working tree is
 reset to the pre-write `HEAD` — see `docs/architecture.md` ("Journal Git
 Flow") for the full guarantee and its single-writer assumption.
+
+`/add` and `/inbox/post` return the pushed `commit`. `POST /undo` hands it to
+`git_ops.git_revert_head()`, which reverts and pushes under the same lock and
+rollback, but only while that commit is still `HEAD`, carries the API trailer
+and starts with `add:`. Anything written since closes the window with a 409.
 
 ## Testing
 

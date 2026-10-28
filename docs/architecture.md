@@ -231,6 +231,12 @@ or an unpushed local commit. This assumes single-writer — the journal repo has
 no other committer than this API — so the hard reset can't discard anyone
 else's work.
 
+**Undo.** `/add` and `/inbox/post` return the commit they pushed. `POST /undo`
+reverts it with `git_revert_head()`, under the same lock and rollback, only
+while it is still `HEAD` and is an API `add:` commit. A revert of `HEAD` can't
+conflict, and an inbox post's revert restores both the journal and
+`inbox.json`. The app offers Undo in the save toast for 8 seconds.
+
 ---
 
 ## systemd Services (Home Server)

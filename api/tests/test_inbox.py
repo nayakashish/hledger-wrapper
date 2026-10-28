@@ -106,7 +106,7 @@ def test_ingest_pending_dedup_commits_seen_message_id(client, auth, env, fake_hl
         "txn_date": "2026-01-06", "email_message_id": "msg1",
     })
     assert resp.json() == {"status": "duplicate", "reason": "pending"}
-    assert [c[0] for c in fake_git.calls] == ["rev-parse", "add", "commit", "push"]
+    assert [c[0] for c in fake_git.calls] == ["rev-parse", "add", "commit", "push", "rev-parse"]
     assert json.loads(env["inbox_file"].read_text())["seen_message_ids"] == ["msg1"]
 
 
@@ -118,7 +118,7 @@ def test_ingest_journal_dedup_commits_seen_message_id(client, auth, env, fake_hl
         "txn_date": "2026-01-06", "email_message_id": "msg1",
     })
     assert resp.json() == {"status": "duplicate", "reason": "journal"}
-    assert [c[0] for c in fake_git.calls] == ["rev-parse", "add", "commit", "push"]
+    assert [c[0] for c in fake_git.calls] == ["rev-parse", "add", "commit", "push", "rev-parse"]
     assert json.loads(env["inbox_file"].read_text())["seen_message_ids"] == ["msg1"]
 
 
@@ -224,9 +224,10 @@ def test_post_single_commit_covers_both_files(client, auth, fake_git, seed_inbox
         "card_last4": "1234", "parsed": True,
         "suggestion": {"description": "Samosa", "account1": "expenses:food:diningout", "amount1": 12.50, "account2": "liabilities:creditcard:CIBC", "amount2": -12.50},
     }]))
-    client.post("/inbox/post", headers=auth, json={"id": "ibx-1"})
+    resp = client.post("/inbox/post", headers=auth, json={"id": "ibx-1"})
     add_call = next(c for c in fake_git.calls if c[0] == "add")
     assert len(add_call) == 3  # ("add", journal_file, inbox_file)
+    assert resp.json()["commit"] == fake_git.head
 
 
 def test_dismiss_removes_item_no_journal_write(client, auth, fake_git, seed_inbox, env):

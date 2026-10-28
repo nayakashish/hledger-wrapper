@@ -183,7 +183,7 @@ def test_select_carries_presets_into_a_fresh_journal(client, auth, journals_env,
         "credit": "assets:chequing",
         "title": "Monthly Card Payment",
     }
-    assert [c[0] for c in journal_history["git_calls"]] == ["rev-parse", "add", "commit", "push"]
+    assert [c[0] for c in journal_history["git_calls"]] == ["rev-parse", "add", "commit", "push", "rev-parse"]
 
 
 def test_select_does_not_overwrite_existing_presets(client, auth, journals_env, journal_history):

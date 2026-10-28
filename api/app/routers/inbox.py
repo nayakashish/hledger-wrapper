@@ -410,7 +410,7 @@ def inbox_post(body: InboxPostBody, token: str = Security(verify_token)):
         with git_transaction(
             [settings.journal_file, settings.inbox_data_file],
             f"add: {item['merchant_clean'][:40]} {item['txn_date']} (inbox)",
-        ):
+        ) as commit:
             try:
                 with open(settings.journal_file, "a") as f:
                     f.write(entry)
@@ -418,7 +418,7 @@ def inbox_post(body: InboxPostBody, token: str = Security(verify_token)):
                 raise HTTPException(status_code=500, detail=f"Could not write to journal: {e}")
             _save_inbox_data(data)
 
-    return {"status": "ok", "entry": entry.strip()}
+    return {"status": "ok", "entry": entry.strip(), "commit": commit.sha}
 
 
 @router.post("/inbox/dismiss")

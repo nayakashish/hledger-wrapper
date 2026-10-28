@@ -262,7 +262,7 @@ through the Worker proxy as `/api/inbox/...`.
 | `/inbox/ingest` | POST | Called by the Worker email handler. Dedupes, suggests, stores — targets `inbox_journal`, independent of the active journal. |
 | `/inbox` | GET | Pending items with stored suggestions plus live `journal_match` |
 | `/inbox/count` | GET | `{pending: n, active_journal: name}` — cheap poll for the header icon, doubles as the multi-device reconcile signal |
-| `/inbox/post` | POST | `{id}` posts the suggestion; `{id, raw_entry}` posts the edited text |
+| `/inbox/post` | POST | `{id}` posts the suggestion; `{id, raw_entry}` posts the edited text. Returns `commit`; `POST /undo` with it removes the entry and puts the item back |
 | `/inbox/dismiss` | POST | `{id}` — delete without posting |
 | `/inbox/rule` | POST | `{pattern, account, description}` — save or replace a merchant rule |
 

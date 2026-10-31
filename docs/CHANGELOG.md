@@ -10,7 +10,7 @@ Notable changes to the project are documented here. I track versions to have a g
   server refuses once anything else has been written, so Undo can never
   remove later work. A merchant rule saved with an inbox post is now saved
   before the post, so the post stays undoable.
-
+- feat: **iOS launch screen.** The home-screen app opens on the `h.` icon with with a splash screen rather than blank white loading screen.  
 ## [1.11] - 2026-10-28
 
 Faster startup, fixes to the add form, and query strings kept out of the logs.

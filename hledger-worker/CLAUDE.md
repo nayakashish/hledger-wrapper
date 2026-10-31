@@ -41,7 +41,10 @@ hledger-worker/
 │   ├── manifest.json      ← PWA manifest
 │   ├── sw.js              ← service worker: network-first HTML, cache-first hashed /assets/*
 │   ├── _headers           ← Workers Assets headers: /assets/* immutable for a year
-│   └── *.png              ← app icons
+│   ├── *.png              ← app icons
+│   └── splash/            ← iOS launch screens, one per iPhone screen size
+├── scripts/
+│   └── make-splash.py     ← regenerates public/splash/ and prints the index.html tags
 └── src/
     ├── index.ts           ← Worker entry (API proxy + email handler)
     └── frontend/          ← React SPA

@@ -54,8 +54,14 @@ export default {
 // Proxy handler — forwards to FastAPI with auth headers injected
 // ---------------------------------------------------------------------------
 
-function jsonResponse(data: unknown): Response {
+// A half-open tunnel can leave a request hanging. Long enough for a slow
+// write (git push), short enough that the app shows the server as down
+// instead of spinning.
+const UPSTREAM_TIMEOUT_MS = 15_000;
+
+function jsonResponse(data: unknown, status = 200): Response {
 	return new Response(JSON.stringify(data), {
+		status,
 		headers: {
 			'Content-Type': 'application/json',
 			'Access-Control-Allow-Origin': '*',
@@ -85,7 +91,7 @@ async function proxyToApi(request: Request, url: URL, env: Env): Promise<Respons
 	});
 
 	try {
-		const response = await fetch(proxyRequest);
+		const response = await fetch(proxyRequest, { signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS) });
 		return new Response(response.body, {
 			status: response.status,
 			headers: {
@@ -93,8 +99,13 @@ async function proxyToApi(request: Request, url: URL, env: Env): Promise<Respons
 				'Access-Control-Allow-Origin': '*',
 			},
 		});
-	} catch (_) {
-		return jsonResponse({ error: 'Failed to reach API' });
+	} catch (e) {
+		// A real error status, not 200, so the app can tell the server is down.
+		const timedOut = e instanceof Error && e.name === 'TimeoutError';
+		return jsonResponse(
+			{ detail: timedOut ? 'API timed out' : 'Failed to reach API' },
+			timedOut ? 504 : 502,
+		);
 	}
 }
 

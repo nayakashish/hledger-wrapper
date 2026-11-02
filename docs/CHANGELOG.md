@@ -11,6 +11,19 @@ Notable changes to the project are documented here. I track versions to have a g
   remove later work. A merchant rule saved with an inbox post is now saved
   before the post, so the post stays undoable.
 - feat: **iOS launch screen.** The home-screen app opens on the `h.` icon with with a splash screen rather than blank white loading screen.  
+- feat: **"Can't reach the server" banner.** When the phone is online but
+  the API isn't answering, an amber banner says so, with the last sync time,
+  instead of the app quietly showing old numbers. The red "You are offline"
+  banner still wins when the phone has no network. Any `/api/*` response
+  updates the state, and while the server is down the app checks
+  `/api/health` every minute and on returning to the app, so the banner
+  clears by itself. A failed Sync now says "can't reach the server" instead
+  of a JSON parse error.
+- fix: **The Worker returns a real error when the API is unreachable.** It
+  answered 200 with an error body, so the app couldn't tell a dead server
+  from a reply. It now returns 502, or 504 after 15 seconds with no answer
+  from a hung tunnel.
+
 ## [1.11] - 2026-10-28
 
 Faster startup, fixes to the add form, and query strings kept out of the logs.

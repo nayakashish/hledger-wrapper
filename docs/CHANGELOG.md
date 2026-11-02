@@ -10,7 +10,7 @@ Notable changes to the project are documented here. I track versions to have a g
   server refuses once anything else has been written, so Undo can never
   remove later work. A merchant rule saved with an inbox post is now saved
   before the post, so the post stays undoable.
-- feat: **iOS launch screen.** The home-screen app opens on the `h.` icon with with a splash screen rather than blank white loading screen.  
+- feat: **iOS launch screen.** The home-screen app opens on the `h.` icon with a splash screen rather than blank white loading screen.  
 - feat: **"Can't reach the server" banner.** When the phone is online but
   the API isn't answering, an amber banner says so, with the last sync time,
   instead of the app quietly showing old numbers. The red "You are offline"

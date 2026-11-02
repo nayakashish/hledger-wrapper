@@ -71,7 +71,7 @@ self.addEventListener('fetch', event => {
 
   const url = new URL(request.url);
 
-  // Other origins (the font) use the browser's own HTTP cache.
+  // Other origins are left to the browser.
   if (url.origin !== self.location.origin) return;
 
   // Always network for API calls

@@ -72,7 +72,7 @@ function ToggleGroup<T extends string>({
 					key={opt.value}
 					onClick={() => onChange(opt.value)}
 					style={{
-						fontFamily: "'Montserrat', sans-serif",
+						fontFamily: "'Montserrat Variable', sans-serif",
 						fontSize: 11, fontWeight: 600, letterSpacing: '0.3px', textTransform: 'uppercase',
 						background: value === opt.value ? 'var(--accent)' : 'var(--bg)',
 						color: value === opt.value ? '#fff' : 'var(--text)',
@@ -272,7 +272,7 @@ function SplitEditor({
 						key={btn.label}
 						onClick={btn.action}
 						style={{
-							fontFamily: "'Montserrat', sans-serif",
+							fontFamily: "'Montserrat Variable', sans-serif",
 							fontSize: 11, fontWeight: 600, letterSpacing: '0.3px', textTransform: 'uppercase',
 							background: btn.accent ? 'var(--accent)' : 'var(--bg)',
 							color: btn.accent ? '#fff' : 'var(--text)',
@@ -321,7 +321,7 @@ function SplitEditor({
 									: 'Auto-fill this envelope with whatever is left over'
 							}
 							style={{
-								fontFamily: "'Montserrat', sans-serif",
+								fontFamily: "'Montserrat Variable', sans-serif",
 								fontSize: 9, fontWeight: 700, letterSpacing: '0.3px', textTransform: 'uppercase',
 								background: isRemainder ? 'var(--accent)' : 'var(--bg)',
 								color: isRemainder ? '#fff' : 'var(--text-muted)',

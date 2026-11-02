@@ -11,6 +11,7 @@
 		"cf-typegen": "wrangler types"
 	},
 	"dependencies": {
+		"@fontsource-variable/montserrat": "^5.3.0",
 		"postal-mime": "^2.7.5",
 		"react": "^19.1.0",
 		"react-dom": "^19.1.0",

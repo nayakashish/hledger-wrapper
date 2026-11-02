@@ -58,9 +58,11 @@ hledger-worker/
         │   └── PrivacyContext.tsx
         ├── utils/
         │   ├── format.ts  ← fmtAmount, amountClass, extractAmount
-        │   └── api.ts     ← fetch helpers (apiGet, apiPost, apiDelete, loadRawEndpoint)
+        │   ├── api.ts     ← fetch helpers (apiGet, apiPost, apiDelete, loadRawEndpoint)
+        │   └── serverHealth.ts ← watches /api/* responses to tell when the server is down
         ├── hooks/
-        │   └── useSheetSwipe.ts
+        │   ├── useSheetSwipe.ts
+        │   └── useServerHealth.ts ← server-down state for the banner; re-checks /api/health while down
         └── components/
             ├── Header.tsx        ← title + inbox icon + privacy toggle
             ├── EntryPreview.tsx  ← shared editable journal-entry textarea

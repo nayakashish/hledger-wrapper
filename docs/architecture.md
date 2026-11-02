@@ -178,6 +178,26 @@ The app shows cached data first, then refreshes it.
 | Monthly drilldown transactions | Component state | Until page reload |
 | Dashboard heatmap | Component state | Until page reload |
 
+### Server health
+
+Cached data hides an outage, so the app shows a banner when the server isn't
+answering.
+
+| State | How it's detected | Banner |
+|-------|-------------------|--------|
+| Phone offline | `navigator.onLine` is false | Red: "You are offline — showing cached data" |
+| Server down | An `/api/*` request fails with a network error, or returns 502, 503, 504, 52x or 530 | Amber: "Can't reach the server — last synced …" |
+
+`utils/serverHealth.ts` wraps `fetch` once at startup and reads every
+`/api/*` response, so there's no polling while things work. A 500 or a 4xx
+means the server answered, so it doesn't count as down. While the server is
+down, `useServerHealth` checks `/api/health` every 60 seconds, on
+reconnecting, and when the app returns to the foreground. The banner clears
+on the first good response.
+
+This depends on the Worker: when it can't reach the API it returns **502**,
+or **504** after 15 seconds with no answer, never a 200 with an error body.
+
 ---
 
 ## Privacy Toggle

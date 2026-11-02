@@ -23,6 +23,10 @@ Notable changes to the project are documented here. I track versions to have a g
   answered 200 with an error body, so the app couldn't tell a dead server
   from a reply. It now returns 502, or 504 after 15 seconds with no answer
   from a hung tunnel.
+- fix: **Montserrat works offline.** The font now ships with the app instead
+  of loading from Google, so the service worker caches it with the other
+  assets and Google no longer gets a request on each load. Weight 700 is now
+  a real bold rather than one the browser fakes.
 
 ## [1.11] - 2026-10-28
 

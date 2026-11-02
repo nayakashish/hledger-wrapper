@@ -41,6 +41,7 @@ hledger-worker/
 │   ├── manifest.json      ← PWA manifest
 │   ├── sw.js              ← service worker: network-first HTML, cache-first hashed /assets/*
 │   ├── _headers           ← Workers Assets headers: /assets/* immutable for a year
+│   ├── OFL.txt            ← licence for the bundled Montserrat font
 │   ├── *.png              ← app icons
 │   └── splash/            ← iOS launch screens, one per iPhone screen size
 ├── scripts/

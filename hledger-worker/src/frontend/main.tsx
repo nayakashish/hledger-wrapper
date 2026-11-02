@@ -1,5 +1,6 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import '@fontsource-variable/montserrat';
 import './styles/global.css';
 import App from './App';
 import { installServerHealthTracking } from './utils/serverHealth';

@@ -15,7 +15,7 @@
 }
 
 body {
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Montserrat Variable', sans-serif;
   background: var(--bg);
   color: var(--text);
   min-height: 100vh;
@@ -88,7 +88,7 @@ header h1 span { font-weight: 600; color: var(--accent); }
 }
 
 .sync-btn {
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Montserrat Variable', sans-serif;
   font-size: 12px;
   font-weight: 500;
   letter-spacing: 0.4px;
@@ -127,7 +127,7 @@ nav {
 }
 
 nav button {
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Montserrat Variable', sans-serif;
   font-size: 12px;
   font-weight: 500;
   letter-spacing: 0.3px;
@@ -355,7 +355,7 @@ nav button:hover:not(.active) { color: var(--text); }
 }
 
 .month-select {
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Montserrat Variable', sans-serif;
   font-size: 12px;
   font-weight: 500;
   background: var(--surface);
@@ -375,7 +375,7 @@ nav button:hover:not(.active) { color: var(--text); }
 .search-wrap { position: relative; margin-bottom: 14px; }
 
 .search-input {
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Montserrat Variable', sans-serif;
   font-size: 13px;
   font-weight: 400;
   width: 100%;
@@ -476,7 +476,7 @@ nav button:hover:not(.active) { color: var(--text); }
 .adv-field { display: flex; flex-direction: column; gap: 7px; }
 
 .adv-label {
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Montserrat Variable', sans-serif;
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.5px;
@@ -490,7 +490,7 @@ nav button:hover:not(.active) { color: var(--text); }
 
 .adv-date-input,
 .adv-select {
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Montserrat Variable', sans-serif;
   font-size: 13px;
   font-weight: 400;
   width: 100%;
@@ -519,7 +519,7 @@ nav button:hover:not(.active) { color: var(--text); }
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Montserrat Variable', sans-serif;
   font-size: 11px;
   font-weight: 500;
   background: rgba(42, 147, 140, 0.12);
@@ -546,7 +546,7 @@ nav button:hover:not(.active) { color: var(--text); }
 .filter-chip-remove:hover { opacity: 1; }
 
 .filter-clear-all {
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Montserrat Variable', sans-serif;
   font-size: 11px;
   font-weight: 500;
   background: none;
@@ -699,7 +699,7 @@ body.has-banner header {
 }
 
 .add-back, .add-close {
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Montserrat Variable', sans-serif;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -744,7 +744,7 @@ body.has-banner header {
 .step-options { display: flex; flex-direction: column; gap: 8px; margin-bottom: 24px; }
 
 .step-option {
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Montserrat Variable', sans-serif;
   font-size: 14px;
   font-weight: 400;
   background: var(--surface);
@@ -785,7 +785,7 @@ body.has-banner header {
 }
 
 .step-input {
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Montserrat Variable', sans-serif;
   font-size: 15px;
   font-weight: 400;
   width: 100%;
@@ -806,7 +806,7 @@ body.has-banner header {
 .step-input + .step-label { margin-top: 14px; }
 
 .step-next {
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Montserrat Variable', sans-serif;
   font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.4px;
@@ -909,7 +909,7 @@ body.has-banner header {
 
 /* ── Confirm / Cancel buttons ── */
 .confirm-btn {
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Montserrat Variable', sans-serif;
   font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.4px;
@@ -930,7 +930,7 @@ body.has-banner header {
 .confirm-btn:disabled { opacity: 0.35; cursor: default; }
 
 .cancel-btn {
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Montserrat Variable', sans-serif;
   font-size: 13px;
   font-weight: 500;
   background: none;
@@ -1115,7 +1115,7 @@ body.has-banner header {
 }
 
 .dash-compare-toggle button {
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Montserrat Variable', sans-serif;
   font-size: 10px;
   font-weight: 500;
   background: none;
@@ -1224,7 +1224,7 @@ body.has-banner header {
   margin-bottom: 10px;
 }
 .cat-pill {
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Montserrat Variable', sans-serif;
   font-size: 10px;
   font-weight: 500;
   border: 1px solid var(--border);
@@ -1500,7 +1500,7 @@ body.has-banner header {
 }
 
 .report-tab {
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Montserrat Variable', sans-serif;
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.4px;
@@ -1537,7 +1537,7 @@ body.has-banner header {
 }
 
 .coa-toggle-all {
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Montserrat Variable', sans-serif;
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.4px;
@@ -1604,7 +1604,7 @@ body.has-banner header {
 }
 
 .env-btn {
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Montserrat Variable', sans-serif;
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.4px;
@@ -1739,7 +1739,7 @@ body.has-banner header {
 .env-detail-actions { display: flex; gap: 8px; margin-bottom: 16px; }
 
 .env-detail-btn {
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Montserrat Variable', sans-serif;
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.4px;
@@ -1777,7 +1777,7 @@ body.has-banner header {
 }
 
 .env-inline-input {
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Montserrat Variable', sans-serif;
   font-size: 15px;
   width: 100%;
   border: 1px solid var(--border);
@@ -1793,7 +1793,7 @@ body.has-banner header {
 .env-inline-input:focus { border-color: var(--accent); }
 
 .env-inline-select {
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Montserrat Variable', sans-serif;
   font-size: 13px;
   width: 100%;
   border: 1px solid var(--border);
@@ -1810,7 +1810,7 @@ body.has-banner header {
 .env-inline-select:focus { border-color: var(--accent); }
 
 .env-inline-submit {
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Montserrat Variable', sans-serif;
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.4px;
@@ -1885,7 +1885,7 @@ body.has-banner header {
 .assign-title { font-size: 15px; font-weight: 600; color: var(--accent); letter-spacing: -0.2px; }
 
 .assign-close {
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Montserrat Variable', sans-serif;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1936,7 +1936,7 @@ body.has-banner header {
 }
 
 .assign-split-input {
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Montserrat Variable', sans-serif;
   font-size: 14px;
   font-weight: 500;
   width: 90px;
@@ -1964,7 +1964,7 @@ body.has-banner header {
 .assign-remainder.warn { color: var(--negative); font-weight: 500; }
 
 .assign-confirm {
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Montserrat Variable', sans-serif;
   font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.4px;
@@ -1987,7 +1987,7 @@ body.has-banner header {
 .assign-confirm.inbox-post { background: var(--teal); }
 
 .assign-dismiss {
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Montserrat Variable', sans-serif;
   font-size: 13px;
   font-weight: 500;
   background: none;
@@ -2033,7 +2033,7 @@ body.has-banner header {
 .alloc-title { font-size: 15px; font-weight: 600; color: var(--accent); letter-spacing: -0.2px; }
 
 .alloc-close {
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Montserrat Variable', sans-serif;
   background: none;
   border: none;
   font-size: 18px;
@@ -2080,7 +2080,7 @@ body.has-banner header {
 }
 
 .inbox-row {
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Montserrat Variable', sans-serif;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -2183,7 +2183,7 @@ body.has-banner header {
 
 /* ── Settings sheet ─────────────────────────────────────────────────────── */
 .settings-row {
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Montserrat Variable', sans-serif;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -2213,7 +2213,7 @@ body.has-banner header {
 }
 
 .settings-radio {
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Montserrat Variable', sans-serif;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -2336,7 +2336,7 @@ body.has-banner header {
 .recon-badge.unscanned      { background: #e0f2fe; color: #026aa2; }
 
 .recon-btn {
-  font-family: 'Montserrat', sans-serif; font-size: 11px; font-weight: 600;
+  font-family: 'Montserrat Variable', sans-serif; font-size: 11px; font-weight: 600;
   letter-spacing: 0.3px; text-transform: uppercase;
   background: var(--bg); color: var(--text); border: 1px solid var(--border);
   border-radius: 4px; padding: 6px 12px; cursor: pointer;

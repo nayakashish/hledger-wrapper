@@ -302,7 +302,7 @@ function EnvDetailBody({
 									<button
 										onClick={() => { setCorrectionTxnId(h.txn_id!); setActiveForm('correction'); }}
 										style={{
-											fontFamily: "'Montserrat', sans-serif",
+											fontFamily: "'Montserrat Variable', sans-serif",
 											fontSize: 10, fontWeight: 500,
 											background: 'none', border: '1px solid var(--border)',
 											borderRadius: 3, padding: '2px 6px', cursor: 'pointer',
@@ -513,7 +513,7 @@ function CorrectionForm({
 						value={values[env.id] || ''}
 						onChange={e => setValues(prev => ({ ...prev, [env.id]: e.target.value }))}
 						style={{
-							fontFamily: "'Montserrat', sans-serif",
+							fontFamily: "'Montserrat Variable', sans-serif",
 							fontSize: 13, width: 80, border: '1px solid var(--border)',
 							borderRadius: 4, padding: '6px 8px', textAlign: 'right',
 							background: 'var(--surface)', color: 'var(--text)', outline: 'none',

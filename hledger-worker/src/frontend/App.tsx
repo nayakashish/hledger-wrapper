@@ -28,6 +28,8 @@ import AssignSheet from './components/sheets/AssignSheet';
 import InboxSheet from './components/sheets/InboxSheet';
 import SettingsSheet from './components/sheets/SettingsSheet';
 import Toast, { type ToastAction } from './components/Toast';
+import { useServerHealth } from './hooks/useServerHealth';
+import { isServerDown } from './utils/serverHealth';
 
 const CACHE_KEY = 'hledger_cache';
 const SYNC_KEY = 'hledger_last_sync';
@@ -80,6 +82,7 @@ export default function App() {
 		}
 	});
 	const [isOffline, setIsOffline] = useState(!navigator.onLine);
+	const serverDown = useServerHealth();
 	const [syncTimestamp, setSyncTimestamp] = useState(() => {
 		try {
 			const ts = localStorage.getItem(SYNC_KEY);
@@ -150,22 +153,20 @@ export default function App() {
 
 	// Online/offline
 	useEffect(() => {
-		const onOnline = () => {
-			setIsOffline(false);
-			document.body.classList.remove('is-offline');
-		};
-		const onOffline = () => {
-			setIsOffline(true);
-			document.body.classList.add('is-offline');
-		};
+		const onOnline = () => setIsOffline(false);
+		const onOffline = () => setIsOffline(true);
 		window.addEventListener('online', onOnline);
 		window.addEventListener('offline', onOffline);
-		if (!navigator.onLine) document.body.classList.add('is-offline');
 		return () => {
 			window.removeEventListener('online', onOnline);
 			window.removeEventListener('offline', onOffline);
 		};
 	}, []);
+
+	// Either banner pushes the header down so it isn't covered.
+	useEffect(() => {
+		document.body.classList.toggle('has-banner', isOffline || serverDown);
+	}, [isOffline, serverDown]);
 
 	const fetchAccounts = useCallback(async () => {
 		try {
@@ -306,8 +307,10 @@ export default function App() {
 		setSyncTimestamp('');
 		try {
 			const r = await fetch('/api/sync', { method: 'POST' });
+			if (isServerDown()) throw new Error("can't reach the server");
 			if (!r.ok) {
-				const j = await r.json() as { detail?: string };
+				// A Cloudflare error page isn't JSON, so don't assume a body.
+				const j = await r.json().catch(() => ({})) as { detail?: string };
 				throw new Error(j.detail || `status ${r.status}`);
 			}
 			const syncResult = await r.json() as { detail?: string };
@@ -413,7 +416,7 @@ export default function App() {
 
 	return (
 		<PrivacyProvider>
-			<Banners isOffline={isOffline} />
+			<Banners isOffline={isOffline} serverDown={serverDown} syncTimestamp={syncTimestamp} />
 			<div className="app">
 				<Header
 					inboxPending={inboxPending > 0}

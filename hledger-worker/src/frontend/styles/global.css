@@ -613,11 +613,16 @@ nav button:hover:not(.active) { color: var(--text); }
   padding: calc(env(safe-area-inset-top, 0px) + 10px) 16px 10px;
   z-index: 600;
   letter-spacing: 0.3px;
+  /* One line: the header offset below assumes it */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .offline-banner.visible { display: block; }
+.offline-banner.server { background: #f2b544; color: #2e2e2e; }
 
-body.is-offline header {
+body.has-banner header {
   padding-top: calc(28px + env(safe-area-inset-top, 0px) + 37px) !important;
 }
 

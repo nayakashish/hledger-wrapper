@@ -151,6 +151,12 @@ export default function App() {
 		toastTimer.current = setTimeout(() => setToastVisible(false), duration);
 	}, []);
 
+	// Swiped away: hide now and drop the pending auto-hide.
+	const dismissToast = useCallback(() => {
+		if (toastTimer.current) clearTimeout(toastTimer.current);
+		setToastVisible(false);
+	}, []);
+
 	// Online/offline
 	useEffect(() => {
 		const onOnline = () => setIsOffline(false);
@@ -463,7 +469,7 @@ export default function App() {
 				/>
 			</div>
 
-			<Toast message={toastMsg} visible={toastVisible} action={toastAction} />
+			<Toast message={toastMsg} visible={toastVisible} action={toastAction} onDismiss={dismissToast} />
 
 			<AddSheet
 				isOpen={addSheetOpen}

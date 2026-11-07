@@ -646,7 +646,15 @@ body.has-banner header {
 }
 
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
-.toast.show.has-action { pointer-events: auto; }
+/* Toasts with an action take touches, so they can also be swiped away
+   (down or sideways) when they cover something. Plain toasts let taps
+   through and need no gesture. */
+.toast.show.has-action {
+  pointer-events: auto;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
 
 .toast-action {
   margin-left: 16px;

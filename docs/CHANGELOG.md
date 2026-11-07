@@ -4,6 +4,10 @@ Notable changes to the project are documented here. I track versions to have a g
 
 ## [Unreleased]
 
+- feat: **Swipe the Undo toast away.** A toast with a button, such as Undo,
+  can be swiped down or sideways to dismiss it when it covers something.
+  A tap on its button still works as before. Plain toasts let taps pass
+  through, so they need no gesture.
 - feat: **Undo the last save.** After saving a transaction or posting an
   inbox item, the toast shows Undo for 8 seconds. Undo reverts that commit
   on the server and pushes, and an inbox post goes back to the inbox. The

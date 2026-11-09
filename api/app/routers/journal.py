@@ -1,3 +1,5 @@
+import re
+
 from fastapi import APIRouter, HTTPException, Security
 
 from ..auth import verify_token
@@ -8,6 +10,21 @@ from ..prediction import load_transactions, match_by_description
 from .inbox import _inbox_lock
 
 router = APIRouter()
+
+# Header line of an hledger transaction: date, optional =date2, optional
+# status mark and (code), then the description up to any ; comment.
+_HEADER_RE = re.compile(
+    r"^(\d{4}[-/.]\d{1,2}[-/.]\d{1,2})(?:=\S+)?\s*(?:[*!]\s*)?(?:\([^)]*\)\s*)?([^;]*)"
+)
+
+
+def _entry_header(raw_entry: str) -> tuple[str | None, str | None]:
+    """Date and description from the first transaction line of a raw entry."""
+    for line in raw_entry.splitlines():
+        m = _HEADER_RE.match(line.strip())
+        if m:
+            return m.group(1), m.group(2).strip() or None
+    return None, None
 
 
 @router.post("/add")
@@ -30,8 +47,9 @@ def add_transaction(tx: Transaction, token: str = Security(verify_token)):
             f"    {tx.account2}    {tx.currency}{amount2:.2f}\n"
         )
 
-    desc_label = tx.description or "transaction"
-    date_label = tx.date or "unknown"
+    raw_date, raw_desc = _entry_header(tx.raw_entry) if tx.raw_entry else (None, None)
+    desc_label = tx.description or raw_desc or "transaction"
+    date_label = tx.date or raw_date or "unknown"
     commit_message = f"add: {desc_label} {date_label}"
 
     with git_transaction([settings.journal_file], commit_message) as commit:

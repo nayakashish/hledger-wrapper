@@ -27,6 +27,13 @@ Notable changes to the project are documented here. I track versions to have a g
   of loading from Google, so the service worker caches it with the other
   assets and Google no longer gets a request on each load. Weight 700 is now
   a real bold rather than one the browser fakes.
+- fix: **Phone commits name the transaction.** Entries saved from the add
+  sheet were all committed as `add: transaction unknown`. The commit now
+  takes the date and description from the entry's first line, as in
+  `add: Coffee 2026-01-05`.
+- fix: **The bearer token is compared in constant time** (`hmac.compare_digest`).
+- fix: **Transactions footer says "Tap a row for details"**, which is what a
+  tap does, and a month-loop branch that never changed anything is gone.
 
 ## [1.11] - 2026-10-28
 

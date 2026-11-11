@@ -4,6 +4,10 @@ Notable changes to the project are documented here. I track versions to have a g
 
 ## [Unreleased]
 
+## [1.12] - 2026-11-11
+
+Undo the last save, a banner when the server is down, a launch screen, and small fixes.
+
 - feat: **Swipe the Undo toast away.** A toast with a button, such as Undo,
   can be swiped down or sideways to dismiss it when it covers something.
   A tap on its button still works as before. Plain toasts let taps pass

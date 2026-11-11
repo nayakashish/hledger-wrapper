@@ -31,8 +31,7 @@ function buildMonthKeys(): string[] {
 	const keys: string[] = [];
 	for (let y = endYear; y >= START_YEAR; y--) {
 		const mStart = y === endYear ? endMonth : 12;
-		const mEnd = y === START_YEAR ? 1 : 1;
-		for (let m = mStart; m >= mEnd; m--) {
+		for (let m = mStart; m >= 1; m--) {
 			keys.push(y + '-' + String(m).padStart(2, '0'));
 		}
 	}
@@ -330,7 +329,7 @@ export default function TransactionsView({ data, accounts, isActive, onTxnClick 
 					/>
 
 					<div className="view-footer">
-						Data shown via <code>hledger print -p YYYY-MM</code>. Tap any row to expand.
+						Data shown via <code>hledger print -p YYYY-MM</code>. Tap a row for details.
 					</div>
 				</>
 			)}

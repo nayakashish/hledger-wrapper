@@ -145,3 +145,25 @@ def test_undo_rejects_a_malformed_commit(client, auth, fake_git):
     resp = client.post("/undo", headers=auth, json={"commit": "--hard"})
     assert resp.status_code == 422
     assert fake_git.calls == []
+
+
+def _commit_subject(fake_git) -> str:
+    commit = next(c for c in fake_git.calls if c[0] == "commit")
+    return commit[2].split("\n")[0]
+
+
+def test_add_raw_entry_commit_uses_header_date_and_description(client, auth, fake_hledger, fake_git, env):
+    raw = "2026-01-05 * Coffee shop  ; morning\n    expenses:food:diningout    $5.00\n    assets:chequing"
+    client.post("/add", headers=auth, json={"raw_entry": raw})
+    assert _commit_subject(fake_git) == "add: Coffee shop 2026-01-05"
+
+
+def test_add_raw_entry_skips_leading_comment_lines(client, auth, fake_hledger, fake_git, env):
+    raw = "; from the phone\n2026-01-05=2026-01-07 ! (42) Rent\n    expenses:rent    $900\n    assets:chequing"
+    client.post("/add", headers=auth, json={"raw_entry": raw})
+    assert _commit_subject(fake_git) == "add: Rent 2026-01-05"
+
+
+def test_add_raw_entry_without_header_falls_back(client, auth, fake_hledger, fake_git, env):
+    client.post("/add", headers=auth, json={"raw_entry": "    expenses:misc    $1\n    assets:cash"})
+    assert _commit_subject(fake_git) == "add: transaction unknown"

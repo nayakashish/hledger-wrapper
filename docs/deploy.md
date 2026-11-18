@@ -1,16 +1,23 @@
 # Deployment Guide
 
-How to set up hledger Mobile from nothing. Do the six steps in order. Each one
-ends with a check, so you find a mistake before it hides behind the next step.
+How to set up hledger Mobile from nothing. Do the steps in order. Each one ends
+with a check, so you find a mistake before it hides behind the next step. Step
+6 is optional (bank-alert emails).
 
 ## Prerequisites
 
 - A Linux machine that runs continuously (home server, VPS, or similar)
 - [hledger](https://hledger.org/install.html) installed on that machine
-- An hledger journal file in a git repository
+- A git repository for your journals, with a remote the service user can pull
+  from and push to without a prompt: an SSH key without a passphrase, or an
+  HTTPS access token in the git credential store. The API cannot answer a
+  password prompt, and a failed push rolls the write back. Test it first:
+  run `git pull && git push` in the repo as the service user.
+- Python 3.10 or later on the server
 - A Cloudflare account (the free tier is sufficient)
 - A domain on Cloudflare DNS
 - Node.js 18 or later on your development machine
+- `wrangler` logged in: `npx wrangler login`
 
 ---
 
@@ -26,42 +33,42 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
+### Lay out the journal repo
+
+Each journal is a folder under `JOURNAL_DIR`. The folder name is the journal
+name.
+
+```
+journal-repo/
+  2026/
+    2026.journal        # required; must match the folder name
+    accounts.journal    # optional chart of accounts
+    envelopes.json      # created on first select
+    inbox.json          # created on first select
+```
+
+The app lists every folder that holds a matching `<name>.journal`.
+
 ### Configure
 
 ```bash
 cp env.example .env
 ```
 
-Edit `.env`:
+Edit `.env`. These are the required values:
 
 ```ini
-# Journal location (both point inside your journal git repo)
-JOURNAL_DIR=/path/to/journal-repo                 # directory containing the journal
-JOURNAL_FILE=/path/to/journal-repo/main.journal   # the journal file itself
-
-# Optional: a chart-of-accounts journal of `account` directives. When set,
-# /accounts serves declared accounts instead of accounts used in the journal.
-ACCOUNTS_FILE=/path/to/journal-repo/accounts.journal
-
-# API auth — a strong random secret; generate with: openssl rand -hex 32
-BEARER_TOKEN=<strong-random-string>
-
-# Currency symbol used in your journal
-DEFAULT_CURRENCY=$
-
-# hledger binary (only needed if it is not on PATH)
-HLEDGER_BIN=/usr/local/bin/hledger
-
-# Feature data files — plain JSON, committed to the journal repo like the
-# journal itself. Point each at a path inside the repo; the loaders create
-# the default keys on first write.
-ENVELOPE_DATA_FILE=/path/to/journal-repo/envelopes.json   # see docs/envelopes.md
-INBOX_DATA_FILE=/path/to/journal-repo/inbox.json          # see docs/transaction-inbox.md
+JOURNAL_DIR=/path/to/journal-repo
+APP_CONFIG_FILE=/path/to/journal-repo/app_config.json
+BEARER_TOKEN=<strong-random-string>      # openssl rand -hex 32
 ```
 
-`ENVELOPE_DATA_FILE` and `INBOX_DATA_FILE` are optional. Leave them unset if you
-do not want the Envelopes or Transaction Inbox features. Their endpoints then
-return `503`, and the rest of the app works as usual.
+`APP_CONFIG_FILE` stores the journal choices you make in Settings. The server
+creates it on first selection. Without it, the app cannot switch journals.
+
+All other variables are optional. See [configuration.md](configuration.md) for
+the full list, defaults, and the single-journal fallback for setups that do not
+use folders.
 
 ### Check it locally
 
@@ -75,15 +82,19 @@ uvicorn main:app --host 127.0.0.1 --port 8000 --env-file .env
 curl http://localhost:8000/health
 # → {"status":"ok"}
 
-# Balance (auth required)
-curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8000/balance
+# Journals (auth required) - lists the folders found
+curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8000/journals
 ```
+
+Open the app, go to Settings, and select a journal. Then call `/balance`. An
+empty `/journals` list means `JOURNAL_DIR` is wrong or a folder name does not
+match its `.journal` file.
 
 ### Install it as a systemd service
 
 ```bash
 sudo cp ~/hledger-wrapper/api/hledger-api.service /etc/systemd/system/
-# Edit the service file to set your username and correct paths
+# Edit the service file: set User and the three /path/to/ values
 sudo systemctl daemon-reload
 sudo systemctl enable hledger-api
 sudo systemctl start hledger-api
@@ -190,11 +201,9 @@ wrangler secret put CF_ACCESS_CLIENT_SECRET
 # → Client Secret from step 3
 ```
 
-If you use the Transaction Inbox, also set `FORWARD_VERIFICATION_EMAIL` in the
-`vars` block of `wrangler.jsonc`. Use your own address, and make sure it is a
-verified destination in Email Routing. The email handler forwards Gmail's
-forwarding-confirmation message to it, and it accepts mail from it as a manual
-forward.
+Set `FORWARD_VERIFICATION_EMAIL` in the `vars` block of `wrangler.jsonc` to
+your own address. Replace the value already in the file. It is needed only for
+step 6.
 
 ---
 
@@ -210,14 +219,48 @@ By default the Worker is deployed to
 `<worker-name>.<your-subdomain>.workers.dev`. For a custom domain, add a Worker
 Route in the Cloudflare dashboard.
 
+Put Cloudflare Access in front of the Worker URL too, with a policy that allows
+only you. Step 3 protects the API hostname only; without this, anyone can open
+the app shell.
+
+Check it: `curl https://<worker-url>/api/health` returns `{"status":"ok"}`.
+
 ---
 
-## 6. Check the whole path
+## 6. Bank-alert emails (optional)
+
+Skip this step if you do not use the [Transaction Inbox](transaction-inbox.md).
+The Worker only handles the alert email. The server must already be reachable
+(step 5).
+
+1. In the Cloudflare dashboard, enable **Email Routing** on your domain.
+2. Add a **custom address** (for example `alerts@yourdomain.com`) with the
+   action **Send to a Worker**, and choose `hledger-worker`.
+3. Add your own address as a verified destination, and confirm the link
+   Cloudflare sends.
+4. In Gmail, add the alert address as a forwarding address. Gmail sends a
+   confirmation email, and the Worker forwards it to
+   `FORWARD_VERIFICATION_EMAIL`. Open the link in it.
+5. Create a Gmail filter on your bank's alert sender: **Forward it to** the
+   alert address.
+6. In the app, open Settings and pick the **Inbox / email journal**. Without
+   it, the server rejects every alert.
+
+Check it: forward one old alert to the alert address. A pending item appears
+in the Inbox within a minute.
+
+Bank parsers are in `hledger-worker/src/index.ts` (`BANK_PARSERS`). Only one
+bank is included. Add a parser for your own bank.
+
+---
+
+## 7. Check the whole path
 
 1. Open the Worker URL in a browser.
 2. Confirm that the React app loads.
 3. Tap **Sync**. The button spins, then shows a timestamp.
 4. Open the Reports tab and tap **Balance**. Your account tree appears.
+   If the list is empty, select a journal in Settings first.
 5. Install the app with "Add to Home Screen" on iOS or Android.
 
 ---
@@ -231,7 +274,9 @@ npm run dev
 # Worker runs via @cloudflare/vite-plugin
 ```
 
-Put the same secrets in `hledger-worker/.dev.vars`:
+The Worker calls your deployed API. To use a local API instead, set
+`API_BASE_URL=http://127.0.0.1:8000` in `.dev.vars`. Put the secrets in
+`hledger-worker/.dev.vars` (gitignored; never commit it):
 
 ```ini
 API_BASE_URL=https://api.yourdomain.com
@@ -248,35 +293,9 @@ npm run cf-typegen   # regenerates worker-configuration.d.ts
 
 ---
 
-## API reference
+## Reference
 
-These are the server paths. The Worker proxies them as `/api/...`.
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/health` | Health check (no auth) |
-| `POST` | `/sync` | `git pull` + reload |
-| `GET` | `/balance` | All account balances |
-| `GET` | `/is` | Income statement |
-| `GET` | `/monthly` | Monthly breakdown (depth 2) |
-| `GET` | `/transactions` | `?month=YYYY-MM` |
-| `GET` | `/search` | `?q=<query>` full-text |
-| `GET` | `/daily-totals` | `?from_date=YYYY-MM-DD` — YTD activity for heatmap |
-| `POST` | `/add` | Append transaction, commit, push |
-| `GET` | `/accounts` | Account list (autocomplete) |
-| `GET` | `/descriptions` | Recent descriptions (autocomplete) |
-| `GET` | `/lookup` | `?description=<text>` — predicted postings |
-| `GET` | `/envelopes` | Envelope balances + pending |
-| `POST` | `/envelopes/scan` | Scan for unassigned transactions |
-| `POST` | `/envelopes/assign` | Assign transaction to envelope(s) |
-| `POST` | `/envelopes/transfer` | Transfer between envelopes |
-| `POST` | `/envelopes/adjust` | Manual balance adjustment |
-| `POST` | `/envelopes/dismiss` | Dismiss pending transaction |
-| `POST` | `/envelopes/create` | Create envelope |
-| `DELETE` | `/envelopes/<id>` | Delete envelope |
-
-The inbox endpoints (`/inbox/...`) are in
-[transaction-inbox.md](transaction-inbox.md). The envelope endpoints are
-described in full in [envelopes.md](envelopes.md).
+The endpoint list is in [api-reference.md](api-reference.md). Every setting is in
+[configuration.md](configuration.md).
 
 For the other reference documents, see the [documentation index](README.md).

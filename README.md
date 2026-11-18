@@ -70,6 +70,10 @@ suggested entry. You review each one before it reaches the journal. See
 **Add transaction** — a guided form with autocomplete. It pre-fills the accounts
 from your last matching transaction.
 
+**Multiple journals**: keep several journals, each in its own folder, and
+switch between them in Settings. Bank alerts go to one journal you choose
+separately, so switching what you view never moves them.
+
 **Privacy toggle** — an eye icon masks income, net worth, and envelope balances.
 The mask does not persist. It resets on page load.
 
@@ -121,7 +125,10 @@ If you want a budgeting app instead, look at
 Full documentation is in [`docs/`](docs/README.md):
 
 - [`docs/architecture.md`](docs/architecture.md) — request flow, auth layers, caching, sequence diagrams
-- [`docs/deploy.md`](docs/deploy.md) — setup: home server, Cloudflare Tunnel, Access, Worker, local dev
+- [`docs/deploy.md`](docs/deploy.md): setup for the home server, Cloudflare Tunnel, Access, Worker, email routing, local dev
+- [`docs/configuration.md`](docs/configuration.md): every variable, secret, and config file
+- [`docs/api-reference.md`](docs/api-reference.md): every endpoint
 - [`docs/envelopes.md`](docs/envelopes.md) — envelope budgeting: model, reconciliation, scan and assign, API
 - [`docs/transaction-inbox.md`](docs/transaction-inbox.md) — capture from bank-alert emails
+- [`docs/api-testing.md`](docs/api-testing.md): the API test suite
 - [`docs/CHANGELOG.md`](docs/CHANGELOG.md) — what changed in each version

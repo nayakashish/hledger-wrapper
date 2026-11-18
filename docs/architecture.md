@@ -145,6 +145,43 @@ sequenceDiagram
 
 ---
 
+## Flow 4: Bank Alert Email
+
+Alerts reach the inbox through Email Routing, not through the browser. The
+Worker parses the email and posts it to the API with the same auth headers.
+
+```mermaid
+sequenceDiagram
+    participant Gmail
+    participant ER as Email Routing
+    participant W as Cloudflare Worker
+    participant API as FastAPI (Home Server)
+
+    Gmail->>ER: forward bank alert
+    ER->>W: email handler
+    W->>W: parse bank, amount, merchant
+    W->>API: POST /inbox/ingest (+ auth headers)
+    API->>API: dedup, suggest, save to inbox_journal
+    API-->>W: ok
+```
+
+A failed ingest is logged, never raised, so Gmail does not retry. The alert
+stays in Gmail for a manual re-forward. See
+[transaction-inbox.md](transaction-inbox.md).
+
+---
+
+## Journals
+
+A journal is a folder under `JOURNAL_DIR` with its own journal file, envelope
+store, and inbox store. `app_config.json` on the server records two pointers:
+`active_journal` (what the app shows) and `inbox_journal` (where alerts land).
+They are independent. Every path is resolved from them on each request. Each
+device tags its cache with the active journal and clears it when the server's
+choice changes. Details: [configuration.md](configuration.md).
+
+---
+
 ## Authentication Layers
 
 Two independent checks guard the API.
@@ -174,6 +211,7 @@ The app shows cached data first, then refreshes it.
 | Balance / Monthly / Transactions | `localStorage` (`hledger_cache`) | Until next sync |
 | Envelope data | `localStorage` (`hledger_envelopes_v3`) | Until next sync |
 | Last sync time | `localStorage` (`hledger_last_sync`) | Displayed in header |
+| Active journal tag | `localStorage` (`hledger_active_journal`) | Cache cleared when it changes |
 | Account / description lists | `localStorage` | Until next sync |
 | Monthly drilldown transactions | Component state | Until page reload |
 | Dashboard heatmap | Component state | Until page reload |

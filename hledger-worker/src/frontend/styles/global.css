@@ -194,6 +194,7 @@ nav button:hover:not(.active) { color: var(--text); }
 .amount-positive { color: var(--positive); }
 .amount-negative { color: var(--negative); }
 .amount-neutral  { color: var(--text); }
+.amount-muted    { color: var(--text-muted); }
 
 /* ── Cards ── */
 .card {

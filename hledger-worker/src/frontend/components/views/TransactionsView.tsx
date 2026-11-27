@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useMemo } from 'react';
 import { extractAmount, fmtAmount, amountClass, currentMonth } from '../../utils/format';
-import type { Transaction } from '../../types';
+import type { Posting, Transaction } from '../../types';
 import MaskedAmount from '../MaskedAmount';
 import { CloseIcon } from '../Icons';
 
@@ -337,6 +337,24 @@ export default function TransactionsView({ data, accounts, isActive, onTxnClick 
 	);
 }
 
+type TxnKind = 'in' | 'out' | 'transfer';
+
+// Classified by account name: the sign of the first posting depends on posting order.
+function txnKind(postings: Posting[]): TxnKind {
+	const under = (root: string) => postings.filter(p => (p.paccount || '').split(':')[0] === root);
+	if (under('income').length > 0) return 'in';
+	const expenses = under('expenses');
+	if (expenses.length === 0) return 'transfer';
+	const spent = expenses.reduce((sum, p) => sum + extractAmount(p.pamount).val, 0);
+	return spent < 0 ? 'in' : 'out';
+}
+
+const KIND_STYLE: Record<TxnKind, { sign: string; className: string }> = {
+	in: { sign: '+', className: 'amount-positive' },
+	out: { sign: '−', className: 'amount-neutral' },
+	transfer: { sign: '', className: 'amount-muted' },
+};
+
 function TxnList({
 	txns,
 	loading,
@@ -358,15 +376,18 @@ function TxnList({
 				const { val, commodity } = extractAmount(postings[0]?.pamount);
 				const accountNames = postings.map(p => p.paccount || '').filter(Boolean).join(' · ');
 				const isIncome = postings.some(p => (p.paccount || '').startsWith('income'));
+				const { sign, className } = KIND_STYLE[txnKind(postings)];
+				const amountClassName = `txn-amount ${className}`;
 				return (
 					<div key={i} className="txn" onClick={() => onTxnClick(txn)}>
 						<div className="txn-top">
 							<span className="txn-desc">{desc}</span>
 							{isIncome ? (
-								<MaskedAmount value={val} commodity={commodity} className={`txn-amount ${amountClass(val)}`} />
+								<MaskedAmount value={Math.abs(val)} commodity={commodity} prefix={sign} className={amountClassName} />
 							) : (
-								<span className={`txn-amount ${amountClass(val)}`}>
-									{fmtAmount(val, commodity)}
+								<span className={amountClassName}>
+									{sign}
+									{fmtAmount(Math.abs(val), commodity)}
 								</span>
 							)}
 						</div>
